@@ -10,9 +10,9 @@ REM
 REM ============================================================
 
 REM ─── ĐIỀN THÔNG TIN NEON.DB VÀO ĐÂY ───
-SET DB_URL=jdbc:postgresql://YOUR_NEON_HOST.neon.tech/YOUR_DB_NAME?sslmode=require
-SET DB_USER=YOUR_NEON_USERNAME
-SET DB_PASSWORD=YOUR_NEON_PASSWORD
+SET DB_URL=jdbc:postgresql://ep-dry-rice-b32otp6l-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
+SET DB_USER=neondb_owner
+SET DB_PASSWORD=npg_GAm7Pd6hCFMt
 REM ─────────────────────────────────────────
 
 REM Cấu hình server (tùy chỉnh nếu cần)

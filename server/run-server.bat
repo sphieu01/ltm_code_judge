@@ -32,7 +32,14 @@ echo Server Port: %SERVER_PORT%
 echo Judge Workers: %JUDGE_WORKER_COUNT%
 echo.
 
-REM Build fat JAR nếu chưa có
+REM Kiem tra va kill process cu dang giu port 9999
+FOR /F "tokens=5" %%P IN ('netstat -ano ^| findstr ":9999 " ^| findstr "LISTENING"') DO (
+    echo [INFO] Port 9999 dang bi giu boi PID %%P, tu dong kill...
+    taskkill /PID %%P /F >nul 2>&1
+    timeout /t 1 /nobreak >nul
+)
+
+REM Build fat JAR neu chua co
 IF NOT EXIST "target\code-grading-server-1.0.0.jar" (
     echo [BUILD] Building fat JAR...
     call "C:\Users\ADMIN\maven\apache-maven-3.9.6\bin\mvn.cmd" clean package -DskipTests -q

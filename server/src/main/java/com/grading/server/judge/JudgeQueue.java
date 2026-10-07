@@ -1,6 +1,7 @@
 package com.grading.server.judge;
 
 import com.grading.server.config.ServerConfig;
+import com.grading.server.judge.model.SubmissionTask;
 import com.grading.server.model.Submission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -88,5 +89,39 @@ public class JudgeQueue {
     /** Queue còn trống không (chưa đầy) */
     public int remainingCapacity() {
         return queue.remainingCapacity();
+    }
+
+    // ─── SubmissionTask overloads (dùng bởi JudgeEngine của hoangdev) ─────────
+
+    /**
+     * Push SubmissionTask vào queue — dùng bởi JudgeEngine demo mode.
+     * @throws InterruptedException nếu bị interrupt khi queue đầy
+     */
+    public void push(SubmissionTask task) throws InterruptedException {
+        queue.put(wrapTask(task));
+        logger.debug("SubmissionTask id={} pushed to queue. Size: {}", task.getSubmissionId(), queue.size());
+    }
+
+    /** Poll SubmissionTask với timeout — dùng bởi JudgeWorker standalone mode */
+    public SubmissionTask pollTask(long timeout, TimeUnit unit) throws InterruptedException {
+        Submission s = queue.poll(timeout, unit);
+        return s == null ? null : unwrapSubmission(s);
+    }
+
+    /** Wrap SubmissionTask thành Submission tạm để dùng chung queue */
+    private Submission wrapTask(SubmissionTask task) {
+        Submission s = new Submission();
+        s.setId((int) task.getSubmissionId());
+        s.setProblemId(task.getProblemId());
+        s.setSourceCode(task.getSourceCode());
+        s.setLanguage("java");
+        s.setVerdict(Submission.VERDICT_PENDING);
+        return s;
+    }
+
+    /** Unwrap Submission thành SubmissionTask (approximation) */
+    private SubmissionTask unwrapSubmission(Submission s) {
+        return new SubmissionTask(s.getId(), s.getProblemId(), s.getSourceCode(),
+                java.util.Collections.emptyList());
     }
 }

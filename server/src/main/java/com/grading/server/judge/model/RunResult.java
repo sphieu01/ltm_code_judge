@@ -23,6 +23,23 @@ public class RunResult {
         return new RunResult(VerdictType.RE, "", stderr, exitCode, timeMs);
     }
 
+    // Alias methods để tương thích với SandboxRunner overloads
+    public static RunResult tle(int timeMs) {
+        return timeout(timeMs);
+    }
+
+    public static RunResult re(String stderr, int timeMs) {
+        return runtimeError(stderr, 1, timeMs);
+    }
+
+    public static RunResult ac(String stdout, int timeMs) {
+        return new RunResult(VerdictType.AC, stdout, "", 0, timeMs);
+    }
+
+    public static RunResult wa(String stdout, int timeMs) {
+        return new RunResult(VerdictType.WA, stdout, "", 0, timeMs);
+    }
+
     public VerdictType getVerdict() {
         return verdict;
     }

@@ -46,6 +46,9 @@ public class JudgeWorker implements Runnable {
     /** Signal để dừng worker khi server shutdown */
     private final AtomicBoolean running;
 
+    /** Callback standalone (chỉ dùng khi không có DB — JudgeEngine demo mode) */
+    private OnJudgeCompletedListener _standaloneListener;
+
     // ─── Metrics ──────────────────────────────────────────────────────────────
     private final AtomicLong totalJudged = new AtomicLong(0);
     private final AtomicLong totalBusyTimeMs = new AtomicLong(0);
@@ -64,6 +67,25 @@ public class JudgeWorker implements Runnable {
         this.outputComparator = new OutputComparator();
         this.connectionRegistry = connectionRegistry;
         this.running = running;
+    }
+
+    /**
+     * Constructor standalone cho JudgeEngine (demo/test, không dùng DB).
+     * Dùng bởi JudgeEngine của hoangdev.
+     */
+    public JudgeWorker(int workerId,
+                       JudgeQueue judgeQueue,
+                       SandboxRunner sandboxRunner,
+                       OnJudgeCompletedListener listener) {
+        this.workerId = workerId;
+        this.judgeQueue = judgeQueue;
+        this.submissionRepository = null;
+        this.problemRepository = null;
+        this.sandboxRunner = sandboxRunner != null ? sandboxRunner : new SandboxRunner();
+        this.outputComparator = new OutputComparator();
+        this.connectionRegistry = null;
+        this.running = new AtomicBoolean(true);
+        this._standaloneListener = listener;
     }
 
     @Override
@@ -234,6 +256,20 @@ public class JudgeWorker implements Runnable {
     public int getWorkerId() { return workerId; }
     public long getTotalJudged() { return totalJudged.get(); }
     public long getTotalBusyTimeMs() { return totalBusyTimeMs.get(); }
+
+    /**
+     * Dừng worker an toàn — dùng bởi JudgeEngine.shutdown().
+     */
+    public void stop() {
+        running.set(false);
+    }
+
+    /**
+     * Kiểm tra worker có đang chấm bài không — dùng bởi JudgeEngine.getActiveWorkerCount().
+     */
+    public boolean isBusy() {
+        return totalJudged.get() > 0 && running.get();
+    }
 
     /**
      * Tính worker utilization (%) — thời gian busy / tổng thời gian running.

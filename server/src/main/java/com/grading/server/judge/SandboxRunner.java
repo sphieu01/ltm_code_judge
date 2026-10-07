@@ -34,6 +34,9 @@ public class SandboxRunner {
 
     private static final Logger logger = LoggerFactory.getLogger(SandboxRunner.class);
 
+    /** Timeout mặc định cho mỗi lần chạy test case (ms) */
+    public static final long DEFAULT_TIME_LIMIT_MS = 2000L;
+
     /** Thư mục temp để chứa code của mỗi submission */
     private static final String TEMP_DIR = System.getProperty("java.io.tmpdir") + File.separator + "judge";
 
@@ -41,6 +44,108 @@ public class SandboxRunner {
         // Tạo thư mục judge temp nếu chưa có
         new File(TEMP_DIR).mkdirs();
     }
+
+    // ─── Static utility ───────────────────────────────────────────────────────
+
+    /**
+     * Trích xuất tên class public từ source code Java.
+     * Ví dụ: "public class BaiTapTong {" → "BaiTapTong"
+     * Fallback về "Main" nếu không tìm thấy.
+     */
+    public static String extractClassName(String sourceCode) {
+        if (sourceCode == null) return "Main";
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("public\\s+class\\s+(\\w+)")
+                .matcher(sourceCode);
+        return m.find() ? m.group(1) : "Main";
+    }
+
+    // ─── Path-based overloads (dùng cho demo/test của hoangdev) ──────────────
+
+    /**
+     * Overload dùng Path thay vì int submissionId.
+     * Compile Java source với tên class tự chọn.
+     */
+    public com.grading.server.judge.model.CompileResult compile(Path workDir, String className, String sourceCode) {
+        try {
+            Files.createDirectories(workDir);
+            Path srcFile = workDir.resolve(className + ".java");
+            Files.writeString(srcFile, sourceCode, StandardCharsets.UTF_8);
+
+            ProcessBuilder pb = new ProcessBuilder("javac", "-encoding", "UTF-8", srcFile.getFileName().toString());
+            pb.directory(workDir.toFile());
+            pb.redirectErrorStream(true);
+
+            Process process = pb.start();
+            String output = readStream(process.getInputStream());
+            boolean finished = process.waitFor(30, TimeUnit.SECONDS);
+
+            if (!finished) { process.destroyForcibly(); return com.grading.server.judge.model.CompileResult.fail("Compilation timed out"); }
+            return process.exitValue() == 0
+                    ? com.grading.server.judge.model.CompileResult.ok()
+                    : com.grading.server.judge.model.CompileResult.fail(output);
+        } catch (Exception e) {
+            return com.grading.server.judge.model.CompileResult.fail("Internal compile error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Overload dùng Path + TestCase từ hoangdev.
+     * Chạy class Java đã compile với test case và timeout.
+     */
+    public com.grading.server.judge.model.RunResult run(
+            Path workDir, String className,
+            com.grading.server.judge.model.TestCase tc, long timeLimitMs) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("java", "-cp", workDir.toString(), className);
+            pb.directory(workDir.toFile());
+            pb.redirectErrorStream(false);
+
+            Process process = pb.start();
+            try (OutputStream stdin = process.getOutputStream()) {
+                if (tc.getInput() != null) stdin.write(tc.getInput().getBytes(StandardCharsets.UTF_8));
+            }
+
+            long startTime = System.currentTimeMillis();
+            StringBuffer stdout = new StringBuffer();
+            StringBuffer stderr = new StringBuffer();
+            Thread t1 = new Thread(() -> { try { stdout.append(readStream(process.getInputStream())); } catch (IOException ignored) {} });
+            Thread t2 = new Thread(() -> { try { stderr.append(readStream(process.getErrorStream())); } catch (IOException ignored) {} });
+            t1.start(); t2.start();
+
+            boolean finished = process.waitFor(timeLimitMs, TimeUnit.MILLISECONDS);
+            long execTimeMs = System.currentTimeMillis() - startTime;
+            if (!finished) {
+                process.destroyForcibly();
+                return com.grading.server.judge.model.RunResult.tle((int) execTimeMs);
+            }
+            t1.join(1000); t2.join(1000);
+
+            if (process.exitValue() != 0) {
+                return com.grading.server.judge.model.RunResult.re(stderr.toString(), (int) execTimeMs);
+            }
+
+            String actual = stdout.toString().trim();
+            String expected = tc.getExpectedOutput() != null ? tc.getExpectedOutput().trim() : "";
+            boolean ac = actual.equals(expected);
+            return ac
+                ? com.grading.server.judge.model.RunResult.ac(actual, (int) execTimeMs)
+                : com.grading.server.judge.model.RunResult.wa(actual, (int) execTimeMs);
+
+        } catch (Exception e) {
+            return com.grading.server.judge.model.RunResult.re(e.getMessage(), 0);
+        }
+    }
+
+    /** Overload cleanup dùng Path (cho hoangdev) */
+    public void cleanup(Path workDir) {
+        try {
+            if (Files.exists(workDir)) deleteDirectory(workDir);
+        } catch (Exception e) {
+            logger.warn("Failed to cleanup workdir: {}", workDir, e);
+        }
+    }
+
 
     // ─── Compile ──────────────────────────────────────────────────────────────
 

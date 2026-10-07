@@ -4,6 +4,7 @@ logs/
 
 # -- Java / Maven --
 target/
+**/target/
 *.class
 *.jar
 *.war
@@ -13,9 +14,16 @@ target/
 .idea/
 *.iml
 .vscode/
+.settings/
+.project
+.classpath
 *.swp
 *.swo
 
 # -- OS --
 .DS_Store
 Thumbs.db
+
+# -- Personal notes --
+TOREAD.md
+**/TOREAD.md

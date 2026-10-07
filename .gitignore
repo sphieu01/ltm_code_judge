@@ -1,26 +1,21 @@
-# ── Secrets / Config thật (KHÔNG commit lên Git) ──
-env.bat
-.env
-*.env.local
-
-# ── Logs ──
+﻿# -- Logs --
 logs/
 *.log
 
-# ── Java / Maven ──
+# -- Java / Maven --
 target/
 *.class
 *.jar
 *.war
 *.ear
 
-# ── IDE ──
+# -- IDE --
 .idea/
 *.iml
 .vscode/
 *.swp
 *.swo
 
-# ── OS ──
+# -- OS --
 .DS_Store
 Thumbs.db

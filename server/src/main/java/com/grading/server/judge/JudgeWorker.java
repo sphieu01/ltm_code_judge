@@ -175,12 +175,22 @@ public class JudgeWorker implements Runnable {
             int maxMemoryKb = 0;
             String finalVerdict = Submission.VERDICT_AC;
 
+            int timeLimitMs = 2000;
+            if (problemRepository != null) {
+                try {
+                    java.util.Optional<com.grading.server.model.Problem> probOpt = problemRepository.findById(submission.getProblemId());
+                    if (probOpt.isPresent() && probOpt.get().getTimeLimitMs() > 0) {
+                        timeLimitMs = probOpt.get().getTimeLimitMs();
+                    }
+                } catch (Exception ignored) {}
+            }
+
             for (TestCase tc : testCases) {
                 SandboxRunner.RunResult runResult = sandboxRunner.run(
                         submission.getId(),
                         submission.getLanguage(),
                         tc.getInputData(),
-                        2000 // TODO: lấy từ problem.timeLimitMs
+                        timeLimitMs
                 );
 
                 maxExecTimeMs = Math.max(maxExecTimeMs, runResult.getExecTimeMs());

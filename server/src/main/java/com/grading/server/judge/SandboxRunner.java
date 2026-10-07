@@ -40,24 +40,62 @@ public class SandboxRunner {
     /** Thư mục temp để chứa code của mỗi submission */
     private static final String TEMP_DIR = System.getProperty("java.io.tmpdir") + File.separator + "judge";
 
+    /** Lưu trữ tên class Java tương ứng với mỗi submissionId để khi run gọi đúng class */
+    private final java.util.Map<Integer, String> mainClassBySubmission = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static String PYTHON_CMD = null;
+
     public SandboxRunner() {
         // Tạo thư mục judge temp nếu chưa có
         new File(TEMP_DIR).mkdirs();
     }
 
+    /**
+     * Tự động phát hiện lệnh python hợp lệ trên hệ thống ("python3" hoặc "python").
+     * Tránh lỗi trên Windows khi python3 trỏ tới WindowsApps alias.
+     */
+    public static synchronized String getPythonCommand() {
+        if (PYTHON_CMD != null) return PYTHON_CMD;
+        try {
+            Process p = new ProcessBuilder("python3", "--version").start();
+            if (p.waitFor(2, TimeUnit.SECONDS) && p.exitValue() == 0) {
+                PYTHON_CMD = "python3";
+                return PYTHON_CMD;
+            }
+        } catch (Exception ignored) {}
+        try {
+            Process p = new ProcessBuilder("python", "--version").start();
+            if (p.waitFor(2, TimeUnit.SECONDS) && p.exitValue() == 0) {
+                PYTHON_CMD = "python";
+                return PYTHON_CMD;
+            }
+        } catch (Exception ignored) {}
+        PYTHON_CMD = "python";
+        return PYTHON_CMD;
+    }
+
     // ─── Static utility ───────────────────────────────────────────────────────
 
     /**
-     * Trích xuất tên class public từ source code Java.
-     * Ví dụ: "public class BaiTapTong {" → "BaiTapTong"
+     * Trích xuất tên class từ source code Java.
+     * Ưu tiên public class, sau đó đến class đầu tiên khai báo.
      * Fallback về "Main" nếu không tìm thấy.
      */
     public static String extractClassName(String sourceCode) {
         if (sourceCode == null) return "Main";
+        // 1. Tìm public class
         java.util.regex.Matcher m = java.util.regex.Pattern
                 .compile("public\\s+class\\s+(\\w+)")
                 .matcher(sourceCode);
-        return m.find() ? m.group(1) : "Main";
+        if (m.find()) return m.group(1);
+
+        // 2. Tìm class bình thường
+        m = java.util.regex.Pattern
+                .compile("(?:^|\\s)class\\s+(\\w+)")
+                .matcher(sourceCode);
+        if (m.find()) return m.group(1);
+
+        return "Main";
     }
 
     // ─── Path-based overloads (dùng cho demo/test của hoangdev) ──────────────
@@ -180,12 +218,20 @@ public class SandboxRunner {
 
     private CompileResult compileJava(int submissionId, String sourceCode, String workDir)
             throws IOException, InterruptedException {
-        // Lưu source code
-        String fileName = workDir + File.separator + "Main.java";
+        String className = extractClassName(sourceCode);
+        mainClassBySubmission.put(submissionId, className);
+
+        // Lưu metadata class name để đảm bảo tra cứu được
+        try {
+            Files.writeString(Paths.get(workDir, ".main_class"), className, StandardCharsets.UTF_8);
+        } catch (Exception ignored) {}
+
+        // Lưu source code đúng theo className.java
+        String fileName = workDir + File.separator + className + ".java";
         writeFile(fileName, sourceCode);
 
         // Compile với javac
-        ProcessBuilder pb = new ProcessBuilder("javac", "-encoding", "UTF-8", "Main.java");
+        ProcessBuilder pb = new ProcessBuilder("javac", "-encoding", "UTF-8", className + ".java");
         pb.directory(new File(workDir));
         pb.redirectErrorStream(true); // merge stderr vào stdout
 
@@ -233,7 +279,8 @@ public class SandboxRunner {
         String fileName = workDir + File.separator + "solution.py";
         writeFile(fileName, sourceCode);
 
-        ProcessBuilder pb = new ProcessBuilder("python3", "-m", "py_compile", "solution.py");
+        String pyCmd = getPythonCommand();
+        ProcessBuilder pb = new ProcessBuilder(pyCmd, "-m", "py_compile", "solution.py");
         pb.directory(new File(workDir));
         pb.redirectErrorStream(true);
 
@@ -264,7 +311,7 @@ public class SandboxRunner {
         String workDir = getWorkDir(submissionId);
 
         try {
-            List<String> command = buildRunCommand(language, workDir);
+            List<String> command = buildRunCommand(submissionId, language, workDir);
             if (command == null) {
                 return RunResult.error("RE", "Unsupported language");
             }
@@ -329,6 +376,7 @@ public class SandboxRunner {
      * Cleanup working directory sau khi chấm xong.
      */
     public void cleanup(int submissionId) {
+        mainClassBySubmission.remove(submissionId);
         try {
             Path workDir = Paths.get(getWorkDir(submissionId));
             if (Files.exists(workDir)) {
@@ -345,20 +393,42 @@ public class SandboxRunner {
         return TEMP_DIR + File.separator + submissionId;
     }
 
-    private List<String> buildRunCommand(String language, String workDir) {
+    private List<String> buildRunCommand(int submissionId, String language, String workDir) {
         List<String> cmd = new ArrayList<>();
         switch (language.toLowerCase()) {
             case "java":
+                String className = mainClassBySubmission.get(submissionId);
+                if (className == null || className.isEmpty()) {
+                    File metaFile = new File(workDir, ".main_class");
+                    if (metaFile.exists()) {
+                        try {
+                            className = Files.readString(metaFile.toPath(), StandardCharsets.UTF_8).trim();
+                        } catch (Exception ignored) {}
+                    }
+                }
+                if (className == null || className.isEmpty()) {
+                    File[] classFiles = new File(workDir).listFiles((dir, name) -> name.endsWith(".class") && !name.contains("$"));
+                    if (classFiles != null && classFiles.length > 0) {
+                        className = classFiles[0].getName().replace(".class", "");
+                    } else {
+                        className = "Main";
+                    }
+                }
                 cmd.add("java");
                 cmd.add("-cp");
                 cmd.add(workDir);
-                cmd.add("Main");
+                cmd.add(className);
                 break;
             case "cpp":
-                cmd.add(workDir + File.separator + "solution");
+                File exeFile = new File(workDir, "solution.exe");
+                if (exeFile.exists()) {
+                    cmd.add(exeFile.getAbsolutePath());
+                } else {
+                    cmd.add(workDir + File.separator + "solution");
+                }
                 break;
             case "python":
-                cmd.add("python3");
+                cmd.add(getPythonCommand());
                 cmd.add(workDir + File.separator + "solution.py");
                 break;
             default:

@@ -93,13 +93,13 @@ public class JudgeWorkerPool {
 
         logger.info("=== JudgeWorkerPool Metrics ===");
         logger.info("Uptime: {}ms, Total judged: {}", uptimeMs, totalJudged);
-        logger.info("Throughput: {:.2f} submissions/min",
-                totalJudged > 0 ? (double) totalJudged / uptimeMs * 60_000 : 0.0);
+        logger.info("Throughput: {} submissions/min",
+                String.format("%.2f", totalJudged > 0 ? (double) totalJudged / uptimeMs * 60_000 : 0.0));
 
         for (JudgeWorker w : workers) {
-            logger.info("  Worker-{}: judged={}, busyTime={}ms, utilization={:.1f}%",
+            logger.info("  Worker-{}: judged={}, busyTime={}ms, utilization={}",
                     w.getWorkerId(), w.getTotalJudged(), w.getTotalBusyTimeMs(),
-                    w.getUtilization(uptimeMs));
+                    String.format("%.1f%%", w.getUtilization(uptimeMs)));
         }
         logger.info("================================");
     }

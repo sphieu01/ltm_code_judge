@@ -122,36 +122,46 @@ public class ClientApp extends Application {
     private void populateProblemDetails(ProblemView view, Problem problem) {
         if (problem == null) return;
 
-        if (problem.getId() == 1) {
-            view.setProblemDetails(
-                    "Cho hai số nguyên a và b. Nhiệm vụ của bạn là tính và in ra giá trị tổng a + b.\n" +
-                    "Đây là bài tập cơ bản kiểm tra luồng vào/ra chuẩn stdin/stdout.",
-                    "Một dòng duy nhất chứa hai số nguyên a và b cách nhau bởi dấu cách.",
-                    "In ra một số nguyên duy nhất là kết quả a + b.",
-                    "• -10^9 ≤ a, b ≤ 10^9\n• Giới hạn thời gian: 1.0 giây\n• Giới hạn bộ nhớ: 256 MB",
-                    "3 5",
-                    "8"
-            );
-            view.addSampleTestCase("Ví dụ 2", "-10 25", "15");
-        } else if (problem.getId() == 2) {
-            view.setProblemDetails(
-                    "Cho một số nguyên dương N. Hãy kiểm tra xem N có phải là số nguyên tố hay không.",
-                    "Gồm một dòng chứa duy nhất số nguyên dương N.",
-                    "In ra 'YES' nếu N là số nguyên tố, ngược lại in ra 'NO'.",
-                    "• 1 ≤ N ≤ 10^12\n• Giới hạn thời gian: 1.0 giây\n• Giới hạn bộ nhớ: 256 MB",
-                    "7",
-                    "YES"
-            );
-            view.addSampleTestCase("Ví dụ 2", "12", "NO");
-        } else {
-            view.setProblemDetails(
-                    problem.getDescription() != null ? problem.getDescription() : "Mô tả chi tiết bài toán.",
-                    "Đầu vào chuẩn theo quy định bài toán.",
-                    "Đầu ra chuẩn theo quy định bài toán.",
-                    "• Giới hạn thời gian: " + problem.getTimeLimitFormatted() + "\n• Giới hạn bộ nhớ: " + problem.getMemoryLimitFormatted(),
-                    "1",
-                    "1"
-            );
+        String desc = problem.getDescription() != null ? problem.getDescription() : "Mô tả chi tiết bài toán.";
+        String inputFormat = "Đầu vào chuẩn theo quy định bài toán.";
+        String outputFormat = "Đầu ra chuẩn theo quy định bài toán.";
+
+        if (desc.contains("**Input:**") && desc.contains("**Output:**")) {
+            try {
+                int inIdx = desc.indexOf("**Input:**");
+                int outIdx = desc.indexOf("**Output:**");
+                String mainDesc = desc.substring(0, inIdx).trim();
+                inputFormat = desc.substring(inIdx + 10, outIdx).trim();
+                outputFormat = desc.substring(outIdx + 11).trim();
+                desc = mainDesc;
+            } catch (Exception ignored) {}
+        }
+
+        String constraints = String.format("• Giới hạn thời gian: %s\n• Giới hạn bộ nhớ: %s",
+                problem.getTimeLimitFormatted(), problem.getMemoryLimitFormatted());
+
+        view.setProblemDetails(desc, inputFormat, outputFormat, constraints, null, null);
+
+        // Nạp sample test cases thật từ server qua GET_PROBLEM_DETAIL
+        com.grading.client.network.SocketClient socketClient = SessionManager.getInstance().getSocketClient();
+        if (socketClient != null && socketClient.isConnected()) {
+            socketClient.getProblemDetail(problem.getId(), resp -> {
+                if ("SUCCESS".equalsIgnoreCase(resp.getStatus()) && resp.getData() != null && resp.getData().isJsonObject()) {
+                    com.google.gson.JsonObject pObj = resp.getData().getAsJsonObject();
+                    if (pObj.has("testCases") && pObj.get("testCases").isJsonArray()) {
+                        com.google.gson.JsonArray tcArr = pObj.getAsJsonArray("testCases");
+                        javafx.application.Platform.runLater(() -> {
+                            int count = 1;
+                            for (com.google.gson.JsonElement el : tcArr) {
+                                com.google.gson.JsonObject tc = el.getAsJsonObject();
+                                String input = tc.has("inputData") && !tc.get("inputData").isJsonNull() ? tc.get("inputData").getAsString() : "";
+                                String expected = tc.has("expectedOutput") && !tc.get("expectedOutput").isJsonNull() ? tc.get("expectedOutput").getAsString() : "";
+                                view.addSampleTestCase("Ví dụ " + count++, input, expected);
+                            }
+                        });
+                    }
+                }
+            });
         }
     }
 

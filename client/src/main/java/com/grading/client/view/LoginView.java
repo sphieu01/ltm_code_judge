@@ -47,9 +47,21 @@ public class LoginView extends BorderPane {
         card.setAlignment(Pos.CENTER);
         card.setPadding(new Insets(32, 36, 32, 36));
 
-        // Tiêu đề
+        // Tiêu đề & Theme Toggle
+        HBox topTitleBox = new HBox(8);
+        topTitleBox.setAlignment(Pos.CENTER_LEFT);
         Label titleLabel = new Label("Auto Grader");
         titleLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
+        Region titleSpacer = new Region();
+        HBox.setHgrow(titleSpacer, Priority.ALWAYS);
+
+        Button themeBtn = new Button(ThemeManager.getInstance().getToggleIconText());
+        themeBtn.getStyleClass().addAll("button", "btn-theme");
+        themeBtn.setOnAction(e -> ThemeManager.getInstance().toggleTheme());
+        ThemeManager.getInstance().addThemeListener(theme -> {
+            themeBtn.setText(ThemeManager.getInstance().getToggleIconText());
+        });
+        topTitleBox.getChildren().addAll(titleLabel, titleSpacer, themeBtn);
 
         Label subtitleLabel = new Label("Hệ Thống Chấm Code Trực Tuyến");
         subtitleLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: -text-muted;");
@@ -131,7 +143,7 @@ public class LoginView extends BorderPane {
         offlineGuestBtn.setMaxWidth(Double.MAX_VALUE);
 
         card.getChildren().addAll(
-                titleLabel,
+                topTitleBox,
                 subtitleLabel,
                 serverBox,
                 userBox,

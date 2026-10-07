@@ -20,23 +20,24 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 /**
- * ProblemView — Giao diện chính màn hình làm bài và nộp code.
+ * ProblemView — Giao diện chính màn hình làm bài và nộp bài.
  *
  * Thiết kế tối giản phẳng (flat minimalist):
- * - Không gradient, không bóng đổ (drop shadow), không viền neon.
+ * - Không Run Code cục bộ: Nộp trực tiếp lên Server để chấm bài.
+ * - Hỗ trợ đổi Theme Sáng / Tối linh hoạt (mặc định là Theme Sáng).
  * - Cho phép copy toàn bộ nội dung đề bài và test cases mẫu.
  * - Bố cục:
  *   + Root: BorderPane
- *   + Top: HBox Header/Toolbar (Nút Back, Tiêu đề, ComboBox ngôn ngữ, Run Code, Submit)
- *   + Center: SplitPane chia Trái (Đề bài copyable) / Phải (Editor + Console)
+ *   + Top: HBox Header/Toolbar (Nút Back, Tiêu đề, Đổi Theme, ComboBox ngôn ngữ, Nút Nộp bài)
+ *   + Center: SplitPane chia Trái (Đề bài copyable) / Phải (Editor + Kết quả chấm)
  */
 public class ProblemView extends BorderPane {
 
     // ======================== TOP CONTROLS ========================
     private Button backButton;
     private Label problemTitleLabel;
+    private Button themeToggleBtn;
     private ComboBox<String> languageComboBox;
-    private Button runButton;
     private Button submitButton;
 
     // ======================== LEFT PANEL CONTROLS (COPYABLE) ========================
@@ -51,16 +52,11 @@ public class ProblemView extends BorderPane {
 
     // ======================== RIGHT PANEL CONTROLS ========================
     private TextArea codeEditorArea;
-    private TabPane consoleTabPane;
-    private Tab testCaseTab;
-    private Tab resultTab;
-    private TextArea customInputArea;
     private TextArea consoleOutputArea;
     private Label resultStatusBadge;
 
     // ======================== DATA & HANDLERS ========================
     private Problem currentProblem;
-    private Consumer<ProblemView> onRunCodeHandler;
     private Consumer<ProblemView> onSubmitCodeHandler;
     private Consumer<String> onLanguageChangeHandler;
     private Runnable onBackToDashboardHandler;
@@ -86,18 +82,18 @@ public class ProblemView extends BorderPane {
         HBox topToolbar = buildTopToolbar();
         setTop(topToolbar);
 
-        // Center: SplitPane chính chia đôi màn hình (Trái: Đề bài, Phải: Code + Console)
+        // Center: SplitPane chính chia đôi màn hình (Trái: Đề bài, Phải: Code + Kết quả)
         SplitPane mainSplitPane = new SplitPane();
         mainSplitPane.setOrientation(Orientation.HORIZONTAL);
 
         // Panel Trái: Đề bài (hỗ trợ copy)
         ScrollPane leftProblemPane = buildProblemDescriptionPanel();
 
-        // Panel Phải: Code Editor (Trên) & Console TabPane (Dưới)
+        // Panel Phải: Code Editor (Trên) & Kết quả chấm (Dưới)
         SplitPane rightCodeAndConsoleSplitPane = buildRightPanel();
 
         mainSplitPane.getItems().addAll(leftProblemPane, rightCodeAndConsoleSplitPane);
-        mainSplitPane.setDividerPositions(0.40); // 40% đề bài, 60% code & console
+        mainSplitPane.setDividerPositions(0.40); // 40% đề bài, 60% code & kết quả
 
         setCenter(mainSplitPane);
     }
@@ -110,7 +106,7 @@ public class ProblemView extends BorderPane {
         HBox toolbar = new HBox();
         toolbar.getStyleClass().add("top-toolbar");
         toolbar.setAlignment(Pos.CENTER_LEFT);
-        toolbar.setSpacing(12);
+        toolbar.setSpacing(10);
         toolbar.setPadding(new Insets(8, 16, 8, 16));
 
         // Nút quay lại danh sách bài
@@ -125,6 +121,14 @@ public class ProblemView extends BorderPane {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
+        // Nút chuyển đổi Theme Sáng / Tối
+        themeToggleBtn = new Button(ThemeManager.getInstance().getToggleIconText());
+        themeToggleBtn.getStyleClass().addAll("button", "btn-theme");
+        themeToggleBtn.setOnAction(e -> ThemeManager.getInstance().toggleTheme());
+        ThemeManager.getInstance().addThemeListener(theme -> {
+            themeToggleBtn.setText(ThemeManager.getInstance().getToggleIconText());
+        });
+
         // ComboBox chọn ngôn ngữ (C++, Java, Python, v.v.)
         languageComboBox = new ComboBox<>(FXCollections.observableArrayList(
                 "C++ (g++ 17)",
@@ -133,20 +137,16 @@ public class ProblemView extends BorderPane {
         ));
         languageComboBox.getSelectionModel().select("C++ (g++ 17)");
 
-        // Nút "Run Code" (màu xám cơ bản, phẳng, không bóng đổ)
-        runButton = new Button("▶  Run Code");
-        runButton.getStyleClass().addAll("button", "btn-run");
-
-        // Nút "Submit" (màu xanh lá mặn/nhạt, tối giản, phẳng)
-        submitButton = new Button("✔  Submit");
+        // Nút "Submit / Nộp bài" (màu xanh lá tối giản)
+        submitButton = new Button("✔  Nộp bài");
         submitButton.getStyleClass().addAll("button", "btn-submit");
 
         toolbar.getChildren().addAll(
                 backButton,
                 problemTitleLabel,
                 spacer,
+                themeToggleBtn,
                 languageComboBox,
-                runButton,
                 submitButton
         );
 
@@ -179,23 +179,23 @@ public class ProblemView extends BorderPane {
 
         metaBar.getChildren().addAll(metaTimeLimitLabel, metaMemoryLimitLabel, metaDifficultyLabel);
 
-        // Mục 1: Mô tả (không còn ngoặc đơn)
+        // Mục 1: Mô tả
         Label descHeader = createSectionHeader("MÔ TẢ");
         descriptionArea = createSelectableTextArea("Chưa có thông tin mô tả.");
 
-        // Mục 2: Định dạng đầu vào (bỏ chữ INPUT)
+        // Mục 2: Định dạng đầu vào
         Label inputHeader = createSectionHeader("ĐỊNH DẠNG ĐẦU VÀO");
         inputFormatArea = createSelectableTextArea("Chưa có định dạng đầu vào.");
 
-        // Mục 3: Định dạng đầu ra (bỏ chữ OUTPUT)
+        // Mục 3: Định dạng đầu ra
         Label outputHeader = createSectionHeader("ĐỊNH DẠNG ĐẦU RA");
         outputFormatArea = createSelectableTextArea("Chưa có định dạng đầu ra.");
 
-        // Mục 4: Ràng buộc (bỏ chữ CONSTRAINTS)
+        // Mục 4: Ràng buộc
         Label constraintsHeader = createSectionHeader("RÀNG BUỘC");
         constraintsArea = createSelectableTextArea("Chưa có thông tin ràng buộc.");
 
-        // Mục 5: Ví dụ (bỏ chữ SAMPLE CASES)
+        // Mục 5: Ví dụ
         Label sampleHeader = createSectionHeader("VÍ DỤ");
         sampleCasesContainer = new VBox(12);
 
@@ -217,9 +217,6 @@ public class ProblemView extends BorderPane {
         return scrollPane;
     }
 
-    /**
-     * Tạo một TextArea read-only nhưng cho phép người dùng bôi đen và Ctrl+C sao chép.
-     */
     private TextArea createSelectableTextArea(String text) {
         TextArea area = new TextArea(text != null ? text : "");
         area.setEditable(false);
@@ -235,14 +232,13 @@ public class ProblemView extends BorderPane {
             return;
         }
         int lineCount = text.split("\n").length;
-        // Ước lượng thêm số dòng do wrap text
         int wrapEstimate = text.length() / 60;
         int totalLines = Math.max(2, Math.min(15, lineCount + wrapEstimate));
         area.setPrefRowCount(totalLines);
     }
 
     // =========================================================================
-    // 4. PANEL PHẢI: KHU VỰC CODE & CONSOLE (SplitPane chia Trên/Dưới)
+    // 4. PANEL PHẢI: KHU VỰC CODE & KẾT QUẢ CHẤM (SplitPane chia Trên/Dưới)
     // =========================================================================
 
     private SplitPane buildRightPanel() {
@@ -252,11 +248,11 @@ public class ProblemView extends BorderPane {
         // Phần Trên: Code Editor
         VBox editorPane = buildCodeEditorPane();
 
-        // Phần Dưới: Console / Result TabPane
-        VBox consolePane = buildConsolePane();
+        // Phần Dưới: Kết quả chấm bài (Không còn tab Run Code)
+        VBox resultPane = buildResultPane();
 
-        rightSplitPane.getItems().addAll(editorPane, consolePane);
-        rightSplitPane.setDividerPositions(0.65); // 65% cho editor, 35% cho console
+        rightSplitPane.getItems().addAll(editorPane, resultPane);
+        rightSplitPane.setDividerPositions(0.65); // 65% cho editor, 35% cho kết quả
 
         return rightSplitPane;
     }
@@ -265,7 +261,7 @@ public class ProblemView extends BorderPane {
         VBox container = new VBox();
         VBox.setVgrow(container, Priority.ALWAYS);
 
-        // Thanh tiêu đề editor nhỏ
+        // Thanh tiêu đề editor
         HBox editorHeader = new HBox(8);
         editorHeader.getStyleClass().add("editor-header-bar");
         editorHeader.setAlignment(Pos.CENTER_LEFT);
@@ -273,13 +269,12 @@ public class ProblemView extends BorderPane {
         editorTitle.getStyleClass().add("editor-title");
         editorHeader.getChildren().add(editorTitle);
 
-        // TextArea gõ code
+        // TextArea gõ code (Monospace)
         codeEditorArea = new TextArea();
         codeEditorArea.getStyleClass().addAll("text-area", "code-editor");
-        codeEditorArea.setPromptText("// Gõ mã nguồn của bạn tại đây...");
+        codeEditorArea.setPromptText("// Gõ mã nguồn của bạn tại đây rồi nhấn 'Nộp bài'...");
         VBox.setVgrow(codeEditorArea, Priority.ALWAYS);
 
-        // Đảm bảo font chữ là Monospace
         Font monoFont = Font.font("Consolas", 13.5);
         if (monoFont.getFamily().equals("System")) {
             monoFont = Font.font("Monospaced", 13.5);
@@ -293,59 +288,40 @@ public class ProblemView extends BorderPane {
         return container;
     }
 
-    private VBox buildConsolePane() {
+    /**
+     * Phần Dưới: Kết quả chấm bài trực tiếp từ Server (Không qua Run Code).
+     */
+    private VBox buildResultPane() {
         VBox container = new VBox();
         VBox.setVgrow(container, Priority.ALWAYS);
 
-        consoleTabPane = new TabPane();
-        consoleTabPane.getStyleClass().add("tab-pane");
-        consoleTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        VBox.setVgrow(consoleTabPane, Priority.ALWAYS);
+        // Thanh tiêu đề kết quả + Trạng thái chấm
+        HBox headerBar = new HBox(12);
+        headerBar.getStyleClass().add("editor-header-bar");
+        headerBar.setAlignment(Pos.CENTER_LEFT);
 
-        // Tab 1: "Test Cases" (TextArea để nhập custom input)
-        testCaseTab = new Tab("Test Cases");
-        customInputArea = new TextArea();
-        customInputArea.getStyleClass().addAll("text-area", "console-area");
-        customInputArea.setPromptText("Nhập dữ liệu đầu vào (stdin) để chạy thử...");
-        customInputArea.setFont(Font.font("Consolas", 12.5));
-        testCaseTab.setContent(customInputArea);
+        Label resultTitle = new Label("Kết quả chấm bài:");
+        resultTitle.getStyleClass().add("editor-title");
 
-        // Tab 2: "Execution Result" (TextArea read-only in console output hoặc lỗi)
-        resultTab = new Tab("Execution Result");
-        VBox resultBox = new VBox();
-        VBox.setVgrow(resultBox, Priority.ALWAYS);
+        resultStatusBadge = new Label("Chưa nộp bài");
+        resultStatusBadge.getStyleClass().add("status-badge-neutral");
 
+        headerBar.getChildren().addAll(resultTitle, resultStatusBadge);
+
+        // Console TextArea hiển thị chi tiết verdict, test cases, log lỗi
         consoleOutputArea = new TextArea();
         consoleOutputArea.getStyleClass().addAll("text-area", "console-area");
         consoleOutputArea.setEditable(false);
-        consoleOutputArea.setPromptText("Kết quả thực thi hoặc lỗi sẽ hiển thị tại đây...");
+        consoleOutputArea.setPromptText("Nhấn 'Nộp bài' để gửi mã nguồn lên Server chấm tự động...");
         consoleOutputArea.setFont(Font.font("Consolas", 12.5));
         VBox.setVgrow(consoleOutputArea, Priority.ALWAYS);
 
-        // Thanh trạng thái dưới đáy của tab Execution Result (Verdict / status)
-        HBox statusBar = new HBox(12);
-        statusBar.getStyleClass().add("result-status-bar");
-        statusBar.setAlignment(Pos.CENTER_LEFT);
-
-        Label statusTitle = new Label("Trạng thái:");
-        statusTitle.getStyleClass().add("status-badge-neutral");
-
-        resultStatusBadge = new Label("Chưa có lượt chạy");
-        resultStatusBadge.getStyleClass().add("status-badge-neutral");
-
-        statusBar.getChildren().addAll(statusTitle, resultStatusBadge);
-        resultBox.getChildren().addAll(consoleOutputArea, statusBar);
-
-        resultTab.setContent(resultBox);
-
-        consoleTabPane.getTabs().addAll(testCaseTab, resultTab);
-        container.getChildren().add(consoleTabPane);
-
+        container.getChildren().addAll(headerBar, consoleOutputArea);
         return container;
     }
 
     // =========================================================================
-    // 5. CẤU HÌNH PHÍM TAB TRONG CODE EDITOR (Tránh nhảy focus ra ngoài)
+    // 5. CẤU HÌNH PHÍM TAB TRONG CODE EDITOR
     // =========================================================================
 
     private void setupEditorTabHandling() {
@@ -366,12 +342,6 @@ public class ProblemView extends BorderPane {
         backButton.setOnAction(e -> {
             if (onBackToDashboardHandler != null) {
                 onBackToDashboardHandler.run();
-            }
-        });
-
-        runButton.setOnAction(e -> {
-            if (onRunCodeHandler != null) {
-                onRunCodeHandler.accept(this);
             }
         });
 
@@ -475,10 +445,6 @@ public class ProblemView extends BorderPane {
         }
     }
 
-    /**
-     * Thêm một cặp ví dụ mẫu Input / Output.
-     * Cung cấp TextArea có thể bôi đen copy VÀ nút "Sao chép" trực tiếp vào Clipboard!
-     */
     public void addSampleTestCase(String title, String input, String output) {
         VBox caseBox = new VBox(6);
         caseBox.setPadding(new Insets(4, 0, 8, 0));
@@ -520,16 +486,8 @@ public class ProblemView extends BorderPane {
 
         caseBox.getChildren().addAll(titleLabel, inHeader, inArea, outHeader, outArea);
         sampleCasesContainer.getChildren().add(caseBox);
-
-        // Tự động điền input mẫu vào tab Test Cases nếu tab này đang trống
-        if (customInputArea.getText().trim().isEmpty() && !input.trim().isEmpty()) {
-            customInputArea.setText(input.trim());
-        }
     }
 
-    /**
-     * Tạo nút sao chép text vào hệ thống Clipboard kèm phản hồi trực quan.
-     */
     private Button createCopyButton(String contentToCopy) {
         Button btn = new Button("📋 Sao chép");
         btn.getStyleClass().add("btn-copy");
@@ -572,14 +530,6 @@ public class ProblemView extends BorderPane {
         }
     }
 
-    public String getCustomInput() {
-        return customInputArea.getText();
-    }
-
-    public void setCustomInput(String input) {
-        customInputArea.setText(input);
-    }
-
     public void showExecutionResult(String output, String verdict, boolean isError) {
         consoleOutputArea.setText(output != null ? output : "");
 
@@ -594,22 +544,15 @@ public class ProblemView extends BorderPane {
                 resultStatusBadge.getStyleClass().add("status-badge-neutral");
             }
         }
-
-        consoleTabPane.getSelectionModel().select(resultTab);
     }
 
     public void setBusy(boolean isBusy, String waitingMessage) {
-        runButton.setDisable(isBusy);
         submitButton.setDisable(isBusy);
         if (isBusy) {
             resultStatusBadge.getStyleClass().removeAll("status-badge-ac", "status-badge-wa");
             resultStatusBadge.getStyleClass().add("status-badge-neutral");
             resultStatusBadge.setText(waitingMessage != null ? waitingMessage : "Đang xử lý...");
         }
-    }
-
-    public void setOnRunCode(Consumer<ProblemView> handler) {
-        this.onRunCodeHandler = handler;
     }
 
     public void setOnSubmitCode(Consumer<ProblemView> handler) {
@@ -638,16 +581,8 @@ public class ProblemView extends BorderPane {
         return codeEditorArea;
     }
 
-    public TextArea getCustomInputArea() {
-        return customInputArea;
-    }
-
     public TextArea getConsoleOutputArea() {
         return consoleOutputArea;
-    }
-
-    public Button getRunButton() {
-        return runButton;
     }
 
     public Button getSubmitButton() {

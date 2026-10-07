@@ -69,6 +69,14 @@ public class DashboardView extends BorderPane {
         roleBadgeLabel = new Label("STUDENT");
         roleBadgeLabel.getStyleClass().add("badge-role");
 
+        // Nút chuyển đổi Theme Sáng / Tối
+        Button themeToggleBtn = new Button(ThemeManager.getInstance().getToggleIconText());
+        themeToggleBtn.getStyleClass().addAll("button", "btn-theme");
+        themeToggleBtn.setOnAction(e -> ThemeManager.getInstance().toggleTheme());
+        ThemeManager.getInstance().addThemeListener(theme -> {
+            themeToggleBtn.setText(ThemeManager.getInstance().getToggleIconText());
+        });
+
         // Nút thêm bài chỉ dành cho giáo viên
         teacherAddProblemBtn = new Button("➕ Thêm bài tập");
         teacherAddProblemBtn.getStyleClass().addAll("button", "btn-submit");
@@ -78,7 +86,7 @@ public class DashboardView extends BorderPane {
         logoutBtn = new Button("Đăng xuất");
         logoutBtn.getStyleClass().addAll("button", "btn-secondary");
 
-        topBar.getChildren().addAll(brandLabel, spacer, userGreetingLabel, roleBadgeLabel, teacherAddProblemBtn, logoutBtn);
+        topBar.getChildren().addAll(brandLabel, spacer, userGreetingLabel, roleBadgeLabel, themeToggleBtn, teacherAddProblemBtn, logoutBtn);
         setTop(topBar);
 
         // 2. Center Content

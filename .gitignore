@@ -13,3 +13,7 @@ target/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Personal notes
+TOREAD.md
+**/TOREAD.md

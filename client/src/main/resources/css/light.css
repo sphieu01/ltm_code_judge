@@ -1,0 +1,560 @@
+/* ==========================================================================
+   MINIMALIST FLAT LIGHT THEME FOR CODE GRADING CLIENT (MẶC ĐỊNH)
+   - Zero gradients (phẳng 100%)
+   - Zero drop shadows / glow (không bóng đổ, không neon)
+   - Bảng màu trung tính, thanh lịch, chuẩn LeetCode / GitHub Light
+   ========================================================================== */
+
+.root {
+    -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -fx-font-size: 13px;
+    -fx-base: #f6f8fa;
+    -fx-background: #ffffff;
+    -fx-control-inner-background: #ffffff;
+
+    /* Minimalist Light Palette */
+    -bg-main: #ffffff;
+    -bg-secondary: #f6f8fa;
+    -bg-input: #ffffff;
+    -bg-hover: #eaeef2;
+    
+    -border-subtle: #d0d7de;
+    -border-focus: #0969da;
+    
+    -text-main: #24292f;
+    -text-muted: #57606a;
+    -text-bright: #0f1419;
+
+    /* Functional Muted Colors */
+    -btn-gray-bg: #f6f8fa;
+    -btn-gray-hover: #eaeef2;
+    -btn-gray-border: #d0d7de;
+    
+    -btn-submit-bg: #1f883d;
+    -btn-submit-hover: #1a7f37;
+    -btn-submit-border: #1a7f37;
+
+    -btn-primary-bg: #0969da;
+    -btn-primary-hover: #0860ca;
+    -btn-primary-border: #0860ca;
+
+    -verdict-ac: #1a7f37;
+    -verdict-wa: #cf222e;
+    -verdict-tle: #9a6700;
+    -verdict-info: #0969da;
+}
+
+/* ===== BASE LAYOUT ===== */
+.main-pane {
+    -fx-background-color: -bg-main;
+}
+
+/* ===== TOP TOOLBAR ===== */
+.top-toolbar {
+    -fx-background-color: -bg-secondary;
+    -fx-padding: 8 16 8 16;
+    -fx-spacing: 10;
+    -fx-alignment: CENTER_LEFT;
+    -fx-border-color: transparent transparent -border-subtle transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.problem-title-header {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -text-bright;
+}
+
+.problem-tag {
+    -fx-background-color: #f3f4f6;
+    -fx-text-fill: -text-muted;
+    -fx-font-size: 11px;
+    -fx-padding: 2 6 2 6;
+    -fx-border-color: -border-subtle;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+}
+
+/* ===== BUTTONS (TỐI GIẢN, PHẲNG, KHÔNG BÓNG ĐỔ, KHÔNG GRADIENT) ===== */
+.button {
+    -fx-cursor: hand;
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+    -fx-border-width: 1px;
+    -fx-padding: 5 13 5 13;
+    -fx-font-size: 13px;
+    -fx-font-weight: normal;
+    -fx-effect: null;
+}
+
+/* Nút "Run Code" - Màu xám sáng tối giản */
+.btn-run {
+    -fx-background-color: -btn-gray-bg;
+    -fx-border-color: -btn-gray-border;
+    -fx-text-fill: -text-main;
+}
+.btn-run:hover {
+    -fx-background-color: -btn-gray-hover;
+}
+.btn-run:pressed {
+    -fx-background-color: #d0d7de;
+}
+.btn-run:disabled {
+    -fx-opacity: 0.5;
+}
+
+/* Nút "Submit" - Xanh lá mặn/nhạt phẳng */
+.btn-submit {
+    -fx-background-color: -btn-submit-bg;
+    -fx-border-color: -btn-submit-border;
+    -fx-text-fill: #ffffff;
+    -fx-font-weight: bold;
+}
+.btn-submit:hover {
+    -fx-background-color: -btn-submit-hover;
+}
+.btn-submit:pressed {
+    -fx-background-color: #146c2e;
+}
+.btn-submit:disabled {
+    -fx-opacity: 0.5;
+}
+
+/* Nút Primary phẳng */
+.btn-primary {
+    -fx-background-color: -btn-primary-bg;
+    -fx-border-color: -btn-primary-border;
+    -fx-text-fill: #ffffff;
+    -fx-font-weight: bold;
+}
+.btn-primary:hover {
+    -fx-background-color: -btn-primary-hover;
+}
+
+/* Generic flat secondary button */
+.btn-secondary {
+    -fx-background-color: -btn-gray-bg;
+    -fx-border-color: -btn-gray-border;
+    -fx-text-fill: -text-main;
+}
+.btn-secondary:hover {
+    -fx-background-color: -btn-gray-hover;
+}
+
+/* Nút Theme Toggle */
+.btn-theme {
+    -fx-background-color: -btn-gray-bg;
+    -fx-border-color: -btn-gray-border;
+    -fx-text-fill: -text-main;
+    -fx-font-size: 12px;
+    -fx-padding: 5 10 5 10;
+}
+.btn-theme:hover {
+    -fx-background-color: -btn-gray-hover;
+}
+
+/* Nút Sao chép nhỏ gọn */
+.btn-copy {
+    -fx-background-color: -btn-gray-bg;
+    -fx-border-color: -btn-gray-border;
+    -fx-text-fill: -text-muted;
+    -fx-font-size: 11px;
+    -fx-padding: 2 7 2 7;
+    -fx-background-radius: 3px;
+    -fx-border-radius: 3px;
+    -fx-cursor: hand;
+}
+.btn-copy:hover {
+    -fx-background-color: -btn-gray-hover;
+    -fx-text-fill: -text-bright;
+}
+
+/* ===== COMBOBOX ===== */
+.combo-box {
+    -fx-background-color: -btn-gray-bg;
+    -fx-border-color: -btn-gray-border;
+    -fx-border-width: 1px;
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+    -fx-padding: 2 4 2 8;
+    -fx-font-size: 12.5px;
+    -fx-effect: null;
+}
+.combo-box .cell {
+    -fx-text-fill: -text-main;
+}
+.combo-box:hover {
+    -fx-background-color: -btn-gray-hover;
+}
+.combo-box .arrow-button {
+    -fx-background-color: transparent;
+}
+.combo-box .arrow {
+    -fx-background-color: -text-muted;
+}
+.combo-box-popup .list-view {
+    -fx-background-color: #ffffff;
+    -fx-border-color: -border-subtle;
+    -fx-border-width: 1px;
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+    -fx-effect: null;
+}
+.combo-box-popup .list-cell {
+    -fx-background-color: #ffffff;
+    -fx-text-fill: -text-main;
+    -fx-padding: 6 10 6 10;
+}
+.combo-box-popup .list-cell:hover {
+    -fx-background-color: -bg-hover;
+}
+.combo-box-popup .list-cell:filled:selected {
+    -fx-background-color: #e8f0fe;
+    -fx-text-fill: -btn-primary-bg;
+}
+
+/* ===== SPLIT PANE ===== */
+.split-pane {
+    -fx-background-color: -bg-main;
+    -fx-padding: 0;
+}
+.split-pane > .split-pane-divider {
+    -fx-background-color: -border-subtle;
+    -fx-padding: 0 1 0 1;
+}
+.split-pane:horizontal > .split-pane-divider {
+    -fx-pref-width: 5px;
+}
+.split-pane:vertical > .split-pane-divider {
+    -fx-pref-height: 5px;
+}
+
+/* ===== SCROLL PANE ===== */
+.scroll-pane {
+    -fx-background-color: transparent;
+    -fx-background: -bg-main;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+.scroll-pane > .viewport {
+    -fx-background-color: -bg-main;
+}
+.scroll-pane .corner {
+    -fx-background-color: -bg-main;
+}
+
+/* Minimal ScrollBar */
+.scroll-bar:vertical, .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+    -fx-pref-width: 10px;
+    -fx-pref-height: 10px;
+}
+.scroll-bar .track {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+.scroll-bar .thumb {
+    -fx-background-color: #c0c4cc;
+    -fx-background-radius: 2px;
+}
+.scroll-bar .thumb:hover {
+    -fx-background-color: #a8abb2;
+}
+.scroll-bar .increment-button, .scroll-bar .decrement-button {
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+    -fx-padding: 0;
+}
+
+/* ===== PROBLEM DESCRIPTION PANEL (PANEL TRÁI) ===== */
+.problem-panel {
+    -fx-background-color: -bg-main;
+    -fx-padding: 16 20 20 20;
+    -fx-spacing: 12;
+}
+
+.section-header {
+    -fx-font-size: 13.5px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #0969da;
+    -fx-padding: 8 0 2 0;
+}
+
+.selectable-text {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: -text-main;
+    -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -fx-font-size: 13px;
+    -fx-highlight-fill: #b4d5fe;
+    -fx-highlight-text-fill: #000000;
+    -fx-padding: 0;
+    -fx-effect: null;
+}
+.selectable-text .content {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.meta-info-bar {
+    -fx-spacing: 16;
+    -fx-padding: 4 0 8 0;
+    -fx-border-color: transparent transparent -border-subtle transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.meta-item {
+    -fx-font-size: 12px;
+    -fx-text-fill: -text-muted;
+}
+
+.meta-value {
+    -fx-font-weight: bold;
+    -fx-text-fill: -text-main;
+}
+
+/* Hộp ví dụ sample - copyable TextArea */
+.sample-box {
+    -fx-background-color: #f6f8fa;
+    -fx-border-color: -border-subtle;
+    -fx-border-width: 1px;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+    -fx-font-family: "Consolas", "Fira Code", monospace;
+    -fx-font-size: 12.5px;
+    -fx-text-fill: -text-main;
+    -fx-highlight-fill: #b4d5fe;
+    -fx-highlight-text-fill: #000000;
+    -fx-effect: null;
+}
+.sample-box .content {
+    -fx-background-color: #f6f8fa;
+    -fx-padding: 6 8 6 8;
+}
+
+/* ===== CODE EDITOR & CONSOLE (PANEL PHẢI) ===== */
+.editor-header-bar {
+    -fx-background-color: -bg-secondary;
+    -fx-padding: 6 12 6 12;
+    -fx-border-color: transparent transparent -border-subtle transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-alignment: CENTER_LEFT;
+}
+
+.editor-title {
+    -fx-font-size: 12px;
+    -fx-text-fill: -text-muted;
+}
+
+.text-area {
+    -fx-background-color: -bg-main;
+    -fx-border-color: transparent;
+    -fx-text-fill: -text-main;
+    -fx-highlight-fill: #b4d5fe;
+    -fx-highlight-text-fill: #000000;
+    -fx-effect: null;
+}
+.text-area .content {
+    -fx-background-color: -bg-main;
+    -fx-cursor: text;
+    -fx-padding: 8 10 8 10;
+}
+
+.code-editor {
+    -fx-font-family: "Consolas", "Fira Code", "Courier New", monospace;
+    -fx-font-size: 13.5px;
+    -fx-background-color: #ffffff;
+}
+.code-editor .content {
+    -fx-background-color: #ffffff;
+}
+
+/* ===== TAB PANE (CONSOLE & TESTCASES) ===== */
+.tab-pane {
+    -fx-background-color: -bg-main;
+    -fx-tab-min-height: 28px;
+    -fx-tab-max-height: 28px;
+}
+.tab-pane .tab-header-area {
+    -fx-padding: 0 0 0 0;
+}
+.tab-pane .tab-header-background {
+    -fx-background-color: -bg-secondary;
+    -fx-border-color: -border-subtle transparent -border-subtle transparent;
+    -fx-border-width: 1 0 1 0;
+}
+.tab-pane .tab {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+    -fx-padding: 4 14 4 14;
+    -fx-cursor: hand;
+}
+.tab-pane .tab .tab-label {
+    -fx-text-fill: -text-muted;
+    -fx-font-size: 12px;
+    -fx-font-weight: normal;
+}
+.tab-pane .tab:hover {
+    -fx-background-color: #eaeef2;
+}
+.tab-pane .tab:selected {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #0969da transparent transparent transparent;
+    -fx-border-width: 2 0 0 0;
+}
+.tab-pane .tab:selected .tab-label {
+    -fx-text-fill: -text-bright;
+    -fx-font-weight: bold;
+}
+.tab-pane:focused > .tab-header-area > .headers-region > .tab:selected .focus-indicator {
+    -fx-border-color: transparent;
+}
+
+/* Console result Area */
+.console-area {
+    -fx-font-family: "Consolas", "Fira Code", monospace;
+    -fx-font-size: 12.5px;
+    -fx-background-color: #f6f8fa;
+}
+.console-area .content {
+    -fx-background-color: #f6f8fa;
+    -fx-padding: 8 10 8 10;
+}
+
+/* Result status bar */
+.result-status-bar {
+    -fx-background-color: -bg-secondary;
+    -fx-padding: 4 12 4 12;
+    -fx-spacing: 10;
+    -fx-alignment: CENTER_LEFT;
+    -fx-border-color: -border-subtle transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.status-badge-ac {
+    -fx-text-fill: -verdict-ac;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+}
+.status-badge-wa {
+    -fx-text-fill: -verdict-wa;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+}
+.status-badge-neutral {
+    -fx-text-fill: -text-muted;
+    -fx-font-size: 12px;
+}
+
+/* ===== CARDS & FORMS (LOGIN / DIALOGS) ===== */
+.card {
+    -fx-background-color: #ffffff;
+    -fx-border-color: -border-subtle;
+    -fx-border-width: 1px;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 24;
+    -fx-effect: null;
+}
+
+.text-field, .password-field {
+    -fx-background-color: #ffffff;
+    -fx-text-fill: -text-main;
+    -fx-prompt-text-fill: #999999;
+    -fx-border-color: -border-subtle;
+    -fx-border-width: 1px;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+    -fx-padding: 7 10 7 10;
+    -fx-font-size: 13px;
+    -fx-effect: null;
+}
+.text-field:focused, .password-field:focused {
+    -fx-border-color: #0969da;
+}
+
+/* ===== TABLE VIEW (DASHBOARD) ===== */
+.table-view {
+    -fx-background-color: #ffffff;
+    -fx-border-color: -border-subtle;
+    -fx-border-width: 1px;
+    -fx-effect: null;
+}
+.table-view .column-header-background {
+    -fx-background-color: -bg-secondary;
+    -fx-border-color: transparent transparent -border-subtle transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.table-view .column-header {
+    -fx-background-color: -bg-secondary;
+    -fx-border-color: transparent -border-subtle transparent transparent;
+    -fx-border-width: 0 1 0 0;
+    -fx-padding: 8 10 8 10;
+}
+.table-view .column-header .label {
+    -fx-text-fill: -text-main;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+}
+.table-row-cell {
+    -fx-background-color: #ffffff;
+    -fx-border-color: transparent transparent #f0f0f0 transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.table-row-cell:odd {
+    -fx-background-color: #f9f9fa;
+}
+.table-row-cell:hover {
+    -fx-background-color: -bg-hover;
+}
+.table-row-cell:filled:selected {
+    -fx-background-color: #e8f0fe;
+}
+.table-row-cell:filled:selected .text {
+    -fx-fill: #0969da;
+}
+.table-cell {
+    -fx-text-fill: -text-main;
+    -fx-padding: 8 10 8 10;
+    -fx-font-size: 13px;
+}
+
+/* Badges */
+.badge-easy {
+    -fx-background-color: #dafbe1;
+    -fx-text-fill: #1a7f37;
+    -fx-padding: 2 6 2 6;
+    -fx-background-radius: 3px;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+.badge-medium {
+    -fx-background-color: #fff8c5;
+    -fx-text-fill: #9a6700;
+    -fx-padding: 2 6 2 6;
+    -fx-background-radius: 3px;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+.badge-hard {
+    -fx-background-color: #ffebe9;
+    -fx-text-fill: #cf222e;
+    -fx-padding: 2 6 2 6;
+    -fx-background-radius: 3px;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.badge-role {
+    -fx-background-color: #f0f4f9;
+    -fx-text-fill: #0969da;
+    -fx-padding: 3 8 3 8;
+    -fx-border-color: #cce0ff;
+    -fx-border-width: 1px;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}

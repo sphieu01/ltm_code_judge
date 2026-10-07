@@ -111,12 +111,11 @@ public class ClientApp extends Application {
     private void switchScene(javafx.scene.Parent root, double width, double height) {
         if (mainScene == null) {
             mainScene = new Scene(root, width, height);
-            if (stylesheetUrl != null) {
-                mainScene.getStylesheets().add(stylesheetUrl);
-            }
+            com.grading.client.view.ThemeManager.getInstance().registerScene(mainScene);
             primaryStage.setScene(mainScene);
         } else {
             mainScene.setRoot(root);
+            com.grading.client.view.ThemeManager.getInstance().applyTheme(mainScene);
         }
     }
 

@@ -39,6 +39,11 @@ public class TeacherProblemDialog extends Dialog<Problem> {
 
         DialogPane pane = getDialogPane();
         pane.getStyleClass().add("card");
+        String cssPath = (ThemeManager.getInstance().isDark()) ? "/css/dark.css" : "/css/light.css";
+        java.net.URL res = getClass().getResource(cssPath);
+        if (res != null) {
+            pane.getStylesheets().setAll(res.toExternalForm());
+        }
         pane.setPrefWidth(680);
         pane.setPrefHeight(600);
 

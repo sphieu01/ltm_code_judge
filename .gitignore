@@ -27,3 +27,7 @@ Thumbs.db
 # -- Personal notes --
 TOREAD.md
 **/TOREAD.md
+
+docs/*
+test_data/
+AGENTS.md 

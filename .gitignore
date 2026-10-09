@@ -9,6 +9,7 @@ target/
 *.jar
 *.war
 *.ear
+*.bat
 
 # -- IDE --
 .idea/

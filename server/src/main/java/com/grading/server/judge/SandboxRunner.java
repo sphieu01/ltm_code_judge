@@ -37,8 +37,8 @@ public class SandboxRunner {
     /** Timeout mặc định cho mỗi lần chạy test case (ms) */
     public static final long DEFAULT_TIME_LIMIT_MS = 2000L;
 
-    /** Thư mục temp để chứa code của mỗi submission */
-    private static final String TEMP_DIR = System.getProperty("java.io.tmpdir") + File.separator + "judge";
+    /** Thư mục temp để chứa code của mỗi submission (sử dụng thư mục cục bộ của ứng dụng để tránh Windows App Control policy 4551) */
+    private static final String TEMP_DIR = System.getProperty("user.dir") + File.separator + "temp" + File.separator + "judge";
 
     /** Lưu trữ tên class Java tương ứng với mỗi submissionId để khi run gọi đúng class */
     private final java.util.Map<Integer, String> mainClassBySubmission = new java.util.concurrent.ConcurrentHashMap<>();
@@ -203,6 +203,8 @@ public class SandboxRunner {
             switch (language.toLowerCase()) {
                 case "java":
                     return compileJava(submissionId, sourceCode, workDir);
+                case "c":
+                    return compileC(submissionId, sourceCode, workDir);
                 case "cpp":
                     return compileCpp(submissionId, sourceCode, workDir);
                 case "python":
@@ -214,6 +216,27 @@ public class SandboxRunner {
             logger.error("Compile error for submission {}", submissionId, e);
             return CompileResult.failure("Internal compile error: " + e.getMessage());
         }
+    }
+
+    private CompileResult compileC(int submissionId, String sourceCode, String workDir)
+            throws IOException, InterruptedException {
+        String fileName = workDir + File.separator + "solution.c";
+        writeFile(fileName, sourceCode);
+
+        ProcessBuilder pb = new ProcessBuilder("gcc", "-O2", "-o", "solution", "solution.c");
+        pb.directory(new File(workDir));
+        pb.redirectErrorStream(true);
+
+        Process process = pb.start();
+        String output = readStream(process.getInputStream());
+        boolean finished = process.waitFor(30, TimeUnit.SECONDS);
+
+        if (!finished) {
+            process.destroyForcibly();
+            return CompileResult.failure("Compilation timed out");
+        }
+
+        return process.exitValue() == 0 ? CompileResult.success() : CompileResult.failure(output);
     }
 
     private CompileResult compileJava(int submissionId, String sourceCode, String workDir)
@@ -419,6 +442,7 @@ public class SandboxRunner {
                 cmd.add(workDir);
                 cmd.add(className);
                 break;
+            case "c":
             case "cpp":
                 File exeFile = new File(workDir, "solution.exe");
                 if (exeFile.exists()) {

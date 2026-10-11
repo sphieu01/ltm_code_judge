@@ -27,7 +27,7 @@ public class SubmissionService {
 
     private static final Logger logger = LoggerFactory.getLogger(SubmissionService.class);
 
-    private static final int SUPPORTED_LANGUAGES_COUNT = 3;
+    private static final int SUPPORTED_LANGUAGES_COUNT = 4;
 
     private final SubmissionRepository submissionRepository;
     private final JudgeQueue judgeQueue;
@@ -123,9 +123,10 @@ public class SubmissionService {
         }
         if (!language.equalsIgnoreCase("java")
                 && !language.equalsIgnoreCase("cpp")
+                && !language.equalsIgnoreCase("c")
                 && !language.equalsIgnoreCase("python")) {
             throw new IllegalArgumentException("Ngôn ngữ không được hỗ trợ: " + language
-                    + ". Chỉ hỗ trợ: java, cpp, python");
+                    + ". Chỉ hỗ trợ: java, cpp, c, python");
         }
     }
 

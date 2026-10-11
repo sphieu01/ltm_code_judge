@@ -129,8 +129,9 @@ public class ProblemView extends BorderPane {
             themeToggleBtn.setText(ThemeManager.getInstance().getToggleIconText());
         });
 
-        // ComboBox chọn ngôn ngữ (C++, Java, Python, v.v.)
+        // ComboBox chọn ngôn ngữ (C, C++, Java, Python, v.v.)
         languageComboBox = new ComboBox<>(FXCollections.observableArrayList(
+                "C (gcc 12)",
                 "C++ (g++ 17)",
                 "Java (OpenJDK 17)",
                 "Python 3"
@@ -368,6 +369,14 @@ public class ProblemView extends BorderPane {
     }
 
     private void initLanguageTemplates() {
+        languageTemplates.put("C (gcc 12)",
+                "#include <stdio.h>\n\n" +
+                "int main() {\n" +
+                "    // Viết code giải bài tại đây\n\n" +
+                "    return 0;\n" +
+                "}\n"
+        );
+
         languageTemplates.put("C++ (g++ 17)",
                 "#include <iostream>\n" +
                 "using namespace std;\n\n" +
@@ -516,12 +525,22 @@ public class ProblemView extends BorderPane {
     public String getSelectedLanguage() {
         String selected = languageComboBox.getSelectionModel().getSelectedItem();
         if (selected == null) return "cpp";
+        if (selected.startsWith("C (") || selected.equalsIgnoreCase("c")) return "c";
+        if (selected.startsWith("C++")) return "cpp";
         if (selected.startsWith("Java")) return "java";
         if (selected.startsWith("Python")) return "python";
         return "cpp";
     }
 
     public void setSelectedLanguage(String languageName) {
+        if ("c".equalsIgnoreCase(languageName)) {
+            for (String item : languageComboBox.getItems()) {
+                if (item.startsWith("C (")) {
+                    languageComboBox.getSelectionModel().select(item);
+                    return;
+                }
+            }
+        }
         for (String item : languageComboBox.getItems()) {
             if (item.toLowerCase().contains(languageName.toLowerCase())) {
                 languageComboBox.getSelectionModel().select(item);

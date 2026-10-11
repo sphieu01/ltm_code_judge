@@ -19,8 +19,29 @@ REM Cấu hình server (tùy chỉnh nếu cần)
 SET SERVER_PORT=9999
 SET JUDGE_WORKER_COUNT=4
 
-REM JAVA_HOME — sửa nếu JDK của bạn ở chỗ khác
-SET JAVA_HOME=C:\Program Files\Java\jdk-23
+REM Tự động phát hiện Java
+WHERE java >nul 2>&1
+IF %ERRORLEVEL% EQU 0 (
+    SET "JAVA_CMD=java"
+) ELSE IF EXIST "C:\Users\Admin\.jdks\openjdk-25.0.2\bin\java.exe" (
+    SET "JAVA_CMD=C:\Users\Admin\.jdks\openjdk-25.0.2\bin\java.exe"
+) ELSE IF DEFINED JAVA_HOME (
+    SET "JAVA_CMD=%JAVA_HOME%\bin\java.exe"
+) ELSE (
+    SET "JAVA_CMD=java"
+)
+
+REM Tự động phát hiện Maven
+WHERE mvn >nul 2>&1
+IF %ERRORLEVEL% EQU 0 (
+    SET "MVN_CMD=mvn"
+) ELSE IF EXIST "%USERPROFILE%\.antigravity-ide\extensions\oracle.oracle-java-27.0.0-universal\nbcode\java\maven\bin\mvn.cmd" (
+    SET "MVN_CMD=%USERPROFILE%\.antigravity-ide\extensions\oracle.oracle-java-27.0.0-universal\nbcode\java\maven\bin\mvn.cmd"
+) ELSE IF EXIST "C:\Users\ADMIN\maven\apache-maven-3.9.6\bin\mvn.cmd" (
+    SET "MVN_CMD=C:\Users\ADMIN\maven\apache-maven-3.9.6\bin\mvn.cmd"
+) ELSE (
+    SET "MVN_CMD=mvn"
+)
 
 echo.
 echo ====================================================
@@ -42,7 +63,7 @@ FOR /F "tokens=5" %%P IN ('netstat -ano ^| findstr ":9999 " ^| findstr "LISTENIN
 REM Build fat JAR neu chua co
 IF NOT EXIST "target\code-grading-server-1.0.0.jar" (
     echo [BUILD] Building fat JAR...
-    call "C:\Users\ADMIN\maven\apache-maven-3.9.6\bin\mvn.cmd" clean package -DskipTests -q
+    call "%MVN_CMD%" clean package -DskipTests -q
     IF ERRORLEVEL 1 (
         echo [ERROR] Build failed!
         pause
@@ -56,6 +77,6 @@ echo [SERVER] Starting server on port %SERVER_PORT%...
 echo Press Ctrl+C to stop.
 echo.
 
-"%JAVA_HOME%\bin\java.exe" -jar target\code-grading-server-1.0.0.jar
+"%JAVA_CMD%" -jar target\code-grading-server-1.0.0.jar
 
 pause

@@ -130,8 +130,10 @@ public class JudgeWorker implements Runnable {
 
     private void judgeSubmission(Submission submission) {
         long queueWaitMs = submission.getQueueWaitMs();
-        logger.info("Worker-{} start judging submission id={} (queued {}ms ago)",
-                workerId, submission.getId(), queueWaitMs);
+        boolean isDocker = com.grading.server.judge.docker.DockerSandboxRunner.isDockerAvailable();
+        String sandboxModeStr = isDocker ? "DOCKER_CONTAINER" : "LOCAL_PROCESS_SANDBOX";
+        logger.info("Worker-{} start judging submission id={} (lang={}) [Sandbox: {}] (queued {}ms ago)",
+                workerId, submission.getId(), submission.getLanguage(), sandboxModeStr, queueWaitMs);
 
         try {
             // 1. Cập nhật trạng thái JUDGING trong DB

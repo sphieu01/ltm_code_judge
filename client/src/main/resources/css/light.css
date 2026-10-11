@@ -42,6 +42,8 @@
     -verdict-wa: #cf222e;
     -verdict-tle: #9a6700;
     -verdict-info: #0969da;
+    -verdict-sv: #cf222e;
+    -verdict-sv-bg: #ffebe9;
 }
 
 /* ===== BASE LAYOUT ===== */
@@ -441,6 +443,27 @@
 .status-badge-wa {
     -fx-text-fill: -verdict-wa;
     -fx-font-weight: bold;
+    -fx-font-size: 12px;
+}
+.status-badge-sv {
+    -fx-text-fill: -verdict-sv;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+    -fx-border-color: -verdict-sv;
+    -fx-border-width: 1px;
+    -fx-border-radius: 3px;
+    -fx-background-color: -verdict-sv-bg;
+    -fx-background-radius: 3px;
+    -fx-padding: 2 6 2 6;
+}
+.status-badge-tle {
+    -fx-text-fill: -verdict-tle;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+}
+.status-badge-pending {
+    -fx-text-fill: -verdict-info;
+    -fx-font-style: italic;
     -fx-font-size: 12px;
 }
 .status-badge-neutral {

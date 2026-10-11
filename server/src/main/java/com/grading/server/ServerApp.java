@@ -52,6 +52,14 @@ public class ServerApp {
         logger.info("Judge workers: {}", ServerConfig.JUDGE_WORKER_COUNT);
         logger.info("Judge queue capacity: {}", ServerConfig.JUDGE_QUEUE_CAPACITY);
 
+        boolean dockerActive = com.grading.server.judge.docker.DockerSandboxRunner.isDockerAvailable();
+        if (dockerActive) {
+            logger.info("Sandbox Execution Mode: DOCKER CONTAINER [Isolated]");
+        } else {
+            logger.warn("⚠️ Sandbox Execution Mode: LOCAL PROCESS SANDBOX [Fallback: Running on Host OS via ProcessBuilder]");
+            logger.warn("⚠️ Note: Protected by Layer 1 SecurityScanner + Process timeouts.");
+        }
+
         // ── 1. Repositories ───────────────────────────────────────────────────
         UserRepository userRepository = new UserRepository();
         ProblemRepository problemRepository = new ProblemRepository();

@@ -552,12 +552,21 @@ public class ProblemView extends BorderPane {
     public void showExecutionResult(String output, String verdict, boolean isError) {
         consoleOutputArea.setText(output != null ? output : "");
 
-        resultStatusBadge.getStyleClass().removeAll("status-badge-ac", "status-badge-wa", "status-badge-neutral");
+        resultStatusBadge.getStyleClass().removeAll(
+                "status-badge-ac", "status-badge-wa", "status-badge-sv",
+                "status-badge-tle", "status-badge-pending", "status-badge-neutral"
+        );
         if (verdict != null) {
             resultStatusBadge.setText(verdict);
             if (verdict.equalsIgnoreCase("ACCEPTED") || verdict.equalsIgnoreCase("AC")) {
                 resultStatusBadge.getStyleClass().add("status-badge-ac");
-            } else if (isError || verdict.contains("ERROR") || verdict.contains("WRONG") || verdict.equalsIgnoreCase("WA")) {
+            } else if (verdict.contains("SECURITY") || verdict.equalsIgnoreCase("SV")) {
+                resultStatusBadge.getStyleClass().add("status-badge-sv");
+            } else if (verdict.equalsIgnoreCase("TIME_LIMIT_EXCEEDED") || verdict.equalsIgnoreCase("TLE")) {
+                resultStatusBadge.getStyleClass().add("status-badge-tle");
+            } else if (verdict.equalsIgnoreCase("PENDING") || verdict.equalsIgnoreCase("JUDGING")) {
+                resultStatusBadge.getStyleClass().add("status-badge-pending");
+            } else if (isError || verdict.contains("ERROR") || verdict.contains("WRONG") || verdict.equalsIgnoreCase("WA") || verdict.equalsIgnoreCase("CE") || verdict.equalsIgnoreCase("RE")) {
                 resultStatusBadge.getStyleClass().add("status-badge-wa");
             } else {
                 resultStatusBadge.getStyleClass().add("status-badge-neutral");
@@ -568,8 +577,11 @@ public class ProblemView extends BorderPane {
     public void setBusy(boolean isBusy, String waitingMessage) {
         submitButton.setDisable(isBusy);
         if (isBusy) {
-            resultStatusBadge.getStyleClass().removeAll("status-badge-ac", "status-badge-wa");
-            resultStatusBadge.getStyleClass().add("status-badge-neutral");
+            resultStatusBadge.getStyleClass().removeAll(
+                    "status-badge-ac", "status-badge-wa", "status-badge-sv",
+                    "status-badge-tle", "status-badge-pending", "status-badge-neutral"
+            );
+            resultStatusBadge.getStyleClass().add("status-badge-pending");
             resultStatusBadge.setText(waitingMessage != null ? waitingMessage : "Đang xử lý...");
         }
     }

@@ -38,16 +38,49 @@ public class SandboxRunner {
     public static final long DEFAULT_TIME_LIMIT_MS = 2000L;
 
     /** Thư mục temp để chứa code của mỗi submission (sử dụng thư mục cục bộ của ứng dụng để tránh Windows App Control policy 4551) */
-    private static final String TEMP_DIR = System.getProperty("user.dir") + File.separator + "temp" + File.separator + "judge";
+    private static final String TEMP_DIR = resolveBaseTempDir();
+
+    private static String resolveBaseTempDir() {
+        String baseDir = System.getProperty("user.dir");
+        File dir = new File(baseDir);
+        if ("server".equalsIgnoreCase(dir.getName())) {
+            File parent = dir.getParentFile();
+            if (parent != null && parent.exists()) {
+                baseDir = parent.getAbsolutePath();
+            }
+        }
+        return baseDir + File.separator + "temp" + File.separator + "judge";
+    }
 
     /** Lưu trữ tên class Java tương ứng với mỗi submissionId để khi run gọi đúng class */
     private final java.util.Map<Integer, String> mainClassBySubmission = new java.util.concurrent.ConcurrentHashMap<>();
 
     private static String PYTHON_CMD = null;
 
+    private static final java.util.concurrent.atomic.AtomicBoolean BANNER_PRINTED = new java.util.concurrent.atomic.AtomicBoolean(false);
+
     public SandboxRunner() {
         // Tạo thư mục judge temp nếu chưa có
         new File(TEMP_DIR).mkdirs();
+
+        // Kiểm tra và ghi log rõ ràng chế độ Sandbox khi khởi tạo (chỉ in 1 lần duy nhất cho toàn server)
+        if (BANNER_PRINTED.compareAndSet(false, true)) {
+            if (com.grading.server.judge.docker.DockerSandboxRunner.isDockerAvailable()) {
+                logger.info("================================================================================");
+                logger.info("🛡️ [SANDBOX ENGINE] ACTIVE MODE: DOCKER CONTAINER SANDBOX (Production Standard)");
+                logger.info("    -> Container Image: {}", com.grading.server.judge.docker.DockerSandboxRunner.DOCKER_IMAGE);
+                logger.info("    -> Security Limits:  --network none | --memory 256m | --cpus 1.0 | Read-Only Mount");
+                logger.info("================================================================================");
+            } else {
+                logger.warn("================================================================================");
+                logger.warn("⚠️ [SANDBOX ENGINE] ACTIVE MODE: LOCAL PROCESS SANDBOX (FALLBACK MODE)");
+                logger.warn("    -> Notice:          Docker is offline or image 'ltm-judge-runner:latest' not found.");
+                logger.warn("    -> Execution Host:  Student code runs directly on HOST OS via ProcessBuilder.");
+                logger.warn("    -> Work Directory:  {}", TEMP_DIR);
+                logger.warn("    -> Protection:      SecurityScanner Layer 1 (Static Regex) + Timeout Enforcement");
+                logger.warn("================================================================================");
+            }
+        }
     }
 
     /**
@@ -199,16 +232,40 @@ public class SandboxRunner {
         String workDir = getWorkDir(submissionId);
         new File(workDir).mkdirs();
 
+        String className = "java".equalsIgnoreCase(language) ? extractClassName(sourceCode) : "Main";
+        mainClassBySubmission.put(submissionId, className);
+
+        boolean useDocker = com.grading.server.judge.docker.DockerSandboxRunner.isDockerAvailable();
+
+        if (useDocker) {
+            logger.info("[DOCKER_SANDBOX] Submission id={} (lang={}) -> Compiling inside Docker container...", submissionId, language);
+            try {
+                writeSourceFile(workDir, sourceCode, language, className);
+            } catch (IOException e) {
+                return CompileResult.failure("File write error: " + e.getMessage());
+            }
+            return com.grading.server.judge.docker.DockerSandboxRunner.compile(submissionId, language, workDir, className);
+        }
+
+        // ⚠️ LOG RÕ KHI CHẠY LOCAL PROCESS SANDBOX THEO YÊU CẦU CỦA USER:
+        logger.warn("⚠️ [LOCAL_SANDBOX] [COMPILE] Submission #{} (lang={}) -> Compiling locally on Host OS (workDir={})",
+                submissionId, language, workDir);
+
+        CompileResult result;
         try {
             switch (language.toLowerCase()) {
                 case "java":
-                    return compileJava(submissionId, sourceCode, workDir);
+                    result = compileJava(submissionId, sourceCode, workDir);
+                    break;
                 case "c":
-                    return compileC(submissionId, sourceCode, workDir);
+                    result = compileC(submissionId, sourceCode, workDir);
+                    break;
                 case "cpp":
-                    return compileCpp(submissionId, sourceCode, workDir);
+                    result = compileCpp(submissionId, sourceCode, workDir);
+                    break;
                 case "python":
-                    return compilePython(submissionId, sourceCode, workDir);
+                    result = compilePython(submissionId, sourceCode, workDir);
+                    break;
                 default:
                     return CompileResult.failure("Unsupported language: " + language);
             }
@@ -216,6 +273,14 @@ public class SandboxRunner {
             logger.error("Compile error for submission {}", submissionId, e);
             return CompileResult.failure("Internal compile error: " + e.getMessage());
         }
+
+        if (result.isSuccess()) {
+            logger.info("✅ [LOCAL_SANDBOX] [COMPILE_OK] Submission #{} (lang={}) compiled successfully on Host OS", submissionId, language);
+        } else {
+            logger.warn("⚠️ [LOCAL_SANDBOX] [COMPILE_FAIL] Submission #{} (lang={}) compilation failed on Host OS: {}",
+                    submissionId, language, result.getErrorOutput());
+        }
+        return result;
     }
 
     private CompileResult compileC(int submissionId, String sourceCode, String workDir)
@@ -332,6 +397,17 @@ public class SandboxRunner {
      */
     public RunResult run(int submissionId, String language, String input, int timeLimitMs) {
         String workDir = getWorkDir(submissionId);
+        boolean useDocker = com.grading.server.judge.docker.DockerSandboxRunner.isDockerAvailable();
+
+        if (useDocker) {
+            String className = mainClassBySubmission.getOrDefault(submissionId, "Main");
+            logger.info("[DOCKER_SANDBOX] Submission id={} (lang={}) -> Running test case inside Docker container...", submissionId, language);
+            return com.grading.server.judge.docker.DockerSandboxRunner.run(submissionId, language, input, timeLimitMs, workDir, className);
+        }
+
+        // ⚠️ LOG RÕ KHI CHẠY LOCAL PROCESS SANDBOX THEO YÊU CẦU CỦA USER:
+        logger.warn("⚠️ [LOCAL_SANDBOX] [RUN] Submission #{} (lang={}) -> Executing on Host OS (timeout={}ms, workDir={})",
+                submissionId, language, timeLimitMs, workDir);
 
         try {
             List<String> command = buildRunCommand(submissionId, language, workDir);
@@ -376,6 +452,7 @@ public class SandboxRunner {
 
             if (!finished) {
                 process.destroyForcibly();
+                logger.warn("⚠️ [LOCAL_SANDBOX] [TLE] Submission #{} timed out after {}ms on Host OS (Killed)", submissionId, timeLimitMs);
                 return RunResult.error("TLE", null);
             }
 
@@ -384,9 +461,12 @@ public class SandboxRunner {
 
             int exitCode = process.exitValue();
             if (exitCode != 0) {
+                logger.warn("⚠️ [LOCAL_SANDBOX] [RE] Submission #{} exited with code {} on Host OS in {}ms: {}",
+                        submissionId, exitCode, execTimeMs, stderr.toString().trim());
                 return RunResult.error("RE", stderr.toString());
             }
 
+            logger.info("✅ [LOCAL_SANDBOX] [OK] Submission #{} completed test case on Host OS in {}ms", submissionId, execTimeMs);
             return RunResult.success(stdout.toString(), (int) execTimeMs, 0);
 
         } catch (Exception e) {
@@ -411,6 +491,17 @@ public class SandboxRunner {
     }
 
     // ─── Private helpers ──────────────────────────────────────────────────────
+
+    private void writeSourceFile(String workDir, String sourceCode, String language, String className) throws IOException {
+        String fileName = switch (language.toLowerCase()) {
+            case "c" -> "solution.c";
+            case "cpp" -> "solution.cpp";
+            case "python" -> "solution.py";
+            case "java" -> className + ".java";
+            default -> "solution.txt";
+        };
+        writeFile(workDir + File.separator + fileName, sourceCode);
+    }
 
     private String getWorkDir(int submissionId) {
         return TEMP_DIR + File.separator + submissionId;

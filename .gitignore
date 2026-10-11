@@ -1,4 +1,4 @@
-﻿# -- Logs --
+# -- Logs --
 logs/
 *.log
 
@@ -10,6 +10,15 @@ target/
 *.war
 *.ear
 *.bat
+!run-server.bat
+!run-client.bat
+!server/run-server.bat
+!client/run-client.bat
+!server/docker/build-image.bat
+
+# -- Temporary Judge Dirs --
+temp/
+**/temp/
 
 # -- IDE --
 .idea/

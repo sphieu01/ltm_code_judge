@@ -7,7 +7,7 @@
 -- Custom ENUM types
 CREATE TYPE user_role AS ENUM ('STUDENT', 'TEACHER');
 CREATE TYPE difficulty_level AS ENUM ('EASY', 'MEDIUM', 'HARD');
-CREATE TYPE verdict_type AS ENUM ('PENDING', 'JUDGING', 'AC', 'WA', 'TLE', 'RE', 'CE');
+CREATE TYPE verdict_type AS ENUM ('PENDING', 'JUDGING', 'AC', 'WA', 'TLE', 'RE', 'CE', 'SECURITY_VIOLATION');
 
 -- ──────────────────────────────────────────────────────────────
 -- Bảng users

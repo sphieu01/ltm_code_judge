@@ -17,6 +17,7 @@ public class Submission {
     public static final String VERDICT_TLE      = "TLE";     // Time Limit Exceeded
     public static final String VERDICT_RE       = "RE";      // Runtime Error
     public static final String VERDICT_CE       = "CE";      // Compile Error
+    public static final String VERDICT_SV       = "SECURITY_VIOLATION"; // Vi phạm quy tắc bảo mật
 
     // ─── Fields ───────────────────────────────────────────────────────────────
     private int id;

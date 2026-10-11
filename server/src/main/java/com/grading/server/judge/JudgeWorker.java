@@ -138,6 +138,23 @@ public class JudgeWorker implements Runnable {
             submissionRepository.markAsJudging(submission.getId());
             submission.setVerdict(Submission.VERDICT_JUDGING);
 
+            // 1.5. Quét bảo mật tĩnh (SecurityScanner - Tầng 1)
+            com.grading.server.judge.security.SecurityScanner.SecurityResult secResult =
+                    com.grading.server.judge.security.SecurityScanner.scan(
+                            submission.getSourceCode(),
+                            submission.getLanguage()
+                    );
+            if (!secResult.isSafe()) {
+                logger.warn("Worker-{} rejected submission id={} due to security violation: {}",
+                        workerId, submission.getId(), secResult.reason());
+                submission.setVerdict(Submission.VERDICT_SV);
+                submission.setScore(0);
+                submission.setPassedTests(0);
+                submission.setCompileOutput(secResult.reason());
+                finalizeSubmission(submission);
+                return;
+            }
+
             // 2. Lấy tất cả test cases
             List<TestCase> testCases = problemRepository.findAllTestCases(submission.getProblemId());
             if (testCases.isEmpty()) {

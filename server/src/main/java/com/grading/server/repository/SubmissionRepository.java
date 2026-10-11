@@ -187,6 +187,23 @@ public class SubmissionRepository {
                         submission.getId(), submission.getVerdict(), submission.getScore());
             }
         } catch (SQLException e) {
+            if (Submission.VERDICT_SV.equals(submission.getVerdict())) {
+                // Nếu DB enum trên remote chưa chạy migration SECURITY_VIOLATION, lưu tạm dưới dạng RE
+                try (Connection conn = DatabaseConfig.getConnection();
+                     PreparedStatement stmt = conn.prepareStatement(SQL_UPDATE_VERDICT)) {
+                    stmt.setString(1, Submission.VERDICT_RE);
+                    stmt.setInt(2, 0);
+                    stmt.setInt(3, 0);
+                    stmt.setInt(4, submission.getTotalTests());
+                    stmt.setInt(5, 0);
+                    stmt.setInt(6, 0);
+                    stmt.setString(7, "[SECURITY_VIOLATION] " + submission.getCompileOutput());
+                    stmt.setInt(8, submission.getId());
+                    stmt.executeUpdate();
+                    logger.warn("Saved SECURITY_VIOLATION as RE fallback for submission id={}", submission.getId());
+                    return;
+                } catch (SQLException ignored) {}
+            }
             logger.error("Error updating verdict for submission id={}", submission.getId(), e);
             throw e;
         }

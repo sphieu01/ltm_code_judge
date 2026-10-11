@@ -158,7 +158,11 @@ public class ProblemController {
                 report.append("Bộ nhớ:     ").append(memKb).append(" KB\n");
 
                 if (compileError != null && !compileError.trim().isEmpty()) {
-                    report.append("\n[CHI TIẾT LỖI BIÊN DỊCH / RUNTIME ERROR]:\n");
+                    if (verdict.contains("SECURITY") || verdict.equalsIgnoreCase("SV")) {
+                        report.append("\n[CẢNH BÁO AN TOÀN HỆ THỐNG / BẢO MẬT]:\n");
+                    } else {
+                        report.append("\n[CHI TIẾT LỖI BIÊN DỊCH / RUNTIME ERROR]:\n");
+                    }
                     report.append(compileError).append("\n");
                 }
                 report.append("==========================================\n");

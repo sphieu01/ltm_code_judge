@@ -12,6 +12,7 @@ public class Problem {
     private String difficulty; // EASY, MEDIUM, HARD
     private int totalTestCases;
     private int sampleTestCases;
+    private String status = ""; // "AC", "WA", "CE", "TLE", hoặc "" nếu chưa làm
 
     public Problem() {}
 
@@ -45,6 +46,9 @@ public class Problem {
     public String getTimeLimitFormatted() {
         return String.format("%.1fs", timeLimitMs / 1000.0);
     }
+
+    public String getStatus() { return status != null ? status : ""; }
+    public void setStatus(String status) { this.status = status; }
 
     /**
      * Hiển thị memory limit dạng "256 MB"

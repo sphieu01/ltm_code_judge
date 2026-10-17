@@ -66,7 +66,11 @@ public class SocketClient {
      * Sau khi kết nối, khởi động listener thread để nhận response.
      */
     public void connect() throws IOException {
-        socket = new Socket(host, port);
+        socket = new Socket();
+        // Timeout kết nối 5 giây tránh treo vô hạn nếu server không phản hồi
+        socket.connect(new java.net.InetSocketAddress(host, port), 5000);
+        socket.setTcpNoDelay(true);
+
         writer = new PrintWriter(
                 new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8),
                 true // autoFlush
@@ -83,31 +87,50 @@ public class SocketClient {
     }
 
     /**
-     * Ngắt kết nối.
+     * Ngắt kết nối một cách an toàn và bất đồng bộ (không block UI thread).
      */
     public void disconnect() {
+        if (!connected && (socket == null || socket.isClosed())) {
+            return;
+        }
         connected = false;
-        try {
-            // Gửi DISCONNECT message trước khi đóng
-            if (writer != null && socket != null && !socket.isClosed()) {
-                Request disconnectReq = new Request(
-                        MessageType.DISCONNECT, generateRequestId(), authToken, null);
-                writer.println(GSON.toJson(disconnectReq));
-            }
-        } catch (Exception ignored) {}
+        pendingRequests.clear();
+        notificationCallback = null;
 
-        closeResources();
+        // Đẩy toàn bộ quá trình gửi DISCONNECT và đóng socket sang thread nền
+        // để UI Thread không bao giờ bị đơ (freeze).
+        Thread dcThread = new Thread(() -> {
+            try {
+                if (writer != null && socket != null && !socket.isClosed()) {
+                    Request disconnectReq = new Request(
+                            MessageType.DISCONNECT, generateRequestId(), authToken, null);
+                    writer.println(GSON.toJson(disconnectReq));
+                    writer.flush();
+                }
+            } catch (Exception ignored) {}
+
+            closeResources();
+        }, "SocketClient-Disconnect");
+        dcThread.setDaemon(true);
+        dcThread.start();
     }
 
     private void closeResources() {
-        try { if (reader != null) reader.close(); } catch (IOException ignored) {}
-        try { if (writer != null) writer.close(); } catch (Exception ignored) {}
-        try { if (socket != null) socket.close(); } catch (IOException ignored) {}
+        connected = false;
+        // ĐÓNG SOCKET TRƯỚC HẾT: unblock ngay lập tức lệnh reader.readLine()
+        // đang chờ trên Listener Thread, tránh deadlock lock BufferedReader!
+        try {
+            if (socket != null && !socket.isClosed()) {
+                socket.close();
+            }
+        } catch (Exception ignored) {}
 
-        if (listenerThread != null) {
+        try { if (writer != null) writer.close(); } catch (Exception ignored) {}
+        try { if (reader != null) reader.close(); } catch (Exception ignored) {}
+
+        if (listenerThread != null && listenerThread.isAlive()) {
             listenerThread.interrupt();
         }
-        connected = false;
     }
 
     public boolean isConnected() {
@@ -238,14 +261,19 @@ public class SocketClient {
     }
 
     /**
-     * Gửi REGISTER request.
+     * Gửi REGISTER request kèm vai trò (role: STUDENT / TEACHER).
      */
-    public void register(String username, String password, String fullName, Consumer<Response> callback) {
+    public void register(String username, String password, String fullName, String role, Consumer<Response> callback) {
         JsonObject data = new JsonObject();
         data.addProperty("username", username);
         data.addProperty("password", password);
         data.addProperty("fullName", fullName);
+        data.addProperty("role", role);
         sendRequest(MessageType.REGISTER, data, callback);
+    }
+
+    public void register(String username, String password, String fullName, Consumer<Response> callback) {
+        register(username, password, fullName, "STUDENT", callback);
     }
 
     /**

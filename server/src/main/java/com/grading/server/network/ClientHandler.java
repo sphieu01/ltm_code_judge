@@ -154,6 +154,7 @@ public class ClientHandler implements Runnable {
             String token = authService.login(username, password);
             int userId = authService.getUserIdFromToken(token);
             String role = authService.getRoleFromToken(token);
+            String fullName = authService.getFullNameFromToken(token);
 
             // Update session state
             authenticatedUserId = userId;
@@ -166,7 +167,11 @@ public class ClientHandler implements Runnable {
             JsonObject responseData = new JsonObject();
             responseData.addProperty("token", token);
             responseData.addProperty("userId", userId);
+            responseData.addProperty("username", username);
             responseData.addProperty("role", role);
+            if (fullName != null) {
+                responseData.addProperty("fullName", fullName);
+            }
 
             Message response = Message.success(
                     MessageType.LOGIN_RESPONSE,
@@ -200,6 +205,7 @@ public class ClientHandler implements Runnable {
             JsonObject responseData = new JsonObject();
             responseData.addProperty("userId", user.getId());
             responseData.addProperty("username", user.getUsername());
+            responseData.addProperty("fullName", user.getFullName());
             responseData.addProperty("role", user.getRole());
 
             Message response = Message.success(

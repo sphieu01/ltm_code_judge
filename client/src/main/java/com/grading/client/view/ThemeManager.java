@@ -28,7 +28,7 @@ public class ThemeManager {
     }
 
     private static ThemeManager instance;
-    private Theme currentTheme = Theme.LIGHT; // MẶC ĐỊNH LÀ THEME SÁNG!
+    private Theme currentTheme = Theme.LIGHT; // MẶC ĐỊNH LÀ THEME SÁNG (MÀU TRẮNG)
     private Scene registeredScene;
     private final List<Consumer<Theme>> themeListeners = new ArrayList<>();
 
@@ -93,6 +93,6 @@ public class ThemeManager {
     }
 
     public String getToggleIconText() {
-        return (currentTheme == Theme.LIGHT) ? "🌙 Tối" : "☀ Sáng";
+        return (currentTheme == Theme.LIGHT) ? "🌙" : "☀";
     }
 }

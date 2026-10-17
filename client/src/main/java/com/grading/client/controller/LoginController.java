@@ -48,7 +48,7 @@ public class LoginController {
         view.setError("");
 
         // Kết nối Socket nếu chưa kết nối hoặc đổi host/port
-        new Thread(() -> {
+        Thread loginThread = new Thread(() -> {
             SocketClient client = sessionManager.getSocketClient();
             try {
                 if (client == null || !client.isConnected()) {
@@ -61,7 +61,7 @@ public class LoginController {
                     // Đăng ký
                     String fullName = view.getFullName();
                     String role = view.getSelectedRole();
-                    client.register(username, password, fullName, response -> {
+                    client.register(username, password, fullName, role, response -> {
                         Platform.runLater(() -> handleRegisterResponse(response));
                     });
                 } else {
@@ -77,7 +77,9 @@ public class LoginController {
                     view.setError("Không thể kết nối đến Server (" + host + ":" + port + "). Vui lòng kiểm tra lại Server hoặc dùng nút 'Dùng thử không cần Server' bên dưới.");
                 });
             }
-        }).start();
+        }, "Login-Thread");
+        loginThread.setDaemon(true);
+        loginThread.start();
     }
 
     private void handleLoginResponse(Response response) {

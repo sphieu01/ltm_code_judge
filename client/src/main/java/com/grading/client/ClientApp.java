@@ -21,9 +21,9 @@ import java.net.URL;
  * Luồng ứng dụng:
  * 1. Màn hình Đăng nhập / Đăng ký (LoginView)
  * 2. Màn hình Danh sách bài tập / Chọn bài (DashboardView)
- *    - Giáo viên có thêm nút "➕ Thêm bài tập"
+ * - Giáo viên có thêm nút "➕ Thêm bài tập"
  * 3. Màn hình Làm bài & Chấm code (ProblemView)
- *    - Bấm nút "⬅ Danh sách bài" để quay lại Dashboard
+ * - Bấm nút "⬅ Danh sách bài" để quay lại Dashboard
  */
 public class ClientApp extends Application {
 
@@ -40,17 +40,32 @@ public class ClientApp extends Application {
             stylesheetUrl = css.toExternalForm();
         }
 
-        primaryStage.setTitle("Auto Grader — Hệ Thống Chấm Code Tự Động");
+        primaryStage.setTitle("Auto Grader - Hệ Thống Chấm Code Tự Động");
         primaryStage.setMinWidth(900);
         primaryStage.setMinHeight(600);
 
         primaryStage.setOnCloseRequest(event -> {
-            SessionManager.getInstance().clear();
+            try {
+                SessionManager.getInstance().clear();
+            } catch (Exception ignored) {
+            }
+            javafx.application.Platform.exit();
+            System.exit(0);
         });
 
         // Khởi động tại màn hình Đăng nhập
         showLoginView();
         primaryStage.show();
+    }
+
+    @Override
+    public void stop() throws Exception {
+        try {
+            SessionManager.getInstance().clear();
+        } catch (Exception ignored) {
+        }
+        super.stop();
+        System.exit(0);
     }
 
     /**
@@ -120,7 +135,8 @@ public class ClientApp extends Application {
     }
 
     private void populateProblemDetails(ProblemView view, Problem problem) {
-        if (problem == null) return;
+        if (problem == null)
+            return;
 
         String desc = problem.getDescription() != null ? problem.getDescription() : "Mô tả chi tiết bài toán.";
         String inputFormat = "Đầu vào chuẩn theo quy định bài toán.";
@@ -134,7 +150,8 @@ public class ClientApp extends Application {
                 inputFormat = desc.substring(inIdx + 10, outIdx).trim();
                 outputFormat = desc.substring(outIdx + 11).trim();
                 desc = mainDesc;
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
 
         String constraints = String.format("• Giới hạn thời gian: %s\n• Giới hạn bộ nhớ: %s",
@@ -146,7 +163,8 @@ public class ClientApp extends Application {
         com.grading.client.network.SocketClient socketClient = SessionManager.getInstance().getSocketClient();
         if (socketClient != null && socketClient.isConnected()) {
             socketClient.getProblemDetail(problem.getId(), resp -> {
-                if ("SUCCESS".equalsIgnoreCase(resp.getStatus()) && resp.getData() != null && resp.getData().isJsonObject()) {
+                if ("SUCCESS".equalsIgnoreCase(resp.getStatus()) && resp.getData() != null
+                        && resp.getData().isJsonObject()) {
                     com.google.gson.JsonObject pObj = resp.getData().getAsJsonObject();
                     if (pObj.has("testCases") && pObj.get("testCases").isJsonArray()) {
                         com.google.gson.JsonArray tcArr = pObj.getAsJsonArray("testCases");
@@ -154,14 +172,29 @@ public class ClientApp extends Application {
                             int count = 1;
                             for (com.google.gson.JsonElement el : tcArr) {
                                 com.google.gson.JsonObject tc = el.getAsJsonObject();
-                                String input = tc.has("inputData") && !tc.get("inputData").isJsonNull() ? tc.get("inputData").getAsString() : "";
-                                String expected = tc.has("expectedOutput") && !tc.get("expectedOutput").isJsonNull() ? tc.get("expectedOutput").getAsString() : "";
+                                String input = tc.has("inputData") && !tc.get("inputData").isJsonNull()
+                                        ? tc.get("inputData").getAsString()
+                                        : "";
+                                String expected = tc.has("expectedOutput") && !tc.get("expectedOutput").isJsonNull()
+                                        ? tc.get("expectedOutput").getAsString()
+                                        : "";
                                 view.addSampleTestCase("Ví dụ " + count++, input, expected);
                             }
                         });
                     }
                 }
             });
+        } else {
+            // Mẫu test case khi chạy offline để hiển thị bảng ví dụ
+            if (problem.getId() == 1 || "GẤP ĐÔI".equalsIgnoreCase(problem.getTitle())) {
+                view.addSampleTestCase("Ví dụ", "23", "46");
+            } else if (problem.getId() == 2) {
+                view.addSampleTestCase("Ví dụ", "2 3", "5");
+            } else if (problem.getId() == 3) {
+                view.addSampleTestCase("Ví dụ", "7", "YES");
+            } else {
+                view.addSampleTestCase("Ví dụ", "6\n1 2 5 3 4 7", "4");
+            }
         }
     }
 

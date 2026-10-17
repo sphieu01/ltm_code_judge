@@ -120,6 +120,7 @@ public class AuthService {
         return Jwts.builder()
                 .subject(String.valueOf(user.getId()))
                 .claim("username", user.getUsername())
+                .claim("fullName", user.getFullName())
                 .claim("role", user.getRole())
                 .issuedAt(now)
                 .expiration(expiry)
@@ -164,6 +165,20 @@ public class AuthService {
         try {
             Claims claims = verifyToken(token);
             return claims.get("role", String.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Lấy fullName từ JWT token.
+     *
+     * @return fullName, hoặc null nếu không có hoặc token không hợp lệ
+     */
+    public String getFullNameFromToken(String token) {
+        try {
+            Claims claims = verifyToken(token);
+            return claims.get("fullName", String.class);
         } catch (Exception e) {
             return null;
         }

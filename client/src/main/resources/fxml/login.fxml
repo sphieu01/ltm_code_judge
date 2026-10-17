@@ -16,7 +16,7 @@
                 <padding><Insets top="40" right="40" bottom="40" left="40"/></padding>
 
                 <!-- Logo / Title -->
-                <Label text="⚡ Auto Grader" styleClass="title-label"/>
+                <Label text="Auto Grader" styleClass="title-label"/>
                 <Label text="Networked Code Grading System" styleClass="subtitle-label">
                     <VBox.margin><Insets bottom="10"/></VBox.margin>
                 </Label>

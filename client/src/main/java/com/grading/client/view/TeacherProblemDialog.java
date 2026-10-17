@@ -58,7 +58,7 @@ public class TeacherProblemDialog extends Dialog<Problem> {
 
         // Nút lưu
         Button saveBtn = (Button) pane.lookupButton(saveBtnType);
-        saveBtn.getStyleClass().addAll("button", "btn-submit");
+        saveBtn.getStyleClass().addAll("button", "btn-primary");
 
         Button cancelBtn = (Button) pane.lookupButton(cancelBtnType);
         cancelBtn.getStyleClass().addAll("button", "btn-secondary");

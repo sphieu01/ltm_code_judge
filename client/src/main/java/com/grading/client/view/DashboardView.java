@@ -7,6 +7,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
+import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
@@ -55,16 +56,16 @@ public class DashboardView extends BorderPane {
         HBox topBar = new HBox(14);
         topBar.getStyleClass().add("top-toolbar");
         topBar.setAlignment(Pos.CENTER_LEFT);
-        topBar.setPadding(new Insets(10, 20, 10, 20));
+        topBar.setPadding(new Insets(8, 16, 8, 16));
 
-        Label brandLabel = new Label("⚡ Auto Grader — Danh Sách Bài Tập");
-        brandLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
+        Label brandLabel = new Label("Auto Grader - Danh sách bài tập");
+        brandLabel.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         userGreetingLabel = new Label("Xin chào, Khách");
-        userGreetingLabel.setStyle("-fx-text-fill: -text-main; -fx-font-weight: bold;");
+        userGreetingLabel.setStyle("-fx-text-fill: -text-primary; -fx-font-weight: bold;");
 
         roleBadgeLabel = new Label("STUDENT");
         roleBadgeLabel.getStyleClass().add("badge-role");
@@ -77,39 +78,39 @@ public class DashboardView extends BorderPane {
             themeToggleBtn.setText(ThemeManager.getInstance().getToggleIconText());
         });
 
-        // Nút thêm bài chỉ dành cho giáo viên
-        teacherAddProblemBtn = new Button("➕ Thêm bài tập");
-        teacherAddProblemBtn.getStyleClass().addAll("button", "btn-submit");
+        // Nút thêm bài chỉ dành cho giáo viên (dùng btn-primary #007ACC)
+        teacherAddProblemBtn = new Button("+ Thêm bài tập");
+        teacherAddProblemBtn.getStyleClass().addAll("button", "btn-primary");
         teacherAddProblemBtn.setVisible(false);
         teacherAddProblemBtn.setManaged(false);
 
         logoutBtn = new Button("Đăng xuất");
         logoutBtn.getStyleClass().addAll("button", "btn-secondary");
 
-        topBar.getChildren().addAll(brandLabel, spacer, userGreetingLabel, roleBadgeLabel, themeToggleBtn, teacherAddProblemBtn, logoutBtn);
+        topBar.getChildren().addAll(brandLabel, spacer, userGreetingLabel, roleBadgeLabel, themeToggleBtn,
+                teacherAddProblemBtn, logoutBtn);
         setTop(topBar);
 
         // 2. Center Content
-        VBox centerBox = new VBox(14);
-        centerBox.setPadding(new Insets(18, 24, 20, 24));
+        VBox centerBox = new VBox(12);
+        centerBox.setPadding(new Insets(14, 20, 16, 20));
 
         // Filter Bar
         HBox filterBar = new HBox(12);
         filterBar.setAlignment(Pos.CENTER_LEFT);
 
         searchField = new TextField();
-        searchField.setPromptText("🔍 Tìm kiếm bài tập theo tên hoặc ID...");
-        searchField.setPrefWidth(320);
+        searchField.setPromptText("Tìm kiếm bài tập theo tên hoặc ID...");
+        searchField.setPrefWidth(300);
 
         difficultyFilterCombo = new ComboBox<>(FXCollections.observableArrayList(
-                "Tất cả độ khó", "EASY", "MEDIUM", "HARD"
-        ));
+                "Tất cả độ khó", "EASY", "MEDIUM", "HARD"));
         difficultyFilterCombo.getSelectionModel().select(0);
 
         Region filterSpacer = new Region();
         HBox.setHgrow(filterSpacer, Priority.ALWAYS);
 
-        refreshBtn = new Button("🔄 Làm mới");
+        refreshBtn = new Button("Làm mới");
         refreshBtn.getStyleClass().addAll("button", "btn-secondary");
 
         filterBar.getChildren().addAll(searchField, difficultyFilterCombo, filterSpacer, refreshBtn);
@@ -121,17 +122,47 @@ public class DashboardView extends BorderPane {
         centerBox.getChildren().addAll(filterBar, problemTable);
         setCenter(centerBox);
 
+        // 3. Bottom Status Bar
+        HBox bottomBar = new HBox(12);
+        bottomBar.getStyleClass().add("status-bar");
+        bottomBar.setAlignment(Pos.CENTER_LEFT);
+
+        Label srvDot = new Label("●");
+        srvDot.getStyleClass().add("status-dot-connected");
+        Label srvText = new Label("Máy chấm: Sẵn sàng");
+        srvText.getStyleClass().add("status-bar-text");
+
+        Separator sp = new Separator(Orientation.VERTICAL);
+
+        Label totalLabel = new Label("Tổng số: 0 bài tập");
+        totalLabel.getStyleClass().add("status-bar-text");
+        problemList.addListener((javafx.collections.ListChangeListener<Problem>) c -> {
+            totalLabel.setText("Tổng số: " + problemList.size() + " bài tập");
+        });
+
+        Region bSpacer = new Region();
+        HBox.setHgrow(bSpacer, Priority.ALWAYS);
+
+        Label hintLabel = new Label("Nhấp đúp chuột vào bài tập để mở trình soạn thảo");
+        hintLabel.getStyleClass().add("meta-item");
+
+        bottomBar.getChildren().addAll(srvDot, srvText, sp, totalLabel, bSpacer, hintLabel);
+        setBottom(bottomBar);
+
         // Event hooks
         logoutBtn.setOnAction(e -> {
-            if (onLogoutHandler != null) onLogoutHandler.run();
+            if (onLogoutHandler != null)
+                onLogoutHandler.run();
         });
 
         teacherAddProblemBtn.setOnAction(e -> {
-            if (onTeacherAddProblemHandler != null) onTeacherAddProblemHandler.run();
+            if (onTeacherAddProblemHandler != null)
+                onTeacherAddProblemHandler.run();
         });
 
         refreshBtn.setOnAction(e -> {
-            if (onRefreshHandler != null) onRefreshHandler.run();
+            if (onRefreshHandler != null)
+                onRefreshHandler.run();
         });
     }
 
@@ -140,21 +171,27 @@ public class DashboardView extends BorderPane {
         table.getStyleClass().add("table-view");
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
-        // Cột ID
-        TableColumn<Problem, Integer> idCol = new TableColumn<>("#");
+        // 1. Cột Mã bài
+        TableColumn<Problem, Integer> idCol = new TableColumn<>("Mã bài");
         idCol.setCellValueFactory(new PropertyValueFactory<>("id"));
-        idCol.setPrefWidth(50);
-        idCol.setMaxWidth(70);
+        idCol.setMinWidth(70);
+        idCol.setPrefWidth(85);
+        idCol.setMaxWidth(100);
+        idCol.setStyle("-fx-alignment: CENTER;");
 
-        // Cột Tiêu đề
-        TableColumn<Problem, String> titleCol = new TableColumn<>("Tiêu đề bài tập");
+        // 2. Cột Tiêu đề
+        TableColumn<Problem, String> titleCol = new TableColumn<>("Tiêu đề");
         titleCol.setCellValueFactory(new PropertyValueFactory<>("title"));
-        titleCol.setPrefWidth(300);
+        titleCol.setMinWidth(280);
+        titleCol.setPrefWidth(420);
 
-        // Cột Độ khó
+        // 3. Cột Độ khó
         TableColumn<Problem, String> diffCol = new TableColumn<>("Độ khó");
         diffCol.setCellValueFactory(new PropertyValueFactory<>("difficulty"));
-        diffCol.setPrefWidth(100);
+        diffCol.setMinWidth(110);
+        diffCol.setPrefWidth(130);
+        diffCol.setMaxWidth(160);
+        diffCol.setStyle("-fx-alignment: CENTER;");
         diffCol.setCellFactory(col -> new TableCell<Problem, String>() {
             @Override
             protected void updateItem(String item, boolean empty) {
@@ -164,33 +201,54 @@ public class DashboardView extends BorderPane {
                     setText(null);
                 } else {
                     Label badge = new Label(item);
-                    if ("EASY".equalsIgnoreCase(item)) badge.getStyleClass().add("badge-easy");
-                    else if ("MEDIUM".equalsIgnoreCase(item)) badge.getStyleClass().add("badge-medium");
-                    else badge.getStyleClass().add("badge-hard");
+                    badge.setStyle("-fx-padding: 3 10 3 10; -fx-font-size: 11.5px;");
+                    if ("EASY".equalsIgnoreCase(item))
+                        badge.getStyleClass().add("badge-easy");
+                    else if ("MEDIUM".equalsIgnoreCase(item))
+                        badge.getStyleClass().add("badge-medium");
+                    else
+                        badge.getStyleClass().add("badge-hard");
                     setGraphic(badge);
                     setText(null);
                 }
             }
         });
 
-        // Cột Thời gian
-        TableColumn<Problem, String> timeCol = new TableColumn<>("Thời gian");
-        timeCol.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().getTimeLimitFormatted()));
-        timeCol.setPrefWidth(100);
+        // 4. Cột Trạng thái (nếu từng AC thì là AC, còn chưa từng AC thì để trạng thái gần nhất, chưa làm thì để trống)
+        TableColumn<Problem, String> statusCol = new TableColumn<>("Trạng thái");
+        statusCol.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().getStatus()));
+        statusCol.setMinWidth(120);
+        statusCol.setPrefWidth(140);
+        statusCol.setMaxWidth(170);
+        statusCol.setStyle("-fx-alignment: CENTER;");
+        statusCol.setCellFactory(col -> new TableCell<Problem, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null || item.trim().isEmpty()) {
+                    setGraphic(null);
+                    setText(null);
+                } else {
+                    Label pill = new Label();
+                    pill.setStyle("-fx-padding: 3 12 3 12; -fx-font-size: 11.5px;");
+                    applyStatusPillStyle(pill, item);
+                    setGraphic(pill);
+                    setText(null);
+                }
+            }
+        });
 
-        // Cột Bộ nhớ
-        TableColumn<Problem, String> memCol = new TableColumn<>("Bộ nhớ");
-        memCol.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().getMemoryLimitFormatted()));
-        memCol.setPrefWidth(100);
-
-        // Cột Thao tác (Nút Làm bài)
+        // 5. Cột Thao tác (Nút Làm bài)
         TableColumn<Problem, Void> actionCol = new TableColumn<>("Thao tác");
-        actionCol.setPrefWidth(120);
+        actionCol.setMinWidth(130);
+        actionCol.setPrefWidth(150);
+        actionCol.setMaxWidth(180);
+        actionCol.setStyle("-fx-alignment: CENTER;");
         actionCol.setCellFactory(col -> new TableCell<Problem, Void>() {
             private final Button doProblemBtn = new Button("Làm bài ▶");
             {
-                doProblemBtn.getStyleClass().addAll("button", "btn-submit");
-                doProblemBtn.setStyle("-fx-font-size: 11.5px; -fx-padding: 3 10 3 10;");
+                doProblemBtn.getStyleClass().addAll("button", "btn-primary");
+                doProblemBtn.setStyle("-fx-font-size: 12px; -fx-padding: 5 14 5 14;");
                 doProblemBtn.setOnAction(e -> {
                     Problem p = getTableView().getItems().get(getIndex());
                     if (onSelectProblemHandler != null) {
@@ -206,11 +264,25 @@ public class DashboardView extends BorderPane {
             }
         });
 
-        table.getColumns().addAll(idCol, titleCol, diffCol, timeCol, memCol, actionCol);
+        table.getColumns().addAll(idCol, titleCol, diffCol, statusCol, actionCol);
+
+        // Tắt hiệu ứng focus và bôi màu chọn dòng khi bấm vào hàng
+        table.setFocusTraversable(false);
+        table.getSelectionModel().selectedIndexProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null && newVal.intValue() >= 0) {
+                javafx.application.Platform.runLater(() -> table.getSelectionModel().clearSelection());
+            }
+        });
+        table.itemsProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                javafx.application.Platform.runLater(() -> table.getFocusModel().focus(-1));
+            }
+        });
 
         // Double click vào hàng để làm bài
         table.setRowFactory(tv -> {
             TableRow<Problem> row = new TableRow<>();
+            row.setFocusTraversable(false);
             row.setOnMouseClicked(event -> {
                 if (event.getClickCount() == 2 && (!row.isEmpty())) {
                     Problem rowData = row.getItem();
@@ -223,6 +295,32 @@ public class DashboardView extends BorderPane {
         });
 
         return table;
+    }
+
+    private void applyStatusPillStyle(Label pill, String verdict) {
+        if (pill == null || verdict == null)
+            return;
+        pill.getStyleClass().removeAll("pill-ac", "pill-wa", "pill-tle", "pill-ce", "pill-running", "pill-neutral");
+        String v = verdict.toUpperCase().trim();
+        if (v.equals("ACCEPTED") || v.equals("AC") || v.equals("PASSED")) {
+            pill.setText("AC");
+            pill.getStyleClass().add("pill-ac");
+        } else if (v.contains("WRONG") || v.equals("WA") || v.equals("FAILED")) {
+            pill.setText("WA");
+            pill.getStyleClass().add("pill-wa");
+        } else if (v.contains("TLE") || v.contains("TIME_LIMIT")) {
+            pill.setText("TLE");
+            pill.getStyleClass().add("pill-tle");
+        } else if (v.contains("CE") || v.contains("COMPILE")) {
+            pill.setText("CE");
+            pill.getStyleClass().add("pill-ce");
+        } else if (v.contains("RUNTIME") || v.equals("RE")) {
+            pill.setText("RE");
+            pill.getStyleClass().add("pill-wa");
+        } else {
+            pill.setText(v);
+            pill.getStyleClass().add("pill-neutral");
+        }
     }
 
     private void setupFiltering() {
@@ -256,7 +354,8 @@ public class DashboardView extends BorderPane {
 
     public void setUser(User user) {
         if (user != null) {
-            userGreetingLabel.setText("Xin chào, " + (user.getFullName() != null ? user.getFullName() : user.getUsername()));
+            userGreetingLabel
+                    .setText("Xin chào, " + (user.getFullName() != null ? user.getFullName() : user.getUsername()));
             roleBadgeLabel.setText(user.getRole() != null ? user.getRole() : "STUDENT");
 
             // Hiển thị nút Thêm bài nếu là Giáo viên

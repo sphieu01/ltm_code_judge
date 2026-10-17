@@ -64,19 +64,11 @@ public class LoginView extends BorderPane {
         topTitleBox.getChildren().addAll(titleLabel, titleSpacer, themeBtn);
 
         Label subtitleLabel = new Label("Hệ Thống Chấm Code Trực Tuyến");
-        subtitleLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: -text-muted;");
+        subtitleLabel.setStyle("-fx-font-size: 12.5px; -fx-text-fill: -text-secondary;");
 
-        // Cấu hình Server Host & Port
-        HBox serverBox = new HBox(8);
-        serverBox.setAlignment(Pos.CENTER_LEFT);
+        // Backend server mặc định (tự động nhận diện ngầm)
         hostField = new TextField("localhost");
-        hostField.setPromptText("Host");
-        HBox.setHgrow(hostField, Priority.ALWAYS);
-
         portField = new TextField("9999");
-        portField.setPromptText("Port");
-        portField.setPrefWidth(75);
-        serverBox.getChildren().addAll(new Label("Server:"), hostField, portField);
 
         // Username
         VBox userBox = new VBox(4);
@@ -121,7 +113,7 @@ public class LoginView extends BorderPane {
 
         // Thông báo lỗi
         errorLabel = new Label();
-        errorLabel.setStyle("-fx-text-fill: -verdict-wa; -fx-font-size: 12px;");
+        errorLabel.setStyle("-fx-text-fill: -status-wa; -fx-font-size: 12px;");
         errorLabel.setWrapText(true);
 
         // Nút chính: Đăng nhập / Đăng ký
@@ -139,13 +131,12 @@ public class LoginView extends BorderPane {
         // Nút khách dùng thử
         offlineGuestBtn = new Button("Dùng thử không cần Server (Khách)");
         offlineGuestBtn.getStyleClass().addAll("button", "btn-secondary");
-        offlineGuestBtn.setStyle("-fx-font-size: 11.5px; -fx-text-fill: -text-muted;");
+        offlineGuestBtn.setStyle("-fx-font-size: 11.5px; -fx-text-fill: -text-secondary;");
         offlineGuestBtn.setMaxWidth(Double.MAX_VALUE);
 
         card.getChildren().addAll(
                 topTitleBox,
                 subtitleLabel,
-                serverBox,
                 userBox,
                 passBox,
                 registerExtraBox,

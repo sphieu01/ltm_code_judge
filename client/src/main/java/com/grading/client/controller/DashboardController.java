@@ -63,8 +63,39 @@ public class DashboardController {
     public void loadProblems() {
         SocketClient socketClient = sessionManager.getSocketClient();
         if (socketClient != null && socketClient.isConnected()) {
-            socketClient.getProblems(response -> {
-                Platform.runLater(() -> handleProblemsResponse(response));
+            socketClient.getHistory(historyResp -> {
+                if (historyResp != null && "SUCCESS".equalsIgnoreCase(historyResp.getStatus())
+                        && historyResp.getData() != null && historyResp.getData().isJsonArray()) {
+                    JsonArray hist = historyResp.getData().getAsJsonArray();
+                    java.util.Map<Integer, String> mostRecent = new java.util.HashMap<>();
+                    java.util.Set<Integer> acSet = new java.util.HashSet<>();
+                    for (JsonElement el : hist) {
+                        if (!el.isJsonObject()) continue;
+                        JsonObject sub = el.getAsJsonObject();
+                        int pid = sub.has("problemId") ? sub.get("problemId").getAsInt() : 0;
+                        String verdict = sub.has("verdict") ? sub.get("verdict").getAsString() : "";
+                        if (pid > 0) {
+                            if (!mostRecent.containsKey(pid)) {
+                                mostRecent.put(pid, verdict);
+                            }
+                            String u = verdict.toUpperCase();
+                            if (u.equals("ACCEPTED") || u.equals("AC") || u.equals("PASSED")) {
+                                acSet.add(pid);
+                            }
+                        }
+                    }
+                    for (java.util.Map.Entry<Integer, String> entry : mostRecent.entrySet()) {
+                        int pid = entry.getKey();
+                        if (acSet.contains(pid)) {
+                            sessionManager.recordSubmission(pid, "AC");
+                        } else {
+                            sessionManager.recordSubmission(pid, entry.getValue());
+                        }
+                    }
+                }
+                socketClient.getProblems(response -> {
+                    Platform.runLater(() -> handleProblemsResponse(response));
+                });
             });
         } else {
             // Danh sách bài tập mặc định khi chạy offline
@@ -87,6 +118,7 @@ public class DashboardController {
                         if (obj.has("timeLimitMs")) p.setTimeLimitMs(obj.get("timeLimitMs").getAsInt());
                         if (obj.has("memoryLimitKb")) p.setMemoryLimitKb(obj.get("memoryLimitKb").getAsInt());
                         if (obj.has("description")) p.setDescription(obj.get("description").getAsString());
+                        p.setStatus(sessionManager.getProblemStatus(p.getId()));
                         list.add(p);
                     }
                 }
@@ -153,40 +185,54 @@ public class DashboardController {
     private List<Problem> createDefaultProblems() {
         List<Problem> list = new ArrayList<>();
 
+        Problem p0 = new Problem();
+        p0.setId(1);
+        p0.setTitle("GẤP ĐÔI");
+        p0.setDifficulty("EASY");
+        p0.setTimeLimitMs(1000);
+        p0.setMemoryLimitKb(65536);
+        p0.setDescription("Cho số tự nhiên N không quá 7 chữ số. Hãy in ra giá trị gấp đôi của N.\n\n**Input:**\nCó duy nhất một số tự nhiên không quá 7 chữ số.\n\n**Output:**\nGhi ra kết quả trên một dòng.");
+        p0.setStatus(sessionManager.getProblemStatus(p0.getId()));
+        list.add(p0);
+
         Problem p1 = new Problem();
-        p1.setId(1);
+        p1.setId(2);
         p1.setTitle("A + B Problem");
         p1.setDifficulty("EASY");
         p1.setTimeLimitMs(1000);
         p1.setMemoryLimitKb(262144);
         p1.setDescription("Cho hai số nguyên a và b. Hãy tính và in ra tổng a + b.");
+        p1.setStatus(sessionManager.getProblemStatus(p1.getId()));
         list.add(p1);
 
         Problem p2 = new Problem();
-        p2.setId(2);
+        p2.setId(3);
         p2.setTitle("Kiểm tra số nguyên tố");
         p2.setDifficulty("EASY");
         p2.setTimeLimitMs(1000);
         p2.setMemoryLimitKb(262144);
         p2.setDescription("Nhập vào một số nguyên dương N. Kiểm tra xem N có phải là số nguyên tố hay không. In ra YES hoặc NO.");
+        p2.setStatus(sessionManager.getProblemStatus(p2.getId()));
         list.add(p2);
 
         Problem p3 = new Problem();
-        p3.setId(3);
+        p3.setId(4);
         p3.setTitle("Dãy con tăng dài nhất (LIS)");
         p3.setDifficulty("MEDIUM");
         p3.setTimeLimitMs(2000);
         p3.setMemoryLimitKb(262144);
         p3.setDescription("Cho dãy gồm N số nguyên. Tìm độ dài dãy con tăng nghiêm ngặt dài nhất.");
+        p3.setStatus(sessionManager.getProblemStatus(p3.getId()));
         list.add(p3);
 
         Problem p4 = new Problem();
-        p4.setId(4);
+        p4.setId(5);
         p4.setTitle("Đường đi ngắn nhất trên đồ thị (Dijkstra)");
         p4.setDifficulty("HARD");
         p4.setTimeLimitMs(3000);
         p4.setMemoryLimitKb(524288);
         p4.setDescription("Cho đồ thị có trọng số dương gồm N đỉnh và M cạnh. Tìm đường đi ngắn nhất từ đỉnh 1 đến đỉnh N.");
+        p4.setStatus(sessionManager.getProblemStatus(p4.getId()));
         list.add(p4);
 
         return list;

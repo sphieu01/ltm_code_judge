@@ -4,501 +4,756 @@ import com.grading.client.model.Problem;
 import javafx.animation.PauseTransition;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
-import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
-import javafx.scene.input.Clipboard;
-import javafx.scene.input.ClipboardContent;
-import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
+import javafx.scene.input.*;
 import javafx.scene.layout.*;
 import javafx.scene.text.Font;
+import javafx.stage.FileChooser;
 import javafx.util.Duration;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * ProblemView — Giao diện chính màn hình làm bài và nộp bài.
+ * ProblemView — Giao diện nộp bài chuẩn Hệ thống thực hành ảo CNTT.
  *
- * Thiết kế tối giản phẳng (flat minimalist):
- * - Không Run Code cục bộ: Nộp trực tiếp lên Server để chấm bài.
- * - Hỗ trợ đổi Theme Sáng / Tối linh hoạt (mặc định là Theme Sáng).
- * - Cho phép copy toàn bộ nội dung đề bài và test cases mẫu.
- * - Bố cục:
- *   + Root: BorderPane
- *   + Top: HBox Header/Toolbar (Nút Back, Tiêu đề, Đổi Theme, ComboBox ngôn ngữ, Nút Nộp bài)
- *   + Center: SplitPane chia Trái (Đề bài copyable) / Phải (Editor + Kết quả chấm)
+ * Tối ưu hóa theo phản hồi:
+ * 1. Đề bài hiển thị dạng văn bản tự nhiên, không đóng khung box xám.
+ * 2. Lịch sử nộp bài nằm ở cột bên phải.
+ * 3. Phần tải file lên và nút "Nộp bài" đi liền với nhau và cùng màu xanh với
+ * nút "Nộp bài nhanh".
+ * 4. Textbox dán code có nền màu xám, đi liền với nút "Nộp bài nhanh" ở ngay
+ * bên dưới.
+ * 5. Bỏ nhãn "Trạng thái: Chưa nộp bài".
+ * 6. Bỏ thanh footer (máy chấm sẵn sàng, phím tắt...).
  */
 public class ProblemView extends BorderPane {
 
-    // ======================== TOP CONTROLS ========================
+    // ======================== TOP TOOLBAR ========================
     private Button backButton;
-    private Label problemTitleLabel;
     private Button themeToggleBtn;
+
+    // ======================== PROBLEM DETAILS (LEFT COLUMN)
+    // ========================
+    private Label problemTitleHeader;
+    private Label descriptionLabel;
+    private Label inputFormatLabel;
+    private Label outputFormatLabel;
+    private VBox sampleTableContainer;
+    private Label metaConstraintsLabel;
+
+    // ======================== HISTORY CARD (RIGHT COLUMN) ========================
+    private VBox historyCard;
+    private VBox historyListContainer;
+    private Label historyPlaceholderLabel;
+
+    // ======================== SUBMISSION & FILE UPLOAD ========================
     private ComboBox<String> languageComboBox;
+    private HBox uploadDropZone;
+    private HBox selectedFileBox;
+    private Label selectedFileLabel;
+    private Button changeFileBtn;
+    private Button removeFileBtn;
+
+    private ProgressBar progressBar;
     private Button submitButton;
+    private Button pasteAndSubmitButton;
 
-    // ======================== LEFT PANEL CONTROLS (COPYABLE) ========================
-    private Label metaTimeLimitLabel;
-    private Label metaMemoryLimitLabel;
-    private Label metaDifficultyLabel;
-    private TextArea descriptionArea;
-    private TextArea inputFormatArea;
-    private TextArea outputFormatArea;
-    private TextArea constraintsArea;
-    private VBox sampleCasesContainer;
-
-    // ======================== RIGHT PANEL CONTROLS ========================
+    // ======================== CODE TEXT AREA ========================
     private TextArea codeEditorArea;
-    private TextArea consoleOutputArea;
-    private Label resultStatusBadge;
 
     // ======================== DATA & HANDLERS ========================
     private Problem currentProblem;
+    private File selectedFile;
+    private String fileCodeContent;
+    private String activeSubmissionCode;
+    private static File lastDirectory = null;
+
     private Consumer<ProblemView> onSubmitCodeHandler;
     private Consumer<String> onLanguageChangeHandler;
     private Runnable onBackToDashboardHandler;
 
-    // Boilerplate code mẫu cho từng ngôn ngữ
-    private final Map<String, String> languageTemplates = new HashMap<>();
+    private final List<SampleCaseData> sampleCases = new ArrayList<>();
 
     public ProblemView() {
-        initLanguageTemplates();
         buildLayout();
-        setupEditorTabHandling();
+        setupFileUploadAndDragDrop();
+        setupEditorHandlers();
         setupEventBindings();
     }
 
     // =========================================================================
-    // 1. XÂY DỰNG BỐ CỤC CHÍNH (LAYOUT BUILDER)
+    // 1. XÂY DỰNG BỐ CỤC CHÍNH (TOP TOOLBAR + SCROLLABLE PAGE)
     // =========================================================================
 
     private void buildLayout() {
         getStyleClass().add("main-pane");
 
-        // Top: Toolbar
-        HBox topToolbar = buildTopToolbar();
-        setTop(topToolbar);
+        // Top Toolbar
+        setTop(buildTopToolbar());
 
-        // Center: SplitPane chính chia đôi màn hình (Trái: Đề bài, Phải: Code + Kết quả)
-        SplitPane mainSplitPane = new SplitPane();
-        mainSplitPane.setOrientation(Orientation.HORIZONTAL);
+        // Center: ScrollPane chứa toàn bộ nội dung
+        VBox contentBox = new VBox(16);
+        contentBox.setPadding(new Insets(18, 24, 24, 24));
+        contentBox.setMaxWidth(1150);
 
-        // Panel Trái: Đề bài (hỗ trợ copy)
-        ScrollPane leftProblemPane = buildProblemDescriptionPanel();
+        VBox centerWrapper = new VBox(contentBox);
+        centerWrapper.setAlignment(Pos.TOP_CENTER);
+        centerWrapper.setPadding(new Insets(0));
 
-        // Panel Phải: Code Editor (Trên) & Kết quả chấm (Dưới)
-        SplitPane rightCodeAndConsoleSplitPane = buildRightPanel();
+        // 1. Hàng trên: Cột trái (Đề bài không box xám) + Cột phải (Lịch sử nộp bài)
+        HBox topSection = new HBox(24);
+        topSection.setAlignment(Pos.TOP_LEFT);
 
-        mainSplitPane.getItems().addAll(leftProblemPane, rightCodeAndConsoleSplitPane);
-        mainSplitPane.setDividerPositions(0.40); // 40% đề bài, 60% code & kết quả
+        VBox problemColumn = new VBox(10);
+        HBox.setHgrow(problemColumn, Priority.ALWAYS);
 
-        setCenter(mainSplitPane);
-    }
+        problemTitleHeader = new Label("GẤP ĐÔI");
+        problemTitleHeader.getStyleClass().add("problem-title-header");
 
-    // =========================================================================
-    // 2. TOP TOOLBAR (HBox)
-    // =========================================================================
+        VBox problemContent = buildProblemSection();
+        problemColumn.getChildren().addAll(problemTitleHeader, problemContent);
 
-    private HBox buildTopToolbar() {
-        HBox toolbar = new HBox();
-        toolbar.getStyleClass().add("top-toolbar");
-        toolbar.setAlignment(Pos.CENTER_LEFT);
-        toolbar.setSpacing(10);
-        toolbar.setPadding(new Insets(8, 16, 8, 16));
+        historyCard = buildHistoryCard();
+        historyCard.setPrefWidth(260);
+        historyCard.setMinWidth(240);
+        historyCard.setMaxWidth(280);
 
-        // Nút quay lại danh sách bài
-        backButton = new Button("⬅ Danh sách bài");
-        backButton.getStyleClass().addAll("button", "btn-secondary");
+        topSection.getChildren().addAll(problemColumn, historyCard);
 
-        // Tiêu đề bài toán
-        problemTitleLabel = new Label("Bài toán: Đang tải...");
-        problemTitleLabel.getStyleClass().add("problem-title-header");
+        // 2. Thanh thao tác: Tải file lên & Nộp bài đi liền với nhau
+        BorderPane submissionBar = buildSubmissionBar();
 
-        // Khoảng trống co giãn (HBox.setHgrow)
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
+        // 3. Khung dán mã nguồn màu xám kèm nút "Dán và Nộp bài" ở dưới
+        VBox codeEditorSection = buildCodeEditorSection();
 
-        // Nút chuyển đổi Theme Sáng / Tối
-        themeToggleBtn = new Button(ThemeManager.getInstance().getToggleIconText());
-        themeToggleBtn.getStyleClass().addAll("button", "btn-theme");
-        themeToggleBtn.setOnAction(e -> ThemeManager.getInstance().toggleTheme());
-        ThemeManager.getInstance().addThemeListener(theme -> {
-            themeToggleBtn.setText(ThemeManager.getInstance().getToggleIconText());
-        });
+        contentBox.getChildren().addAll(topSection, submissionBar, codeEditorSection);
 
-        // ComboBox chọn ngôn ngữ (C, C++, Java, Python, v.v.)
-        languageComboBox = new ComboBox<>(FXCollections.observableArrayList(
-                "C (gcc 12)",
-                "C++ (g++ 17)",
-                "Java (OpenJDK 17)",
-                "Python 3"
-        ));
-        languageComboBox.getSelectionModel().select("C++ (g++ 17)");
-
-        // Nút "Submit / Nộp bài" (màu xanh lá tối giản)
-        submitButton = new Button("✔  Nộp bài");
-        submitButton.getStyleClass().addAll("button", "btn-submit");
-
-        toolbar.getChildren().addAll(
-                backButton,
-                problemTitleLabel,
-                spacer,
-                themeToggleBtn,
-                languageComboBox,
-                submitButton
-        );
-
-        return toolbar;
-    }
-
-    // =========================================================================
-    // 3. PANEL TRÁI: ĐỀ BÀI (ScrollPane bọc VBox, cho phép bôi đen & Copy)
-    // =========================================================================
-
-    private ScrollPane buildProblemDescriptionPanel() {
-        VBox contentBox = new VBox();
-        contentBox.getStyleClass().add("problem-panel");
-        contentBox.setSpacing(12);
-        contentBox.setPadding(new Insets(16, 20, 20, 20));
-
-        // Thanh meta thông số (Time limit, Memory limit, Difficulty)
-        HBox metaBar = new HBox(16);
-        metaBar.getStyleClass().add("meta-info-bar");
-        metaBar.setAlignment(Pos.CENTER_LEFT);
-
-        metaTimeLimitLabel = new Label("Giới hạn thời gian: --");
-        metaTimeLimitLabel.getStyleClass().add("meta-item");
-
-        metaMemoryLimitLabel = new Label("Giới hạn bộ nhớ: --");
-        metaMemoryLimitLabel.getStyleClass().add("meta-item");
-
-        metaDifficultyLabel = new Label("Độ khó: --");
-        metaDifficultyLabel.getStyleClass().add("meta-item");
-
-        metaBar.getChildren().addAll(metaTimeLimitLabel, metaMemoryLimitLabel, metaDifficultyLabel);
-
-        // Mục 1: Mô tả
-        Label descHeader = createSectionHeader("MÔ TẢ");
-        descriptionArea = createSelectableTextArea("Chưa có thông tin mô tả.");
-
-        // Mục 2: Định dạng đầu vào
-        Label inputHeader = createSectionHeader("ĐỊNH DẠNG ĐẦU VÀO");
-        inputFormatArea = createSelectableTextArea("Chưa có định dạng đầu vào.");
-
-        // Mục 3: Định dạng đầu ra
-        Label outputHeader = createSectionHeader("ĐỊNH DẠNG ĐẦU RA");
-        outputFormatArea = createSelectableTextArea("Chưa có định dạng đầu ra.");
-
-        // Mục 4: Ràng buộc
-        Label constraintsHeader = createSectionHeader("RÀNG BUỘC");
-        constraintsArea = createSelectableTextArea("Chưa có thông tin ràng buộc.");
-
-        // Mục 5: Ví dụ
-        Label sampleHeader = createSectionHeader("VÍ DỤ");
-        sampleCasesContainer = new VBox(12);
-
-        contentBox.getChildren().addAll(
-                metaBar,
-                descHeader, descriptionArea,
-                inputHeader, inputFormatArea,
-                outputHeader, outputFormatArea,
-                constraintsHeader, constraintsArea,
-                sampleHeader, sampleCasesContainer
-        );
-
-        ScrollPane scrollPane = new ScrollPane(contentBox);
+        ScrollPane scrollPane = new ScrollPane(centerWrapper);
         scrollPane.getStyleClass().add("scroll-pane");
         scrollPane.setFitToWidth(true);
         scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
 
-        return scrollPane;
+        setCenter(scrollPane);
+
+        // Footer đã được gỡ bỏ hoàn toàn theo yêu cầu
+        setBottom(null);
     }
 
-    private TextArea createSelectableTextArea(String text) {
-        TextArea area = new TextArea(text != null ? text : "");
-        area.setEditable(false);
-        area.setWrapText(true);
-        area.getStyleClass().addAll("text-area", "selectable-text");
-        adjustTextAreaHeight(area, text);
-        return area;
+    // =========================================================================
+    // 2. TOP TOOLBAR
+    // =========================================================================
+
+    private HBox buildTopToolbar() {
+        HBox toolbar = new HBox(12);
+        toolbar.getStyleClass().add("top-toolbar");
+        toolbar.setAlignment(Pos.CENTER_LEFT);
+        toolbar.setPadding(new Insets(8, 20, 8, 20));
+
+        backButton = new Button("⬅ Danh sách bài");
+        backButton.getStyleClass().addAll("button", "btn-secondary");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        themeToggleBtn = new Button(ThemeManager.getInstance().getToggleIconText());
+        themeToggleBtn.getStyleClass().addAll("button", "btn-theme");
+        themeToggleBtn.setStyle("-fx-font-size: 14px; -fx-padding: 4 10 4 10;");
+        themeToggleBtn.setOnAction(e -> ThemeManager.getInstance().toggleTheme());
+        ThemeManager.getInstance().addThemeListener(theme -> {
+            themeToggleBtn.setText(ThemeManager.getInstance().getToggleIconText());
+        });
+
+        toolbar.getChildren().addAll(backButton, spacer, themeToggleBtn);
+        return toolbar;
     }
 
-    private void adjustTextAreaHeight(TextArea area, String text) {
-        if (text == null || text.isEmpty()) {
-            area.setPrefRowCount(2);
-            return;
+    // =========================================================================
+    // 3. KHUNG ĐỀ BÀI (KHÔNG CẦN CHO VÀO BOX XÁM)
+    // =========================================================================
+
+    private VBox buildProblemSection() {
+        VBox section = new VBox(10);
+        section.setPadding(new Insets(4, 0, 8, 0));
+
+        // Nội dung mô tả đề bài hiển thị trực tiếp dạng văn bản tự nhiên
+        descriptionLabel = new Label("Mô tả bài toán đang được tải...");
+        descriptionLabel.setWrapText(true);
+        descriptionLabel.setStyle("-fx-font-size: 13.5px; -fx-text-fill: -text-primary; -fx-line-spacing: 3px;");
+
+        // Input
+        Label inTitle = new Label("Input");
+        inTitle.setStyle(
+                "-fx-font-weight: bold; -fx-text-fill: -text-primary; -fx-font-size: 13px; -fx-padding: 4 0 0 0;");
+        inputFormatLabel = new Label("Đang tải định dạng đầu vào...");
+        inputFormatLabel.setWrapText(true);
+        inputFormatLabel.setStyle("-fx-text-fill: -text-primary; -fx-font-size: 13px;");
+
+        // Output
+        Label outTitle = new Label("Output");
+        outTitle.setStyle(
+                "-fx-font-weight: bold; -fx-text-fill: -text-primary; -fx-font-size: 13px; -fx-padding: 4 0 0 0;");
+        outputFormatLabel = new Label("Đang tải định dạng đầu ra...");
+        outputFormatLabel.setWrapText(true);
+        outputFormatLabel.setStyle("-fx-text-fill: -text-primary; -fx-font-size: 13px;");
+
+        // Bảng ví dụ mẫu
+        Label sampleTitle = new Label("Ví dụ");
+        sampleTitle.setStyle(
+                "-fx-font-weight: bold; -fx-text-fill: -text-primary; -fx-font-size: 13px; -fx-padding: 4 0 0 0;");
+        sampleTableContainer = new VBox(6);
+
+        // Giới hạn thời gian / bộ nhớ
+        metaConstraintsLabel = new Label("Giới hạn thời gian: 1s  |  Giới hạn bộ nhớ: 65536Kb");
+        metaConstraintsLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: -text-secondary; -fx-padding: 6 0 0 0;");
+
+        section.getChildren().addAll(
+                descriptionLabel,
+                inTitle, inputFormatLabel,
+                outTitle, outputFormatLabel,
+                sampleTitle, sampleTableContainer,
+                metaConstraintsLabel);
+
+        return section;
+    }
+
+    // =========================================================================
+    // 4. THẺ LỊCH SỬ NỘP BÀI (HISTORY CARD - CỘT PHẢI)
+    // =========================================================================
+
+    private VBox buildHistoryCard() {
+        VBox card = new VBox(8);
+        card.getStyleClass().add("history-card");
+
+        Label histTitle = new Label("Lịch sử nộp bài:");
+        histTitle.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: -text-secondary;");
+
+        historyListContainer = new VBox(6);
+
+        historyPlaceholderLabel = new Label("Chưa có lượt nộp bài nào.");
+        historyPlaceholderLabel
+                .setStyle("-fx-font-size: 11.5px; -fx-text-fill: -text-secondary; -fx-padding: 6 0 6 0;");
+        historyListContainer.getChildren().add(historyPlaceholderLabel);
+
+        card.getChildren().addAll(histTitle, historyListContainer);
+        return card;
+    }
+
+    public void addSubmissionHistory(String title, String timestamp, String verdict) {
+        if (historyPlaceholderLabel != null) {
+            historyListContainer.getChildren().remove(historyPlaceholderLabel);
         }
-        int lineCount = text.split("\n").length;
-        int wrapEstimate = text.length() / 60;
-        int totalLines = Math.max(2, Math.min(15, lineCount + wrapEstimate));
-        area.setPrefRowCount(totalLines);
+
+        HBox item = new HBox(8);
+        item.setAlignment(Pos.CENTER_LEFT);
+        item.setStyle(
+                "-fx-padding: 4 0 6 0; -fx-border-color: transparent transparent -border-subtle transparent; -fx-border-width: 0 0 1 0;");
+
+        VBox textCol = new VBox(2);
+        Label titleLbl = new Label(title);
+        titleLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
+
+        Label timeLbl = new Label(timestamp);
+        timeLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: -text-secondary;");
+        textCol.getChildren().addAll(titleLbl, timeLbl);
+
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
+
+        Label pill = new Label(verdictToBadge(verdict));
+        applyPillStyle(pill, verdict);
+
+        item.getChildren().addAll(textCol, sp, pill);
+        historyListContainer.getChildren().add(0, item);
+    }
+
+    private String verdictToBadge(String v) {
+        if (v == null)
+            return "--";
+        String u = v.toUpperCase();
+        if (u.equals("ACCEPTED") || u.equals("PASSED"))
+            return "AC";
+        if (u.contains("WRONG") || u.equals("FAILED"))
+            return "WA";
+        if (u.contains("TLE") || u.contains("TIME_LIMIT"))
+            return "TLE";
+        if (u.contains("CE") || u.contains("COMPILE"))
+            return "CE";
+        if (u.contains("RUNTIME"))
+            return "RTE";
+        return u;
     }
 
     // =========================================================================
-    // 4. PANEL PHẢI: KHU VỰC CODE & KẾT QUẢ CHẤM (SplitPane chia Trên/Dưới)
+    // 5. THANH THAO TÁC (TẢI FILE LÊN & NỘP BÀI ĐI LIỀN VỚI NHAU, CÙNG MÀU XANH)
     // =========================================================================
 
-    private SplitPane buildRightPanel() {
-        SplitPane rightSplitPane = new SplitPane();
-        rightSplitPane.setOrientation(Orientation.VERTICAL);
+    private BorderPane buildSubmissionBar() {
+        BorderPane pane = new BorderPane();
+        pane.setPadding(new Insets(6, 0, 6, 0));
 
-        // Phần Trên: Code Editor
-        VBox editorPane = buildCodeEditorPane();
+        // Trình biên dịch bên trái
+        HBox leftBox = new HBox(10);
+        leftBox.setAlignment(Pos.CENTER_LEFT);
 
-        // Phần Dưới: Kết quả chấm bài (Không còn tab Run Code)
-        VBox resultPane = buildResultPane();
+        Label compilerLabel = new Label("Trình biên dịch:");
+        compilerLabel.setStyle("-fx-font-weight: normal; -fx-text-fill: -text-primary; -fx-font-size: 13px;");
 
-        rightSplitPane.getItems().addAll(editorPane, resultPane);
-        rightSplitPane.setDividerPositions(0.65); // 65% cho editor, 35% cho kết quả
+        languageComboBox = new ComboBox<>(FXCollections.observableArrayList(
+                "C",
+                "C++",
+                "Java",
+                "Python 3"));
+        languageComboBox.getSelectionModel().select("C");
+        languageComboBox.setPrefWidth(120);
 
-        return rightSplitPane;
+        leftBox.getChildren().addAll(compilerLabel, languageComboBox);
+        pane.setLeft(leftBox);
+
+        final double BTN_WIDTH = 200;
+        final double BTN_HEIGHT = 36;
+
+        // Khối thao tác bên phải: Tải file lên và Nộp bài đi liền với nhau
+        VBox rightActions = new VBox(8);
+        rightActions.setPrefWidth(BTN_WIDTH);
+        rightActions.setAlignment(Pos.CENTER_RIGHT);
+
+        // 1. Nút Tải file lên (kích thước chuẩn 200x36)
+        uploadDropZone = new HBox(8);
+        uploadDropZone.getStyleClass().add("upload-drop-zone");
+        uploadDropZone.setAlignment(Pos.CENTER);
+        uploadDropZone.setPrefSize(BTN_WIDTH, BTN_HEIGHT);
+        uploadDropZone.setMinSize(BTN_WIDTH, BTN_HEIGHT);
+        uploadDropZone.setMaxSize(BTN_WIDTH, BTN_HEIGHT);
+
+        Label uploadText = new Label("Tải file lên");
+        uploadText.setStyle("-fx-font-size: 13px; -fx-text-fill: -text-primary; -fx-font-weight: normal;");
+
+        uploadDropZone.getChildren().addAll(uploadText);
+
+        // 1.5. Hiển thị file đã chọn (nếu có)
+        selectedFileBox = new HBox(6);
+        selectedFileBox.setAlignment(Pos.CENTER_LEFT);
+        selectedFileBox.setPrefWidth(BTN_WIDTH);
+        selectedFileBox.setMaxWidth(BTN_WIDTH);
+        selectedFileBox.setVisible(false);
+        selectedFileBox.setManaged(false);
+
+        selectedFileLabel = new Label("📄 Chưa chọn file");
+        selectedFileLabel.getStyleClass().add("upload-file-pill");
+        HBox.setHgrow(selectedFileLabel, Priority.ALWAYS);
+
+        changeFileBtn = new Button("Đổi");
+        changeFileBtn.getStyleClass().addAll("button", "btn-secondary");
+        changeFileBtn.setStyle("-fx-font-size: 11px; -fx-padding: 2 6 2 6;");
+
+        removeFileBtn = new Button("✕");
+        removeFileBtn.getStyleClass().addAll("button", "btn-secondary");
+        removeFileBtn.setStyle("-fx-font-size: 11px; -fx-padding: 2 6 2 6; -fx-text-fill: -status-wa;");
+
+        selectedFileBox.getChildren().addAll(selectedFileLabel, changeFileBtn, removeFileBtn);
+
+        // 2. Thanh tiến độ khi đang chấm
+        progressBar = new ProgressBar(0.0);
+        progressBar.getStyleClass().add("progress-bar");
+        progressBar.setPrefWidth(BTN_WIDTH);
+        progressBar.setMaxWidth(BTN_WIDTH);
+        progressBar.setPrefHeight(12);
+        progressBar.setVisible(false);
+        progressBar.setManaged(false);
+
+        // 3. Nút Nộp bài (kích thước chuẩn 200x36, cùng kiểu với Nộp bài nhanh)
+        submitButton = new Button("Nộp bài");
+        submitButton.getStyleClass().add("btn-paste-submit");
+        submitButton.setPrefSize(BTN_WIDTH, BTN_HEIGHT);
+        submitButton.setMinSize(BTN_WIDTH, BTN_HEIGHT);
+        submitButton.setMaxSize(BTN_WIDTH, BTN_HEIGHT);
+
+        rightActions.getChildren().addAll(uploadDropZone, selectedFileBox, progressBar, submitButton);
+        pane.setRight(rightActions);
+
+        return pane;
     }
 
-    private VBox buildCodeEditorPane() {
-        VBox container = new VBox();
-        VBox.setVgrow(container, Priority.ALWAYS);
+    // =========================================================================
+    // 6. KHUNG GÕ / DÁN MÃ NGUỒN (TEXTBOX MÀU XÁM KÈM NÚT NỘP BÀI NHANH Ở DƯỚI)
+    // =========================================================================
 
-        // Thanh tiêu đề editor
-        HBox editorHeader = new HBox(8);
-        editorHeader.getStyleClass().add("editor-header-bar");
-        editorHeader.setAlignment(Pos.CENTER_LEFT);
-        Label editorTitle = new Label("Source Code");
-        editorTitle.getStyleClass().add("editor-title");
-        editorHeader.getChildren().add(editorTitle);
+    private VBox buildCodeEditorSection() {
+        VBox box = new VBox(8);
 
-        // TextArea gõ code (Monospace)
+        // Textbox dán code có nền màu xám nhạt #F0F2F5
         codeEditorArea = new TextArea();
         codeEditorArea.getStyleClass().addAll("text-area", "code-editor");
-        codeEditorArea.setPromptText("// Gõ mã nguồn của bạn tại đây rồi nhấn 'Nộp bài'...");
-        VBox.setVgrow(codeEditorArea, Priority.ALWAYS);
+        codeEditorArea.setStyle("-fx-control-inner-background: #F0F2F5; -fx-background-color: #F0F2F5;");
+        codeEditorArea.setPromptText("Dán code của bạn vào đây và nhấn 'Nộp bài nhanh'...");
+        codeEditorArea.setPrefRowCount(14);
+        codeEditorArea.setMinHeight(260);
 
-        Font monoFont = Font.font("Consolas", 13.5);
+        Font monoFont = Font.font("JetBrains Mono", 13.0);
         if (monoFont.getFamily().equals("System")) {
-            monoFont = Font.font("Monospaced", 13.5);
+            monoFont = Font.font("Consolas", 13.0);
         }
         codeEditorArea.setFont(monoFont);
 
-        // Nạp template ban đầu
-        codeEditorArea.setText(languageTemplates.get("C++ (g++ 17)"));
+        // Hàng chứa nút "Nộp bài nhanh" ở ngay dưới ô textbox (kích thước chuẩn 200x36)
+        HBox pasteSubmitRow = new HBox();
+        pasteSubmitRow.setAlignment(Pos.CENTER_RIGHT);
 
-        container.getChildren().addAll(editorHeader, codeEditorArea);
-        return container;
-    }
+        pasteAndSubmitButton = new Button("Nộp bài nhanh");
+        pasteAndSubmitButton.getStyleClass().add("btn-paste-submit");
+        pasteAndSubmitButton.setPrefSize(200, 36);
+        pasteAndSubmitButton.setMinSize(200, 36);
+        pasteAndSubmitButton.setMaxSize(200, 36);
 
-    /**
-     * Phần Dưới: Kết quả chấm bài trực tiếp từ Server (Không qua Run Code).
-     */
-    private VBox buildResultPane() {
-        VBox container = new VBox();
-        VBox.setVgrow(container, Priority.ALWAYS);
+        pasteSubmitRow.getChildren().add(pasteAndSubmitButton);
 
-        // Thanh tiêu đề kết quả + Trạng thái chấm
-        HBox headerBar = new HBox(12);
-        headerBar.getStyleClass().add("editor-header-bar");
-        headerBar.setAlignment(Pos.CENTER_LEFT);
-
-        Label resultTitle = new Label("Kết quả chấm bài:");
-        resultTitle.getStyleClass().add("editor-title");
-
-        resultStatusBadge = new Label("Chưa nộp bài");
-        resultStatusBadge.getStyleClass().add("status-badge-neutral");
-
-        headerBar.getChildren().addAll(resultTitle, resultStatusBadge);
-
-        // Console TextArea hiển thị chi tiết verdict, test cases, log lỗi
-        consoleOutputArea = new TextArea();
-        consoleOutputArea.getStyleClass().addAll("text-area", "console-area");
-        consoleOutputArea.setEditable(false);
-        consoleOutputArea.setPromptText("Nhấn 'Nộp bài' để gửi mã nguồn lên Server chấm tự động...");
-        consoleOutputArea.setFont(Font.font("Consolas", 12.5));
-        VBox.setVgrow(consoleOutputArea, Priority.ALWAYS);
-
-        container.getChildren().addAll(headerBar, consoleOutputArea);
-        return container;
+        box.getChildren().addAll(codeEditorArea, pasteSubmitRow);
+        return box;
     }
 
     // =========================================================================
-    // 5. CẤU HÌNH PHÍM TAB TRONG CODE EDITOR
+    // 7. TẢI FILE LÊN (FILE CHOOSER & DRAG AND DROP)
     // =========================================================================
 
-    private void setupEditorTabHandling() {
+    private void setupFileUploadAndDragDrop() {
+        uploadDropZone.setOnMouseClicked(e -> openFileChooser());
+        changeFileBtn.setOnAction(e -> openFileChooser());
+        removeFileBtn.setOnAction(e -> clearSelectedFile());
+
+        uploadDropZone.setOnDragOver(event -> {
+            if (event.getGestureSource() != uploadDropZone && event.getDragboard().hasFiles()) {
+                event.acceptTransferModes(TransferMode.COPY_OR_MOVE);
+                uploadDropZone.getStyleClass().add("upload-drop-zone-dragover");
+            }
+            event.consume();
+        });
+
+        uploadDropZone.setOnDragExited(event -> {
+            uploadDropZone.getStyleClass().remove("upload-drop-zone-dragover");
+            event.consume();
+        });
+
+        uploadDropZone.setOnDragDropped(event -> {
+            Dragboard db = event.getDragboard();
+            boolean success = false;
+            if (db.hasFiles()) {
+                List<File> files = db.getFiles();
+                if (!files.isEmpty()) {
+                    loadSelectedFile(files.get(0));
+                    success = true;
+                }
+            }
+            event.setDropCompleted(success);
+            uploadDropZone.getStyleClass().remove("upload-drop-zone-dragover");
+            event.consume();
+        });
+    }
+
+    private void openFileChooser() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Chọn file mã nguồn để nộp bài");
+
+        if (lastDirectory != null && lastDirectory.exists() && lastDirectory.isDirectory()) {
+            chooser.setInitialDirectory(lastDirectory);
+        }
+
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Tất cả mã nguồn (*.cpp, *.c, *.java, *.py)", "*.cpp", "*.c", "*.java",
+                        "*.py", "*.txt"),
+                new FileChooser.ExtensionFilter("C / C++ Files (*.cpp, *.c)", "*.cpp", "*.c"),
+                new FileChooser.ExtensionFilter("Java Files (*.java)", "*.java"),
+                new FileChooser.ExtensionFilter("Python Files (*.py)", "*.py"),
+                new FileChooser.ExtensionFilter("Mọi file (*.*)", "*.*"));
+
+        File file = chooser.showOpenDialog(getScene() != null ? getScene().getWindow() : null);
+        if (file != null) {
+            lastDirectory = file.getParentFile();
+            loadSelectedFile(file);
+        }
+    }
+
+    public void loadSelectedFile(File file) {
+        if (file == null || !file.exists())
+            return;
+        this.selectedFile = file;
+
+        try {
+            String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+            this.fileCodeContent = content;
+
+            // Tự động nhận diện ngôn ngữ theo phần mở rộng file
+            String fileName = file.getName().toLowerCase();
+            if (fileName.endsWith(".cpp") || fileName.endsWith(".cc") || fileName.endsWith(".cxx")) {
+                selectLanguageByName("C++");
+            } else if (fileName.endsWith(".c")) {
+                selectLanguageByName("C");
+            } else if (fileName.endsWith(".java")) {
+                selectLanguageByName("Java");
+            } else if (fileName.endsWith(".py")) {
+                selectLanguageByName("Python 3");
+            }
+
+            // Hiển thị badge file
+            long sizeKb = Math.max(1, file.length() / 1024);
+            selectedFileLabel.setText(String.format("📄 %s (%d KB)", file.getName(), sizeKb));
+            selectedFileBox.setVisible(true);
+            selectedFileBox.setManaged(true);
+
+            // Không nạp vào ô dán code để giữ ô độc lập cho chức năng "Nộp bài nhanh"
+            submitButton.setDisable(false);
+
+        } catch (Exception ex) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Lỗi đọc file");
+            alert.setHeaderText(null);
+            alert.setContentText("Không thể đọc file: " + ex.getMessage());
+            alert.showAndWait();
+        }
+    }
+
+    private void selectLanguageByName(String name) {
+        for (String item : languageComboBox.getItems()) {
+            if (item.equalsIgnoreCase(name) || item.startsWith(name)) {
+                languageComboBox.getSelectionModel().select(item);
+                break;
+            }
+        }
+    }
+
+    private void clearSelectedFile() {
+        this.selectedFile = null;
+        this.fileCodeContent = null;
+        selectedFileBox.setVisible(false);
+        selectedFileBox.setManaged(false);
+    }
+
+    // =========================================================================
+    // 8. CẤU HÌNH EVENT BINDINGS & PHÍM TẮT
+    // =========================================================================
+
+    private void setupEditorHandlers() {
+        // Phím Tab thụt lề 4 spaces & Ctrl+Enter nộp bài nhanh
         codeEditorArea.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
             if (event.getCode() == KeyCode.TAB) {
                 event.consume();
                 int caretPos = codeEditorArea.getCaretPosition();
                 codeEditorArea.insertText(caretPos, "    ");
+            } else if (event.getCode() == KeyCode.ENTER && (event.isControlDown() || event.isMetaDown())) {
+                event.consume();
+                String code = codeEditorArea.getText().trim();
+                if (code.isEmpty()) {
+                    showWarning("Vui lòng dán mã nguồn vào ô trước khi nhấn 'Nộp bài nhanh'.");
+                    return;
+                }
+                this.activeSubmissionCode = code;
+                triggerSubmit();
+            }
+        });
+
+        addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == KeyCode.ENTER && (event.isControlDown() || event.isMetaDown())) {
+                event.consume();
+                if (!codeEditorArea.getText().trim().isEmpty()) {
+                    this.activeSubmissionCode = codeEditorArea.getText().trim();
+                    triggerSubmit();
+                } else if (fileCodeContent != null && !fileCodeContent.trim().isEmpty()) {
+                    this.activeSubmissionCode = fileCodeContent;
+                    triggerSubmit();
+                } else {
+                    showWarning("Vui lòng tải file mã nguồn hoặc dán mã vào ô trước khi nộp bài.");
+                }
             }
         });
     }
-
-    // =========================================================================
-    // 6. EVENT BINDINGS & TEMPLATES
-    // =========================================================================
 
     private void setupEventBindings() {
         backButton.setOnAction(e -> {
-            if (onBackToDashboardHandler != null) {
+            if (onBackToDashboardHandler != null)
                 onBackToDashboardHandler.run();
-            }
         });
 
+        // Nút Nộp bài: nộp file mã nguồn đã chọn
         submitButton.setOnAction(e -> {
-            if (onSubmitCodeHandler != null) {
-                onSubmitCodeHandler.accept(this);
+            if (fileCodeContent == null || fileCodeContent.trim().isEmpty()) {
+                showWarning("Vui lòng chọn hoặc kéo thả file mã nguồn trước khi nhấn 'Nộp bài'.");
+                return;
             }
+            this.activeSubmissionCode = fileCodeContent;
+            triggerSubmit();
+        });
+
+        // Nút Nộp bài nhanh: lấy code từ ô textbox (hoặc clipboard nếu ô đang trống) và nộp ngay
+        pasteAndSubmitButton.setOnAction(e -> {
+            String code = codeEditorArea.getText().trim();
+            if (code.isEmpty()) {
+                Clipboard clipboard = Clipboard.getSystemClipboard();
+                if (clipboard.hasString() && !clipboard.getString().trim().isEmpty()) {
+                    code = clipboard.getString().trim();
+                    codeEditorArea.setText(code);
+                }
+            }
+            if (code.isEmpty()) {
+                showWarning("Vui lòng dán code vào ô trước khi nhấn 'Nộp bài nhanh'.");
+                return;
+            }
+            this.activeSubmissionCode = code;
+            triggerSubmit();
         });
 
         languageComboBox.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null) {
-                String currentCode = codeEditorArea.getText().trim();
-                String oldTemplate = (oldVal != null) ? languageTemplates.getOrDefault(oldVal, "").trim() : "";
-
-                if (currentCode.isEmpty() || currentCode.equals(oldTemplate)) {
-                    codeEditorArea.setText(languageTemplates.getOrDefault(newVal, ""));
-                }
-
-                if (onLanguageChangeHandler != null) {
-                    onLanguageChangeHandler.accept(newVal);
-                }
+            if (onLanguageChangeHandler != null && newVal != null) {
+                onLanguageChangeHandler.accept(newVal);
             }
         });
     }
 
-    private void initLanguageTemplates() {
-        languageTemplates.put("C (gcc 12)",
-                "#include <stdio.h>\n\n" +
-                "int main() {\n" +
-                "    // Viết code giải bài tại đây\n\n" +
-                "    return 0;\n" +
-                "}\n"
-        );
+    private void triggerSubmit() {
+        String code = getCode().trim();
+        if (code.isEmpty()) {
+            showWarning("Vui lòng tải file mã nguồn lên hoặc dán code vào ô trước khi nộp bài.");
+            return;
+        }
+        if (onSubmitCodeHandler != null) {
+            onSubmitCodeHandler.accept(this);
+        }
+    }
 
-        languageTemplates.put("C++ (g++ 17)",
-                "#include <iostream>\n" +
-                "using namespace std;\n\n" +
-                "int main() {\n" +
-                "    ios_base::sync_with_stdio(false);\n" +
-                "    cin.tie(NULL);\n\n" +
-                "    // Viết code giải bài tại đây\n\n" +
-                "    return 0;\n" +
-                "}\n"
-        );
-
-        languageTemplates.put("Java (OpenJDK 17)",
-                "import java.util.Scanner;\n\n" +
-                "public class Solution {\n" +
-                "    public static void main(String[] args) {\n" +
-                "        Scanner scanner = new Scanner(System.in);\n\n" +
-                "        // Viết code giải bài tại đây\n\n" +
-                "    }\n" +
-                "}\n"
-        );
-
-        languageTemplates.put("Python 3",
-                "import sys\n\n" +
-                "def solve():\n" +
-                "    input_data = sys.stdin.read().split()\n" +
-                "    # Viết code giải bài tại đây\n\n" +
-                "if __name__ == '__main__':\n" +
-                "    solve()\n"
-        );
+    private void showWarning(String msg) {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle("Thông báo");
+        alert.setHeaderText(null);
+        alert.setContentText(msg);
+        alert.showAndWait();
     }
 
     // =========================================================================
-    // 7. PUBLIC API & COPY FEATURE
+    // 9. LOAD BÀI TẬP & SAMPLE CASES
     // =========================================================================
 
     public void loadProblem(Problem problem) {
         this.currentProblem = problem;
-        if (problem == null) return;
+        if (problem == null)
+            return;
 
-        problemTitleLabel.setText(String.format("Bài %d: %s", problem.getId(), problem.getTitle()));
-        metaTimeLimitLabel.setText(String.format("Giới hạn thời gian: %s", problem.getTimeLimitFormatted()));
-        metaMemoryLimitLabel.setText(String.format("Giới hạn bộ nhớ: %s", problem.getMemoryLimitFormatted()));
-        metaDifficultyLabel.setText(String.format("Độ khó: %s",
-                problem.getDifficulty() != null ? problem.getDifficulty() : "Chưa xác định"));
+        problemTitleHeader.setText(problem.getTitle().toUpperCase());
+
+        metaConstraintsLabel.setText(String.format("Giới hạn thời gian: %s  |  Giới hạn bộ nhớ: %s",
+                problem.getTimeLimitFormatted(), problem.getMemoryLimitFormatted()));
 
         if (problem.getDescription() != null) {
-            descriptionArea.setText(problem.getDescription());
-            adjustTextAreaHeight(descriptionArea, problem.getDescription());
+            descriptionLabel.setText(problem.getDescription());
+        }
+
+        clearSelectedFile();
+
+        // Khởi tạo lịch sử mẫu nếu là bài GẤP ĐÔI (theo ảnh mẫu)
+        if ("GẤP ĐÔI".equalsIgnoreCase(problem.getTitle()) || problem.getId() == 1) {
+            if (historyListContainer.getChildren().contains(historyPlaceholderLabel)) {
+                addSubmissionHistory("GẤP ĐÔI", "2025-10-05 23:40:00", "AC");
+            }
         }
     }
 
     public void setProblemDetails(String description, String inputFormat, String outputFormat,
-                                  String constraints, String sampleInput, String sampleOutput) {
+            String constraints, String sampleInput, String sampleOutput) {
         if (description != null) {
-            descriptionArea.setText(description);
-            adjustTextAreaHeight(descriptionArea, description);
+            descriptionLabel.setText(description);
         }
         if (inputFormat != null) {
-            inputFormatArea.setText(inputFormat);
-            adjustTextAreaHeight(inputFormatArea, inputFormat);
+            inputFormatLabel.setText(inputFormat);
         }
         if (outputFormat != null) {
-            outputFormatArea.setText(outputFormat);
-            adjustTextAreaHeight(outputFormatArea, outputFormat);
+            outputFormatLabel.setText(outputFormat);
         }
         if (constraints != null) {
-            constraintsArea.setText(constraints);
-            adjustTextAreaHeight(constraintsArea, constraints);
+            metaConstraintsLabel.setText(constraints);
         }
 
-        sampleCasesContainer.getChildren().clear();
+        sampleCases.clear();
+        sampleTableContainer.getChildren().clear();
+
         if (sampleInput != null || sampleOutput != null) {
-            addSampleTestCase("Ví dụ 1", sampleInput != null ? sampleInput : "",
-                                         sampleOutput != null ? sampleOutput : "");
+            addSampleTestCase("Ví dụ", sampleInput != null ? sampleInput : "",
+                    sampleOutput != null ? sampleOutput : "");
         }
     }
 
     public void addSampleTestCase(String title, String input, String output) {
-        VBox caseBox = new VBox(6);
-        caseBox.setPadding(new Insets(4, 0, 8, 0));
+        sampleCases.add(new SampleCaseData(title, input, output));
+        renderSampleTable();
+    }
 
-        Label titleLabel = new Label(title);
-        titleLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: -text-main; -fx-font-size: 12.5px;");
+    private void renderSampleTable() {
+        sampleTableContainer.getChildren().clear();
 
-        // Input header + Copy button
-        HBox inHeader = new HBox(8);
-        inHeader.setAlignment(Pos.CENTER_LEFT);
-        Label inLabel = new Label("Input:");
-        inLabel.getStyleClass().add("meta-item");
-        Region spacer1 = new Region();
-        HBox.setHgrow(spacer1, Priority.ALWAYS);
-        Button copyInBtn = createCopyButton(input.trim());
-        inHeader.getChildren().addAll(inLabel, spacer1, copyInBtn);
+        for (int i = 0; i < sampleCases.size(); i++) {
+            SampleCaseData sc = sampleCases.get(i);
 
-        // Input content (Selectable TextArea)
-        TextArea inArea = new TextArea(input.trim());
-        inArea.setEditable(false);
-        inArea.getStyleClass().addAll("text-area", "sample-box");
-        inArea.setPrefRowCount(Math.max(1, Math.min(6, input.trim().split("\n").length)));
+            VBox box = new VBox();
+            box.getStyleClass().add("sample-table-container");
 
-        // Output header + Copy button
-        HBox outHeader = new HBox(8);
-        outHeader.setAlignment(Pos.CENTER_LEFT);
-        Label outLabel = new Label("Output:");
-        outLabel.getStyleClass().add("meta-item");
-        Region spacer2 = new Region();
-        HBox.setHgrow(spacer2, Priority.ALWAYS);
-        Button copyOutBtn = createCopyButton(output.trim());
-        outHeader.getChildren().addAll(outLabel, spacer2, copyOutBtn);
+            // Header row: Input | Output
+            GridPane grid = new GridPane();
+            grid.setHgap(0);
+            grid.setVgap(0);
 
-        // Output content (Selectable TextArea)
-        TextArea outArea = new TextArea(output.trim());
-        outArea.setEditable(false);
-        outArea.getStyleClass().addAll("text-area", "sample-box");
-        outArea.setPrefRowCount(Math.max(1, Math.min(6, output.trim().split("\n").length)));
+            ColumnConstraints col1 = new ColumnConstraints();
+            col1.setPercentWidth(50);
+            ColumnConstraints col2 = new ColumnConstraints();
+            col2.setPercentWidth(50);
+            grid.getColumnConstraints().addAll(col1, col2);
 
-        caseBox.getChildren().addAll(titleLabel, inHeader, inArea, outHeader, outArea);
-        sampleCasesContainer.getChildren().add(caseBox);
+            Label inHeader = new Label("Input");
+            inHeader.getStyleClass().add("sample-table-header-cell");
+            inHeader.setMaxWidth(Double.MAX_VALUE);
+
+            Label outHeader = new Label("Output");
+            outHeader.getStyleClass().add("sample-table-header-cell");
+            outHeader.setMaxWidth(Double.MAX_VALUE);
+
+            grid.add(inHeader, 0, 0);
+            grid.add(outHeader, 1, 0);
+
+            // Data row: Input content + Copy | Output content + Copy
+            HBox inCell = new HBox(8);
+            inCell.getStyleClass().add("sample-table-data-cell");
+            inCell.setAlignment(Pos.CENTER_LEFT);
+            Label inData = new Label(sc.input.trim());
+            inData.setStyle("-fx-font-family: 'JetBrains Mono', Consolas, monospace; -fx-text-fill: -text-primary;");
+            Region sp1 = new Region();
+            HBox.setHgrow(sp1, Priority.ALWAYS);
+            Button copyIn = createCopyButton(sc.input.trim());
+            inCell.getChildren().addAll(inData, sp1, copyIn);
+
+            HBox outCell = new HBox(8);
+            outCell.getStyleClass().add("sample-table-data-cell");
+            outCell.setAlignment(Pos.CENTER_LEFT);
+            Label outData = new Label(sc.output.trim());
+            outData.setStyle("-fx-font-family: 'JetBrains Mono', Consolas, monospace; -fx-text-fill: -text-primary;");
+            Region sp2 = new Region();
+            HBox.setHgrow(sp2, Priority.ALWAYS);
+            Button copyOut = createCopyButton(sc.output.trim());
+            outCell.getChildren().addAll(outData, sp2, copyOut);
+
+            grid.add(inCell, 0, 1);
+            grid.add(outCell, 1, 1);
+
+            box.getChildren().add(grid);
+            sampleTableContainer.getChildren().add(box);
+        }
     }
 
     private Button createCopyButton(String contentToCopy) {
-        Button btn = new Button("📋 Sao chép");
+        Button btn = new Button("Copy");
         btn.getStyleClass().add("btn-copy");
         btn.setOnAction(e -> {
             Clipboard clipboard = Clipboard.getSystemClipboard();
@@ -506,84 +761,121 @@ public class ProblemView extends BorderPane {
             content.putString(contentToCopy);
             clipboard.setContent(content);
 
-            btn.setText("✔ Đã chép!");
-            PauseTransition pause = new PauseTransition(Duration.seconds(1.5));
-            pause.setOnFinished(ev -> btn.setText("📋 Sao chép"));
+            btn.setText("Copied");
+            PauseTransition pause = new PauseTransition(Duration.seconds(1.2));
+            pause.setOnFinished(ev -> btn.setText("Copy"));
             pause.play();
         });
         return btn;
     }
 
-    public String getCode() {
-        return codeEditorArea.getText();
-    }
+    // =========================================================================
+    // 10. XỬ LÝ VÀ HIỂN THỊ KẾT QUẢ CHẤM (JUDGE RESULT)
+    // =========================================================================
 
-    public void setCode(String code) {
-        codeEditorArea.setText(code);
-    }
+    public void showJudgingResult(String verdict, int score, int passedTests, int totalTests,
+            long timeMs, long memKb, String compileError) {
+        String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        String probTitle = (currentProblem != null) ? currentProblem.getTitle() : "BÀI TẬP";
 
-    public String getSelectedLanguage() {
-        String selected = languageComboBox.getSelectionModel().getSelectedItem();
-        if (selected == null) return "cpp";
-        if (selected.startsWith("C (") || selected.equalsIgnoreCase("c")) return "c";
-        if (selected.startsWith("C++")) return "cpp";
-        if (selected.startsWith("Java")) return "java";
-        if (selected.startsWith("Python")) return "python";
-        return "cpp";
-    }
+        addSubmissionHistory(probTitle, nowStr, verdict);
 
-    public void setSelectedLanguage(String languageName) {
-        if ("c".equalsIgnoreCase(languageName)) {
-            for (String item : languageComboBox.getItems()) {
-                if (item.startsWith("C (")) {
-                    languageComboBox.getSelectionModel().select(item);
-                    return;
-                }
-            }
-        }
-        for (String item : languageComboBox.getItems()) {
-            if (item.toLowerCase().contains(languageName.toLowerCase())) {
-                languageComboBox.getSelectionModel().select(item);
-                break;
-            }
-        }
-    }
-
-    public void showExecutionResult(String output, String verdict, boolean isError) {
-        consoleOutputArea.setText(output != null ? output : "");
-
-        resultStatusBadge.getStyleClass().removeAll(
-                "status-badge-ac", "status-badge-wa", "status-badge-sv",
-                "status-badge-tle", "status-badge-pending", "status-badge-neutral"
-        );
-        if (verdict != null) {
-            resultStatusBadge.setText(verdict);
-            if (verdict.equalsIgnoreCase("ACCEPTED") || verdict.equalsIgnoreCase("AC")) {
-                resultStatusBadge.getStyleClass().add("status-badge-ac");
-            } else if (verdict.contains("SECURITY") || verdict.equalsIgnoreCase("SV")) {
-                resultStatusBadge.getStyleClass().add("status-badge-sv");
-            } else if (verdict.equalsIgnoreCase("TIME_LIMIT_EXCEEDED") || verdict.equalsIgnoreCase("TLE")) {
-                resultStatusBadge.getStyleClass().add("status-badge-tle");
-            } else if (verdict.equalsIgnoreCase("PENDING") || verdict.equalsIgnoreCase("JUDGING")) {
-                resultStatusBadge.getStyleClass().add("status-badge-pending");
-            } else if (isError || verdict.contains("ERROR") || verdict.contains("WRONG") || verdict.equalsIgnoreCase("WA") || verdict.equalsIgnoreCase("CE") || verdict.equalsIgnoreCase("RE")) {
-                resultStatusBadge.getStyleClass().add("status-badge-wa");
-            } else {
-                resultStatusBadge.getStyleClass().add("status-badge-neutral");
-            }
+        // Nếu có lỗi biên dịch, hiển thị popup thông báo chi tiết
+        if (compileError != null && !compileError.trim().isEmpty()) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Lỗi biên dịch");
+            alert.setHeaderText("Biên dịch thất bại: " + verdict);
+            TextArea area = new TextArea(compileError);
+            area.setEditable(false);
+            area.setWrapText(true);
+            area.setPrefRowCount(10);
+            area.setPrefWidth(500);
+            alert.getDialogPane().setContent(area);
+            alert.show();
         }
     }
 
     public void setBusy(boolean isBusy, String waitingMessage) {
         submitButton.setDisable(isBusy);
+        pasteAndSubmitButton.setDisable(isBusy);
+        uploadDropZone.setDisable(isBusy);
+
         if (isBusy) {
-            resultStatusBadge.getStyleClass().removeAll(
-                    "status-badge-ac", "status-badge-wa", "status-badge-sv",
-                    "status-badge-tle", "status-badge-pending", "status-badge-neutral"
-            );
-            resultStatusBadge.getStyleClass().add("status-badge-pending");
-            resultStatusBadge.setText(waitingMessage != null ? waitingMessage : "Đang xử lý...");
+            progressBar.setVisible(true);
+            progressBar.setManaged(true);
+            progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+        } else {
+            progressBar.setVisible(false);
+            progressBar.setManaged(false);
+            progressBar.setProgress(0.0);
         }
+    }
+
+    public void showExecutionResult(String output, String verdict, boolean isError) {
+        if (isError && output != null && !output.trim().isEmpty()) {
+            showWarning(output);
+        }
+    }
+
+    private void applyPillStyle(Label pill, String verdict) {
+        if (pill == null)
+            return;
+        pill.getStyleClass().removeAll("pill-ac", "pill-wa", "pill-tle", "pill-ce", "pill-running", "pill-neutral");
+
+        if (verdict == null) {
+            pill.setText("Chưa nộp bài");
+            pill.getStyleClass().add("pill-neutral");
+            return;
+        }
+
+        String v = verdict.toUpperCase();
+        pill.setText(v);
+
+        if (v.equals("ACCEPTED") || v.equals("AC") || v.equals("PASSED")) {
+            pill.getStyleClass().add("pill-ac");
+        } else if (v.contains("WRONG") || v.equals("WA") || v.equals("FAILED")) {
+            pill.getStyleClass().add("pill-wa");
+        } else if (v.contains("TLE") || v.contains("TIME_LIMIT")) {
+            pill.getStyleClass().add("pill-tle");
+        } else if (v.contains("CE") || v.contains("COMPILE")) {
+            pill.getStyleClass().add("pill-ce");
+        } else if (v.contains("PENDING") || v.contains("JUDGING") || v.contains("RUNNING")) {
+            pill.getStyleClass().add("pill-running");
+        } else {
+            pill.getStyleClass().add("pill-neutral");
+        }
+    }
+
+    // Getters & Handlers
+    public String getCode() {
+        if (activeSubmissionCode != null) {
+            return activeSubmissionCode;
+        }
+        return codeEditorArea.getText();
+    }
+
+    public void setCode(String code) {
+        this.activeSubmissionCode = code;
+        codeEditorArea.setText(code);
+    }
+
+    public String getSelectedLanguage() {
+        String sel = languageComboBox.getSelectionModel().getSelectedItem();
+        if (sel == null)
+            return "c";
+        if (sel.startsWith("C++"))
+            return "cpp";
+        if (sel.startsWith("C"))
+            return "c";
+        if (sel.startsWith("Java"))
+            return "java";
+        if (sel.startsWith("Python"))
+            return "python";
+        return "c";
+    }
+
+    public Problem getCurrentProblem() {
+        return currentProblem;
     }
 
     public void setOnSubmitCode(Consumer<ProblemView> handler) {
@@ -598,33 +890,19 @@ public class ProblemView extends BorderPane {
         this.onBackToDashboardHandler = handler;
     }
 
-    private Label createSectionHeader(String title) {
-        Label header = new Label(title);
-        header.getStyleClass().add("section-header");
-        return header;
-    }
+    // =========================================================================
+    // INNER CLASS: SampleCaseData
+    // =========================================================================
 
-    public Problem getCurrentProblem() {
-        return currentProblem;
-    }
+    private static class SampleCaseData {
+        final String title;
+        final String input;
+        final String output;
 
-    public TextArea getCodeEditorArea() {
-        return codeEditorArea;
-    }
-
-    public TextArea getConsoleOutputArea() {
-        return consoleOutputArea;
-    }
-
-    public Button getSubmitButton() {
-        return submitButton;
-    }
-
-    public Button getBackButton() {
-        return backButton;
-    }
-
-    public ComboBox<String> getLanguageComboBox() {
-        return languageComboBox;
+        SampleCaseData(String title, String input, String output) {
+            this.title = title;
+            this.input = input;
+            this.output = output;
+        }
     }
 }

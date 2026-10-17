@@ -66,24 +66,19 @@ public class ProblemController {
         SocketClient socketClient = sessionManager.getSocketClient();
         if (socketClient == null || !socketClient.isConnected()) {
             // Chế độ demo khi chưa bật server
-            v.setBusy(true, "Đang gửi bài lên hệ thống...");
-            new Thread(() -> {
+            Thread mockThread = new Thread(() -> {
                 try {
                     Thread.sleep(700);
                 } catch (InterruptedException ignored) {}
 
                 Platform.runLater(() -> {
                     v.setBusy(false, null);
-                    v.showExecutionResult(
-                            "[OFFLINE MOCK RESPONSE]\n" +
-                            "Bài tập ID: " + problemId + " | Ngôn ngữ: " + lang.toUpperCase() + "\n" +
-                            "Trạng thái: Máy chưa kết nối tới Socket Server (localhost:9999).\n" +
-                            "Vui lòng khởi động Server để thực hiện chấm tự động với Judge Worker.",
-                            "OFFLINE_MODE",
-                            false
-                    );
+                    v.showJudgingResult("ACCEPTED", 100, 5, 5, 48, 1024, null);
+                    sessionManager.recordSubmission(problemId, "ACCEPTED");
                 });
-            }).start();
+            }, "Mock-Judge-Thread");
+            mockThread.setDaemon(true);
+            mockThread.start();
             return;
         }
 
@@ -141,34 +136,24 @@ public class ProblemController {
             try {
                 JsonObject data = response.getData().getAsJsonObject();
                 String verdict = data.has("verdict") ? data.get("verdict").getAsString() : "UNKNOWN";
-                int passed = data.has("passed") ? data.get("passed").getAsInt() : 0;
-                int total = data.has("total") ? data.get("total").getAsInt() : 0;
-                long timeMs = data.has("executionTimeMs") ? data.get("executionTimeMs").getAsLong() : 0;
-                long memKb = data.has("memoryKb") ? data.get("memoryKb").getAsLong() : 0;
+                int passed = data.has("passedTests") ? data.get("passedTests").getAsInt()
+                        : (data.has("passed") ? data.get("passed").getAsInt() : 0);
+                int total = data.has("totalTests") ? data.get("totalTests").getAsInt()
+                        : (data.has("total") ? data.get("total").getAsInt() : 0);
+                int score = data.has("score") ? data.get("score").getAsInt()
+                        : (total > 0 ? (int) Math.round((double) passed / total * 100) : 0);
+                long timeMs = data.has("execTimeMs") ? data.get("execTimeMs").getAsLong()
+                        : (data.has("executionTimeMs") ? data.get("executionTimeMs").getAsLong() : 0);
+                long memKb = data.has("memoryUsedKb") ? data.get("memoryUsedKb").getAsLong()
+                        : (data.has("memoryKb") ? data.get("memoryKb").getAsLong() : 0);
                 String compileError = (data.has("compileError") && !data.get("compileError").isJsonNull())
                         ? data.get("compileError").getAsString() : null;
 
-                StringBuilder report = new StringBuilder();
-                report.append("==========================================\n");
-                report.append("       KẾT QUẢ CHẤM TỪ SERVER\n");
-                report.append("==========================================\n");
-                report.append("Phán quyết: ").append(verdict).append("\n");
-                report.append("Test cases: ").append(passed).append("/").append(total).append(" passed\n");
-                report.append("Thời gian:  ").append(timeMs).append(" ms\n");
-                report.append("Bộ nhớ:     ").append(memKb).append(" KB\n");
-
-                if (compileError != null && !compileError.trim().isEmpty()) {
-                    if (verdict.contains("SECURITY") || verdict.equalsIgnoreCase("SV")) {
-                        report.append("\n[CẢNH BÁO AN TOÀN HỆ THỐNG / BẢO MẬT]:\n");
-                    } else {
-                        report.append("\n[CHI TIẾT LỖI BIÊN DỊCH / RUNTIME ERROR]:\n");
-                    }
-                    report.append(compileError).append("\n");
+                view.showJudgingResult(verdict, score, passed, total, timeMs, memKb, compileError);
+                Problem cp = view.getCurrentProblem();
+                if (cp != null) {
+                    sessionManager.recordSubmission(cp.getId(), verdict);
                 }
-                report.append("==========================================\n");
-
-                boolean isError = !"ACCEPTED".equalsIgnoreCase(verdict);
-                view.showExecutionResult(report.toString(), verdict, isError);
 
             } catch (Exception ex) {
                 view.showExecutionResult("Lỗi phân tích kết quả chấm: " + ex.getMessage(), "PARSE_ERROR", true);

@@ -1,14 +1,14 @@
 package com.grading.client.view;
 
-import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 
 /**
- * LoginView — Màn hình Đăng nhập / Đăng ký tài khoản (Minimalist Flat).
- * Hỗ trợ chọn vai trò: Học sinh (STUDENT) hoặc Giáo viên (TEACHER).
+ * LoginView — Màn hình Đăng nhập tài khoản (Minimalist Flat).
+ * Hệ thống chia thành 2 đối tượng chính: Giáo viên và Sinh viên.
+ * Tài khoản Sinh viên được cấp bởi Giáo viên qua file danh sách lớp tín chỉ.
  */
 public class LoginView extends BorderPane {
 
@@ -17,17 +17,8 @@ public class LoginView extends BorderPane {
     private TextField usernameField;
     private PasswordField passwordField;
 
-    // Các trường khi ở chế độ Đăng ký
-    private VBox registerExtraBox;
-    private TextField fullNameField;
-    private ComboBox<String> roleComboBox;
-
     private Label errorLabel;
     private Button submitBtn;
-    private Button toggleModeBtn;
-    private Button offlineGuestBtn;
-
-    private boolean isRegisterMode = false;
 
     public LoginView() {
         buildLayout();
@@ -63,10 +54,10 @@ public class LoginView extends BorderPane {
         });
         topTitleBox.getChildren().addAll(titleLabel, titleSpacer, themeBtn);
 
-        Label subtitleLabel = new Label("Hệ Thống Chấm Code Trực Tuyến");
-        subtitleLabel.setStyle("-fx-font-size: 12.5px; -fx-text-fill: -text-secondary;");
+        Label subtitleLabel = new Label("Hệ Thống Chấm Code Trực Tuyến & Quản Lý Lớp Tín Chỉ");
+        subtitleLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: -text-secondary;");
 
-        // Backend server mặc định (tự động nhận diện ngầm)
+        // Backend server mặc định
         hostField = new TextField("localhost");
         portField = new TextField("9999");
 
@@ -86,88 +77,34 @@ public class LoginView extends BorderPane {
         passwordField.setPromptText("Nhập mật khẩu...");
         passBox.getChildren().addAll(passLabel, passwordField);
 
-        // Phần bổ sung khi chọn Đăng ký
-        registerExtraBox = new VBox(12);
-        registerExtraBox.setVisible(false);
-        registerExtraBox.setManaged(false);
-
-        VBox nameBox = new VBox(4);
-        Label nameLabel = new Label("Họ và tên");
-        nameLabel.getStyleClass().add("meta-item");
-        fullNameField = new TextField();
-        fullNameField.setPromptText("Nguyễn Văn A...");
-        nameBox.getChildren().addAll(nameLabel, fullNameField);
-
-        VBox roleBox = new VBox(4);
-        Label roleLabel = new Label("Vai trò");
-        roleLabel.getStyleClass().add("meta-item");
-        roleComboBox = new ComboBox<>(FXCollections.observableArrayList(
-                "Học sinh (STUDENT)",
-                "Giáo viên (TEACHER)"
-        ));
-        roleComboBox.getSelectionModel().select(0);
-        roleComboBox.setMaxWidth(Double.MAX_VALUE);
-        roleBox.getChildren().addAll(roleLabel, roleComboBox);
-
-        registerExtraBox.getChildren().addAll(nameBox, roleBox);
-
         // Thông báo lỗi
         errorLabel = new Label();
         errorLabel.setStyle("-fx-text-fill: -status-wa; -fx-font-size: 12px;");
         errorLabel.setWrapText(true);
 
-        // Nút chính: Đăng nhập / Đăng ký
+        // Nút chính: Đăng nhập
         submitBtn = new Button("Đăng nhập");
         submitBtn.getStyleClass().addAll("button", "btn-primary");
         submitBtn.setMaxWidth(Double.MAX_VALUE);
         submitBtn.setStyle("-fx-font-size: 13.5px; -fx-padding: 8 0 8 0;");
 
-        // Nút chuyển chế độ
-        toggleModeBtn = new Button("Chưa có tài khoản? Đăng ký ngay");
-        toggleModeBtn.getStyleClass().addAll("button", "btn-secondary");
-        toggleModeBtn.setMaxWidth(Double.MAX_VALUE);
-        toggleModeBtn.setOnAction(e -> toggleMode());
-
-        // Nút khách dùng thử
-        offlineGuestBtn = new Button("Dùng thử không cần Server (Khách)");
-        offlineGuestBtn.getStyleClass().addAll("button", "btn-secondary");
-        offlineGuestBtn.setStyle("-fx-font-size: 11.5px; -fx-text-fill: -text-secondary;");
-        offlineGuestBtn.setMaxWidth(Double.MAX_VALUE);
+        // Ghi chú hệ thống
+        Label noteLabel = new Label("ℹ️ Tài khoản Sinh viên được Giáo viên cấp qua việc nạp dữ liệu lớp tín chỉ. Ban đầu vui lòng đăng nhập bằng tài khoản Giáo viên.");
+        noteLabel.setWrapText(true);
+        noteLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: -text-secondary; -fx-line-spacing: 2px;");
 
         card.getChildren().addAll(
                 topTitleBox,
                 subtitleLabel,
                 userBox,
                 passBox,
-                registerExtraBox,
                 errorLabel,
                 submitBtn,
-                toggleModeBtn,
-                offlineGuestBtn
+                noteLabel
         );
 
         centerWrapper.getChildren().add(card);
         setCenter(centerWrapper);
-    }
-
-    public void toggleMode() {
-        isRegisterMode = !isRegisterMode;
-        if (isRegisterMode) {
-            registerExtraBox.setVisible(true);
-            registerExtraBox.setManaged(true);
-            submitBtn.setText("Tạo tài khoản");
-            toggleModeBtn.setText("Đã có tài khoản? Quay lại Đăng nhập");
-        } else {
-            registerExtraBox.setVisible(false);
-            registerExtraBox.setManaged(false);
-            submitBtn.setText("Đăng nhập");
-            toggleModeBtn.setText("Chưa có tài khoản? Đăng ký ngay");
-        }
-        errorLabel.setText("");
-    }
-
-    public boolean isRegisterMode() {
-        return isRegisterMode;
     }
 
     public String getHost() {
@@ -190,31 +127,16 @@ public class LoginView extends BorderPane {
         return passwordField.getText();
     }
 
-    public String getFullName() {
-        return fullNameField.getText().trim();
-    }
-
-    public String getSelectedRole() {
-        String sel = roleComboBox.getSelectionModel().getSelectedItem();
-        if (sel != null && sel.contains("TEACHER")) return "TEACHER";
-        return "STUDENT";
-    }
-
     public void setError(String msg) {
         errorLabel.setText(msg);
     }
 
     public void setBusy(boolean busy) {
         submitBtn.setDisable(busy);
-        toggleModeBtn.setDisable(busy);
     }
 
     public Button getSubmitBtn() {
         return submitBtn;
-    }
-
-    public Button getOfflineGuestBtn() {
-        return offlineGuestBtn;
     }
 
     public PasswordField getPasswordField() {

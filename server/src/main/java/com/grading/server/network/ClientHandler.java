@@ -45,6 +45,7 @@ public class ClientHandler implements Runnable {
     private final AuthService authService;
     private final ProblemService problemService;
     private final SubmissionService submissionService;
+    private final com.grading.server.service.AcademicService academicService;
     private final ConnectionRegistry connectionRegistry;
 
     // I/O streams
@@ -59,13 +60,16 @@ public class ClientHandler implements Runnable {
                          AuthService authService,
                          ProblemService problemService,
                          SubmissionService submissionService,
+                         com.grading.server.service.AcademicService academicService,
                          ConnectionRegistry connectionRegistry) {
         this.socket = socket;
         this.authService = authService;
         this.problemService = problemService;
         this.submissionService = submissionService;
+        this.academicService = academicService;
         this.connectionRegistry = connectionRegistry;
     }
+
 
     @Override
     public void run() {
@@ -133,12 +137,28 @@ public class ClientHandler implements Runnable {
                 switch (request.getType()) {
                     case GET_PROBLEMS       -> handleGetProblems(request);
                     case GET_PROBLEM_DETAIL -> handleGetProblemDetail(request);
+                    case CREATE_PROBLEM     -> handleCreateProblem(request);
                     case SUBMIT             -> handleSubmit(request);
                     case GET_RESULT         -> handleGetResult(request);
                     case GET_HISTORY        -> handleGetHistory(request);
+                    case GET_COURSES        -> handleGetCourses(request);
+                    case CREATE_COURSE      -> handleCreateCourse(request);
+                    case GET_CLASSES        -> handleGetClasses(request);
+                    case CREATE_CLASS       -> handleCreateClass(request);
+                    case UPDATE_CLASS       -> handleUpdateClass(request);
+                    case DELETE_CLASS       -> handleDeleteClass(request);
+                    case GET_STUDENTS       -> handleGetStudents(request);
+                    case IMPORT_STUDENTS    -> handleImportStudents(request);
+                    case UPDATE_STUDENT     -> handleUpdateStudent(request);
+                    case DELETE_STUDENT     -> handleDeleteStudent(request);
+                    case GET_MY_CLASSES     -> handleGetMyClasses(request);
+                    case TOGGLE_COURSE_ACTIVE -> handleToggleCourseActive(request);
+                    case TOGGLE_PROBLEM_ACTIVE -> handleToggleProblemActive(request);
+                    case CHANGE_PASSWORD    -> handleChangePassword(request);
                     default -> sendError(request.getRequestId(),
                             "Unknown message type: " + request.getType());
                 }
+
             }
         }
     }
@@ -172,6 +192,14 @@ public class ClientHandler implements Runnable {
             if (fullName != null) {
                 responseData.addProperty("fullName", fullName);
             }
+            Integer classId = authService.getClassIdFromToken(token);
+            if (classId != null) {
+                responseData.addProperty("classId", classId);
+            }
+            String className = authService.getClassNameFromToken(token);
+            if (className != null) {
+                responseData.addProperty("className", className);
+            }
 
             Message response = Message.success(
                     MessageType.LOGIN_RESPONSE,
@@ -179,6 +207,7 @@ public class ClientHandler implements Runnable {
                     "Đăng nhập thành công",
                     responseData
             );
+
             send(response);
 
             logger.info("User '{}' (id={}) logged in from {}", username, userId,
@@ -228,7 +257,25 @@ public class ClientHandler implements Runnable {
 
     private void handleGetProblems(Message request) {
         try {
-            List<Problem> problems = problemService.getAllProblems();
+            int classId = 0;
+            if (request.getData() != null && request.getData().isJsonObject()) {
+                JsonObject data = request.getData().getAsJsonObject();
+                if (data.has("classId") && !data.get("classId").isJsonNull()) {
+                    classId = data.get("classId").getAsInt();
+                }
+            }
+
+            boolean isTeacher = "TEACHER".equalsIgnoreCase(authenticatedRole);
+            List<Problem> problems;
+            if (isTeacher) {
+                problems = (classId > 0)
+                        ? problemService.getProblemsByClass(classId)
+                        : problemService.getAllProblems();
+            } else {
+                problems = (classId > 0)
+                        ? problemService.getProblemsByClassForStudent(classId)
+                        : problemService.getAllProblemsForStudent();
+            }
 
             Message response = Message.success(
                     MessageType.GET_PROBLEMS_RESPONSE,
@@ -241,6 +288,427 @@ public class ClientHandler implements Runnable {
         } catch (Exception e) {
             logger.error("GetProblems error", e);
             sendError(request.getRequestId(), "Không thể lấy danh sách bài");
+        }
+    }
+
+    private void handleCreateProblem(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền tạo bài tập");
+            return;
+        }
+
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            Problem p = new Problem();
+            p.setTitle(data.get("title").getAsString());
+            p.setDescription(data.get("description").getAsString());
+            p.setDifficulty(data.has("difficulty") ? data.get("difficulty").getAsString() : "MEDIUM");
+            p.setTimeLimitMs(data.has("timeLimitMs") ? data.get("timeLimitMs").getAsInt() : 2000);
+            p.setMemoryLimitKb(data.has("memoryLimitKb") ? data.get("memoryLimitKb").getAsInt() : 262144);
+            p.setCreatedBy(authenticatedUserId);
+            if (data.has("classId") && !data.get("classId").isJsonNull()) {
+                p.setClassId(data.get("classId").getAsInt());
+            }
+
+            List<com.grading.server.model.TestCase> testCases = new java.util.ArrayList<>();
+
+            if (data.has("testCases") && data.get("testCases").isJsonArray()) {
+                com.google.gson.JsonArray arr = data.getAsJsonArray("testCases");
+                int order = 1;
+                for (com.google.gson.JsonElement el : arr) {
+                    if (!el.isJsonObject()) continue;
+                    com.google.gson.JsonObject tcObj = el.getAsJsonObject();
+                    com.grading.server.model.TestCase tc = new com.grading.server.model.TestCase();
+                    tc.setInputData(tcObj.has("inputData") && !tcObj.get("inputData").isJsonNull() ? tcObj.get("inputData").getAsString() : "");
+                    tc.setExpectedOutput(tcObj.has("expectedOutput") && !tcObj.get("expectedOutput").isJsonNull() ? tcObj.get("expectedOutput").getAsString() : "");
+                    tc.setSample(tcObj.has("isSample") && !tcObj.get("isSample").isJsonNull() && tcObj.get("isSample").getAsBoolean());
+                    tc.setOrderNum(order++);
+                    testCases.add(tc);
+                }
+            } else {
+                if (data.has("sampleInput") || data.has("sampleOutput")) {
+                    com.grading.server.model.TestCase sample = new com.grading.server.model.TestCase();
+                    sample.setInputData(data.has("sampleInput") ? data.get("sampleInput").getAsString() : "");
+                    sample.setExpectedOutput(data.has("sampleOutput") ? data.get("sampleOutput").getAsString() : "");
+                    sample.setSample(true);
+                    sample.setOrderNum(1);
+                    testCases.add(sample);
+                }
+
+                if (data.has("hiddenInput") || data.has("hiddenOutput")) {
+                    com.grading.server.model.TestCase hidden = new com.grading.server.model.TestCase();
+                    hidden.setInputData(data.has("hiddenInput") ? data.get("hiddenInput").getAsString() : "");
+                    hidden.setExpectedOutput(data.has("hiddenOutput") ? data.get("hiddenOutput").getAsString() : "");
+                    hidden.setSample(false);
+                    hidden.setOrderNum(2);
+                    testCases.add(hidden);
+                }
+            }
+
+            Problem created = problemService.createProblem(p, testCases);
+
+            Message response = Message.success(
+                    MessageType.CREATE_PROBLEM_RESPONSE,
+                    request.getRequestId(),
+                    "Tạo bài tập thành công",
+                    MessageSerializer.toJsonElement(created)
+            );
+            send(response);
+
+        } catch (Exception e) {
+            logger.error("CreateProblem error", e);
+            sendError(request.getRequestId(), "Không thể tạo bài tập: " + e.getMessage());
+        }
+    }
+
+    private void handleToggleProblemActive(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền thay đổi trạng thái bài tập");
+            return;
+        }
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            int problemId = data.get("problemId").getAsInt();
+            boolean active = data.get("active").getAsBoolean();
+
+            problemService.setProblemActive(problemId, active);
+
+            JsonObject res = new JsonObject();
+            res.addProperty("problemId", problemId);
+            res.addProperty("active", active);
+
+            send(Message.success(
+                    MessageType.TOGGLE_PROBLEM_ACTIVE_RESPONSE,
+                    request.getRequestId(),
+                    "Cập nhật trạng thái hiển thị bài tập thành công",
+                    res
+            ));
+        } catch (Exception e) {
+            logger.error("ToggleProblemActive error", e);
+            sendError(request.getRequestId(), "Không thể cập nhật trạng thái bài tập: " + e.getMessage());
+        }
+    }
+
+    private void handleChangePassword(Message request) {
+        if (authenticatedUserId < 0) {
+            sendError(request.getRequestId(), "Bạn chưa đăng nhập");
+            return;
+        }
+
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            String oldPass = data.has("oldPassword") ? data.get("oldPassword").getAsString() : "";
+            String newPass = data.has("newPassword") ? data.get("newPassword").getAsString() : "";
+
+            authService.changePassword(authenticatedUserId, oldPass, newPass);
+
+            send(Message.success(
+                    MessageType.CHANGE_PASSWORD_RESPONSE,
+                    request.getRequestId(),
+                    "Đổi mật khẩu thành công",
+                    null
+            ));
+        } catch (IllegalArgumentException e) {
+            sendError(request.getRequestId(), e.getMessage());
+        } catch (Exception e) {
+            logger.error("ChangePassword error", e);
+            sendError(request.getRequestId(), "Lỗi hệ thống khi đổi mật khẩu");
+        }
+    }
+
+    // ─── Academic Handlers ───────────────────────────────────────────────────
+
+    private void handleGetCourses(Message request) {
+        try {
+            var courses = academicService.getAllCourses();
+            send(Message.success(
+                    MessageType.GET_COURSES_RESPONSE,
+                    request.getRequestId(),
+                    "OK",
+                    MessageSerializer.toJsonElement(courses)
+            ));
+        } catch (Exception e) {
+            logger.error("GetCourses error", e);
+            sendError(request.getRequestId(), "Không thể tải danh sách môn học");
+        }
+    }
+
+    private void handleCreateCourse(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền tạo môn học");
+            return;
+        }
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            com.grading.server.model.Course c = new com.grading.server.model.Course();
+            c.setCode(data.get("code").getAsString());
+            c.setName(data.get("name").getAsString());
+            c.setLanguage(data.has("language") ? data.get("language").getAsString() : "cpp");
+            c.setDescription(data.has("description") ? data.get("description").getAsString() : "");
+
+            var created = academicService.createCourse(c);
+            send(Message.success(
+                    MessageType.CREATE_COURSE_RESPONSE,
+                    request.getRequestId(),
+                    "Tạo môn học thành công",
+                    MessageSerializer.toJsonElement(created)
+            ));
+        } catch (Exception e) {
+            logger.error("CreateCourse error", e);
+            sendError(request.getRequestId(), "Không thể tạo môn học: " + e.getMessage());
+        }
+    }
+
+    private void handleToggleCourseActive(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền thay đổi trạng thái môn học");
+            return;
+        }
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            int courseId = data.get("courseId").getAsInt();
+            boolean active = data.get("active").getAsBoolean();
+
+            academicService.setCourseActive(courseId, active);
+
+            JsonObject res = new JsonObject();
+            res.addProperty("courseId", courseId);
+            res.addProperty("active", active);
+
+            send(Message.success(
+                    MessageType.TOGGLE_COURSE_ACTIVE_RESPONSE,
+                    request.getRequestId(),
+                    "Cập nhật quyền hiển thị môn học thành công",
+                    res
+            ));
+        } catch (Exception e) {
+            logger.error("ToggleCourseActive error", e);
+            sendError(request.getRequestId(), "Không thể cập nhật trạng thái môn học: " + e.getMessage());
+        }
+    }
+
+    private void handleGetClasses(Message request) {
+        try {
+            var classes = academicService.getAllClasses();
+            send(Message.success(
+                    MessageType.GET_CLASSES_RESPONSE,
+                    request.getRequestId(),
+                    "OK",
+                    MessageSerializer.toJsonElement(classes)
+            ));
+        } catch (Exception e) {
+            logger.error("GetClasses error", e);
+            sendError(request.getRequestId(), "Không thể tải danh sách lớp tín chỉ");
+        }
+    }
+
+    private void handleGetMyClasses(Message request) {
+        try {
+            var classes = academicService.getClassesByStudent(authenticatedUserId);
+            send(Message.success(
+                    MessageType.GET_MY_CLASSES_RESPONSE,
+                    request.getRequestId(),
+                    "OK",
+                    MessageSerializer.toJsonElement(classes)
+            ));
+        } catch (Exception e) {
+            logger.error("GetMyClasses error", e);
+            sendError(request.getRequestId(), "Không thể tải danh sách lớp học của bạn");
+        }
+    }
+
+    private void handleCreateClass(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền tạo lớp tín chỉ");
+            return;
+        }
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            com.grading.server.model.CreditClass cc = new com.grading.server.model.CreditClass();
+            cc.setClassCode(data.get("classCode").getAsString());
+            cc.setName(data.get("name").getAsString());
+            cc.setCourseId(data.get("courseId").getAsInt());
+            cc.setTeacherId(authenticatedUserId);
+
+            var created = academicService.createClass(cc);
+            send(Message.success(
+                    MessageType.CREATE_CLASS_RESPONSE,
+                    request.getRequestId(),
+                    "Tạo lớp tín chỉ thành công",
+                    MessageSerializer.toJsonElement(created)
+            ));
+        } catch (Exception e) {
+            logger.error("CreateClass error", e);
+            sendError(request.getRequestId(), "Không thể tạo lớp tín chỉ: " + e.getMessage());
+        }
+    }
+
+    private void handleUpdateClass(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền cập nhật lớp tín chỉ");
+            return;
+        }
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            int id = data.get("id").getAsInt();
+            String classCode = data.get("classCode").getAsString();
+            String name = data.get("name").getAsString();
+            int courseId = data.get("courseId").getAsInt();
+
+            academicService.updateClass(id, classCode, name, courseId);
+            send(Message.success(
+                    MessageType.UPDATE_CLASS_RESPONSE,
+                    request.getRequestId(),
+                    "Cập nhật lớp tín chỉ thành công",
+                    null
+            ));
+        } catch (Exception e) {
+            logger.error("UpdateClass error", e);
+            sendError(request.getRequestId(), "Không thể cập nhật lớp tín chỉ: " + e.getMessage());
+        }
+    }
+
+    private void handleDeleteClass(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền xóa lớp tín chỉ");
+            return;
+        }
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            int id = data.get("id").getAsInt();
+
+            academicService.deleteClass(id);
+            send(Message.success(
+                    MessageType.DELETE_CLASS_RESPONSE,
+                    request.getRequestId(),
+                    "Đã xóa lớp tín chỉ thành công",
+                    null
+            ));
+        } catch (Exception e) {
+            logger.error("DeleteClass error", e);
+            sendError(request.getRequestId(), "Không thể xóa lớp tín chỉ: " + e.getMessage());
+        }
+    }
+
+    private void handleGetStudents(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền xem danh sách sinh viên");
+            return;
+        }
+        try {
+            int classId = 0;
+            if (request.getData() != null && request.getData().isJsonObject()) {
+                JsonObject data = request.getData().getAsJsonObject();
+                if (data.has("classId")) {
+                    classId = data.get("classId").getAsInt();
+                }
+            }
+            var students = academicService.getStudentsByClass(classId);
+            send(Message.success(
+                    MessageType.GET_STUDENTS_RESPONSE,
+                    request.getRequestId(),
+                    "OK",
+                    MessageSerializer.toJsonElement(students)
+            ));
+        } catch (Exception e) {
+            logger.error("GetStudents error", e);
+            sendError(request.getRequestId(), "Không thể tải danh sách sinh viên");
+        }
+    }
+
+    private void handleImportStudents(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền import sinh viên");
+            return;
+        }
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            int classId = data.get("classId").getAsInt();
+            var studentsArray = data.getAsJsonArray("students");
+
+            int successCount = 0;
+            int errorCount = 0;
+
+            for (var el : studentsArray) {
+                try {
+                    JsonObject stuObj = el.getAsJsonObject();
+                    String username = stuObj.get("username").getAsString();
+                    String rawPassword = stuObj.has("password") ? stuObj.get("password").getAsString() : "password123";
+                    String fullName = stuObj.has("fullName") ? stuObj.get("fullName").getAsString() : username;
+
+                    authService.createOrUpdateStudent(username, rawPassword, fullName, classId);
+                    successCount++;
+                } catch (Exception ex) {
+                    errorCount++;
+                    logger.warn("Failed to import student line: {}", ex.getMessage());
+                }
+            }
+
+            JsonObject resultData = new JsonObject();
+            resultData.addProperty("successCount", successCount);
+            resultData.addProperty("errorCount", errorCount);
+
+            send(Message.success(
+                    MessageType.IMPORT_STUDENTS_RESPONSE,
+                    request.getRequestId(),
+                    "Đã nạp thành công " + successCount + " sinh viên (thất bại: " + errorCount + ")",
+                    resultData
+            ));
+
+        } catch (Exception e) {
+            logger.error("ImportStudents error", e);
+            sendError(request.getRequestId(), "Không thể import sinh viên: " + e.getMessage());
+        }
+    }
+
+    private void handleUpdateStudent(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền sửa thông tin sinh viên");
+            return;
+        }
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            int studentId = data.get("studentId").getAsInt();
+            String fullName = data.get("fullName").getAsString();
+            Integer classId = (data.has("classId") && !data.get("classId").isJsonNull())
+                    ? data.get("classId").getAsInt() : null;
+            String newPassword = (data.has("newPassword") && !data.get("newPassword").isJsonNull())
+                    ? data.get("newPassword").getAsString() : null;
+
+            academicService.updateStudent(studentId, fullName, classId, newPassword);
+
+            send(Message.success(
+                    MessageType.UPDATE_STUDENT_RESPONSE,
+                    request.getRequestId(),
+                    "Cập nhật thông tin sinh viên thành công",
+                    null
+            ));
+        } catch (Exception e) {
+            logger.error("UpdateStudent error", e);
+            sendError(request.getRequestId(), "Không thể cập nhật sinh viên: " + e.getMessage());
+        }
+    }
+
+    private void handleDeleteStudent(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền xóa sinh viên");
+            return;
+        }
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            int studentId = data.get("studentId").getAsInt();
+
+            academicService.deleteStudent(studentId);
+
+            send(Message.success(
+                    MessageType.DELETE_STUDENT_RESPONSE,
+                    request.getRequestId(),
+                    "Đã xóa sinh viên thành công",
+                    null
+            ));
+        } catch (Exception e) {
+            logger.error("DeleteStudent error", e);
+            sendError(request.getRequestId(), "Không thể xóa sinh viên: " + e.getMessage());
         }
     }
 

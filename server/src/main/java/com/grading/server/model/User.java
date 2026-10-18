@@ -11,6 +11,8 @@ public class User {
     private String passwordHash;    // BCrypt hash — không bao giờ trả về client
     private String fullName;
     private String role;            // "STUDENT" | "TEACHER"
+    private Integer classId;        // ID lớp tín chỉ (dành cho STUDENT)
+    private String className;       // Tên lớp tín chỉ
     private String createdAt;
 
     public User() {}
@@ -21,6 +23,7 @@ public class User {
         this.fullName = fullName;
         this.role = role;
     }
+
 
     // ─── Getters & Setters ────────────────────────────────────────────────────
 
@@ -39,12 +42,18 @@ public class User {
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
 
+    public Integer getClassId() { return classId; }
+    public void setClassId(Integer classId) { this.classId = classId; }
+
+    public String getClassName() { return className; }
+    public void setClassName(String className) { this.className = className; }
+
     public String getCreatedAt() { return createdAt; }
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
 
     /** Trả về DTO an toàn (không có passwordHash) để serialize vào JSON */
     public UserDTO toDTO() {
-        return new UserDTO(id, username, fullName, role, createdAt);
+        return new UserDTO(id, username, fullName, role, classId, className, createdAt);
     }
 
     @Override
@@ -59,14 +68,19 @@ public class User {
         public final String username;
         public final String fullName;
         public final String role;
+        public final Integer classId;
+        public final String className;
         public final String createdAt;
 
-        public UserDTO(int id, String username, String fullName, String role, String createdAt) {
+        public UserDTO(int id, String username, String fullName, String role, Integer classId, String className, String createdAt) {
             this.id = id;
             this.username = username;
             this.fullName = fullName;
             this.role = role;
+            this.classId = classId;
+            this.className = className;
             this.createdAt = createdAt;
         }
     }
+
 }

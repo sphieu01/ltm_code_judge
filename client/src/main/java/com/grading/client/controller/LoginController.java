@@ -12,7 +12,8 @@ import java.io.IOException;
 import java.util.function.Consumer;
 
 /**
- * LoginController — Xử lý kết nối TCP và Đăng nhập / Đăng ký qua SocketClient.
+ * LoginController — Xử lý kết nối TCP và Đăng nhập qua SocketClient.
+ * Không sử dụng tài khoản dùng thử offline hay chế độ tự đăng ký.
  */
 public class LoginController {
 
@@ -29,7 +30,6 @@ public class LoginController {
     private void initEvents() {
         view.getSubmitBtn().setOnAction(e -> handleSubmit());
         view.getPasswordField().setOnAction(e -> handleSubmit());
-        view.getOfflineGuestBtn().setOnAction(e -> handleGuestLogin());
     }
 
     private void handleSubmit() {
@@ -57,24 +57,15 @@ public class LoginController {
                     sessionManager.setSocketClient(client);
                 }
 
-                if (view.isRegisterMode()) {
-                    // Đăng ký
-                    String fullName = view.getFullName();
-                    String role = view.getSelectedRole();
-                    client.register(username, password, fullName, role, response -> {
-                        Platform.runLater(() -> handleRegisterResponse(response));
-                    });
-                } else {
-                    // Đăng nhập
-                    client.login(username, password, response -> {
-                        Platform.runLater(() -> handleLoginResponse(response));
-                    });
-                }
+                // Gửi yêu cầu đăng nhập
+                client.login(username, password, response -> {
+                    Platform.runLater(() -> handleLoginResponse(response));
+                });
 
             } catch (IOException ex) {
                 Platform.runLater(() -> {
                     view.setBusy(false);
-                    view.setError("Không thể kết nối đến Server (" + host + ":" + port + "). Vui lòng kiểm tra lại Server hoặc dùng nút 'Dùng thử không cần Server' bên dưới.");
+                    view.setError("Không thể kết nối đến Máy chủ Server (" + host + ":" + port + "). Vui lòng đảm bảo Server đã được khởi chạy.");
                 });
             }
         }, "Login-Thread");
@@ -92,6 +83,12 @@ public class LoginController {
                 if (data.has("userId")) user.setId(data.get("userId").getAsInt());
                 if (data.has("role")) user.setRole(data.get("role").getAsString());
                 if (data.has("fullName")) user.setFullName(data.get("fullName").getAsString());
+                if (data.has("classId") && !data.get("classId").isJsonNull()) {
+                    user.setClassId(data.get("classId").getAsInt());
+                }
+                if (data.has("className") && !data.get("className").isJsonNull()) {
+                    user.setClassName(data.get("className").getAsString());
+                }
             }
             user.setUsername(view.getUsername());
             sessionManager.setCurrentUser(user);
@@ -101,30 +98,6 @@ public class LoginController {
             }
         } else {
             view.setError("Đăng nhập thất bại: " + response.getMessage());
-        }
-    }
-
-    private void handleRegisterResponse(Response response) {
-        view.setBusy(false);
-        if ("SUCCESS".equalsIgnoreCase(response.getStatus())) {
-            view.setError("");
-            view.toggleMode(); // Chuyển về màn hình đăng nhập
-            view.setError("Đăng ký thành công! Hãy đăng nhập bằng tài khoản vừa tạo.");
-        } else {
-            view.setError("Đăng ký thất bại: " + response.getMessage());
-        }
-    }
-
-    private void handleGuestLogin() {
-        User guest = new User();
-        guest.setId(999);
-        guest.setUsername("guest");
-        guest.setFullName("Người dùng thử nghiệm");
-        guest.setRole("TEACHER"); // Cho phép test cả chức năng giáo viên up bài và học sinh giải bài
-        sessionManager.setCurrentUser(guest);
-
-        if (onLoginSuccess != null) {
-            onLoginSuccess.accept(guest);
         }
     }
 

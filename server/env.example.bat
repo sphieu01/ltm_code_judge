@@ -7,9 +7,9 @@ REM ================================================================
 
 REM -- Database (Neon PostgreSQL) -----------------------------------
 REM  Lay tu: console.neon.tech -> Project -> Connection Details -> JDBC
-set DB_URL=jdbc:postgresql://ep-XXXXXXXXXXXX.REGION.aws.neon.tech/DBNAME?sslmode=require
-set DB_USER=NEON_USERNAME
-set DB_PASSWORD=NEON_PASSWORD
+set DB_URL=postgresql://neondb_owner:npg_GAm7Pd6hCFMt@ep-dry-rice-b32otp6l-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+set DB_USER=neondb_owner
+set DB_PASSWORD=npg_GAm7Pd6hCFMt
 
 REM -- Server -------------------------------------------------------
 set SERVER_PORT=9999

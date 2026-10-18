@@ -3,26 +3,23 @@ package com.grading.client.controller;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.grading.client.model.CreditClass;
 import com.grading.client.model.Problem;
 import com.grading.client.model.User;
 import com.grading.client.network.SessionManager;
 import com.grading.client.network.SocketClient;
-import com.grading.client.protocol.MessageType;
 import com.grading.client.protocol.Response;
 import com.grading.client.view.DashboardView;
-import com.grading.client.view.TeacherProblemDialog;
 import javafx.application.Platform;
-import javafx.scene.control.Alert;
 import javafx.stage.Stage;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
- * DashboardController — Quản lý danh sách bài tập và điều phối các thao tác
- * (Chọn bài, Giáo viên thêm bài tập, Đăng xuất).
+ * DashboardController — Quản lý danh sách bài tập của sinh viên theo lớp tín chỉ,
+ * xử lý chọn bài tập, đổi lớp học, và đăng xuất.
  */
 public class DashboardController {
 
@@ -39,7 +36,7 @@ public class DashboardController {
         this.sessionManager = SessionManager.getInstance();
 
         initEvents();
-        loadProblems();
+        loadStudentClassesAndProblems();
     }
 
     private void initEvents() {
@@ -49,8 +46,11 @@ public class DashboardController {
             }
         });
 
-        view.setOnTeacherAddProblem(this::handleTeacherAddProblem);
-        view.setOnRefresh(this::loadProblems);
+        view.setOnSelectClass(selectedClass -> {
+            Integer classId = selectedClass != null ? selectedClass.getId() : null;
+            loadProblems(classId);
+        });
+
         view.setOnLogout(() -> {
             sessionManager.clear();
             if (onLogout != null) onLogout.run();
@@ -58,11 +58,45 @@ public class DashboardController {
     }
 
     /**
-     * Nạp danh sách bài tập từ Server (hoặc danh sách mẫu nếu đang offline).
+     * Tải danh sách lớp học mà sinh viên được giáo viên thêm vào,
+     * sau đó tải bài tập của lớp đầu tiên.
      */
-    public void loadProblems() {
+    public void loadStudentClassesAndProblems() {
         SocketClient socketClient = sessionManager.getSocketClient();
         if (socketClient != null && socketClient.isConnected()) {
+            socketClient.getMyClasses(response -> {
+                Platform.runLater(() -> {
+                    List<CreditClass> classes = new ArrayList<>();
+                    if ("SUCCESS".equalsIgnoreCase(response.getStatus()) && response.getData() != null && response.getData().isJsonArray()) {
+                        for (JsonElement el : response.getData().getAsJsonArray()) {
+                            JsonObject obj = el.getAsJsonObject();
+                            CreditClass cc = new CreditClass();
+                            if (obj.has("id")) cc.setId(obj.get("id").getAsInt());
+                            if (obj.has("classCode")) cc.setClassCode(obj.get("classCode").getAsString());
+                            if (obj.has("name")) cc.setName(obj.get("name").getAsString());
+                            if (obj.has("courseName")) cc.setCourseName(obj.get("courseName").getAsString());
+                            classes.add(cc);
+                        }
+                    }
+                    view.setClasses(classes);
+
+                    // Tải bài tập của lớp đang chọn
+                    CreditClass selected = view.getSelectedClass();
+                    loadProblems(selected != null ? selected.getId() : null);
+                });
+            });
+        } else {
+            loadProblems(null);
+        }
+    }
+
+    /**
+     * Nạp danh sách bài tập theo lớp tín chỉ từ Server.
+     */
+    public void loadProblems(Integer classId) {
+        SocketClient socketClient = sessionManager.getSocketClient();
+        if (socketClient != null && socketClient.isConnected()) {
+            // Tải submission history trước để cập nhật AC/WA badge
             socketClient.getHistory(historyResp -> {
                 if (historyResp != null && "SUCCESS".equalsIgnoreCase(historyResp.getStatus())
                         && historyResp.getData() != null && historyResp.getData().isJsonArray()) {
@@ -93,12 +127,13 @@ public class DashboardController {
                         }
                     }
                 }
-                socketClient.getProblems(response -> {
+
+                // Tải bài tập theo lớp tín chỉ
+                socketClient.getProblems(classId, response -> {
                     Platform.runLater(() -> handleProblemsResponse(response));
                 });
             });
         } else {
-            // Danh sách bài tập mặc định khi chạy offline
             view.setProblems(createDefaultProblems());
         }
     }
@@ -118,6 +153,8 @@ public class DashboardController {
                         if (obj.has("timeLimitMs")) p.setTimeLimitMs(obj.get("timeLimitMs").getAsInt());
                         if (obj.has("memoryLimitKb")) p.setMemoryLimitKb(obj.get("memoryLimitKb").getAsInt());
                         if (obj.has("description")) p.setDescription(obj.get("description").getAsString());
+                        if (obj.has("classId") && !obj.get("classId").isJsonNull()) p.setClassId(obj.get("classId").getAsInt());
+                        if (obj.has("className") && !obj.get("className").isJsonNull()) p.setClassName(obj.get("className").getAsString());
                         p.setStatus(sessionManager.getProblemStatus(p.getId()));
                         list.add(p);
                     }
@@ -131,109 +168,25 @@ public class DashboardController {
         }
     }
 
-    /**
-     * Mở Dialog dành cho Giáo viên để tạo bài tập mới.
-     */
-    private void handleTeacherAddProblem() {
-        TeacherProblemDialog dialog = new TeacherProblemDialog(stage);
-        Optional<Problem> result = dialog.showAndWait();
-
-        result.ifPresent(newProblem -> {
-            // Gán ID tạm thời
-            newProblem.setId((int) (System.currentTimeMillis() % 10000));
-
-            // Thêm vào danh sách hiển thị
-            view.addProblem(newProblem);
-
-            // Gửi lên Server nếu có kết nối
-            SocketClient client = sessionManager.getSocketClient();
-            if (client != null && client.isConnected()) {
-                JsonObject data = new JsonObject();
-                data.addProperty("title", newProblem.getTitle());
-                data.addProperty("difficulty", newProblem.getDifficulty());
-                data.addProperty("timeLimitMs", newProblem.getTimeLimitMs());
-                data.addProperty("memoryLimitKb", newProblem.getMemoryLimitKb());
-                data.addProperty("description", newProblem.getDescription());
-                data.addProperty("inputFormat", dialog.getInputFormat());
-                data.addProperty("outputFormat", dialog.getOutputFormat());
-                data.addProperty("constraints", dialog.getConstraints());
-                data.addProperty("sampleInput", dialog.getSampleInput());
-                data.addProperty("sampleOutput", dialog.getSampleOutput());
-
-                // Nếu có secret test cases
-                JsonArray testCases = new JsonArray();
-                JsonObject tc = new JsonObject();
-                tc.addProperty("input", dialog.getSecretInput());
-                tc.addProperty("output", dialog.getSecretOutput());
-                testCases.add(tc);
-                data.add("testCases", testCases);
-
-                // Gửi request tạo bài
-                client.sendRequest(MessageType.GET_PROBLEMS, data, resp -> {
-                    // Xử lý callback nếu server hỗ trợ CREATE_PROBLEM
-                });
-            }
-
-            Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setTitle("Thông báo");
-            alert.setHeaderText(null);
-            alert.setContentText("Bài tập '" + newProblem.getTitle() + "' đã được tạo thành công!");
-            alert.showAndWait();
-        });
-    }
-
     private List<Problem> createDefaultProblems() {
         List<Problem> list = new ArrayList<>();
-
-        Problem p0 = new Problem();
-        p0.setId(1);
-        p0.setTitle("GẤP ĐÔI");
-        p0.setDifficulty("EASY");
-        p0.setTimeLimitMs(1000);
-        p0.setMemoryLimitKb(65536);
-        p0.setDescription("Cho số tự nhiên N không quá 7 chữ số. Hãy in ra giá trị gấp đôi của N.\n\n**Input:**\nCó duy nhất một số tự nhiên không quá 7 chữ số.\n\n**Output:**\nGhi ra kết quả trên một dòng.");
-        p0.setStatus(sessionManager.getProblemStatus(p0.getId()));
-        list.add(p0);
-
         Problem p1 = new Problem();
-        p1.setId(2);
-        p1.setTitle("A + B Problem");
+        p1.setId(1);
+        p1.setTitle("Hello World");
         p1.setDifficulty("EASY");
-        p1.setTimeLimitMs(1000);
+        p1.setTimeLimitMs(2000);
         p1.setMemoryLimitKb(262144);
-        p1.setDescription("Cho hai số nguyên a và b. Hãy tính và in ra tổng a + b.");
-        p1.setStatus(sessionManager.getProblemStatus(p1.getId()));
+        p1.setDescription("In ra 'Hello, World!' (không có dấu ngoặc kép).\n\n**Input:** Không có input.\n\n**Output:** Một dòng duy nhất: `Hello, World!`");
         list.add(p1);
 
         Problem p2 = new Problem();
-        p2.setId(3);
-        p2.setTitle("Kiểm tra số nguyên tố");
+        p2.setId(2);
+        p2.setTitle("Tổng hai số");
         p2.setDifficulty("EASY");
-        p2.setTimeLimitMs(1000);
+        p2.setTimeLimitMs(2000);
         p2.setMemoryLimitKb(262144);
-        p2.setDescription("Nhập vào một số nguyên dương N. Kiểm tra xem N có phải là số nguyên tố hay không. In ra YES hoặc NO.");
-        p2.setStatus(sessionManager.getProblemStatus(p2.getId()));
+        p2.setDescription("Cho hai số nguyên a và b, hãy in ra tổng của chúng.\n\n**Input:** Một dòng chứa hai số nguyên a và b (−10^9 ≤ a, b ≤ 10^9).\n\n**Output:** In ra một số nguyên duy nhất là a + b.");
         list.add(p2);
-
-        Problem p3 = new Problem();
-        p3.setId(4);
-        p3.setTitle("Dãy con tăng dài nhất (LIS)");
-        p3.setDifficulty("MEDIUM");
-        p3.setTimeLimitMs(2000);
-        p3.setMemoryLimitKb(262144);
-        p3.setDescription("Cho dãy gồm N số nguyên. Tìm độ dài dãy con tăng nghiêm ngặt dài nhất.");
-        p3.setStatus(sessionManager.getProblemStatus(p3.getId()));
-        list.add(p3);
-
-        Problem p4 = new Problem();
-        p4.setId(5);
-        p4.setTitle("Đường đi ngắn nhất trên đồ thị (Dijkstra)");
-        p4.setDifficulty("HARD");
-        p4.setTimeLimitMs(3000);
-        p4.setMemoryLimitKb(524288);
-        p4.setDescription("Cho đồ thị có trọng số dương gồm N đỉnh và M cạnh. Tìm đường đi ngắn nhất từ đỉnh 1 đến đỉnh N.");
-        p4.setStatus(sessionManager.getProblemStatus(p4.getId()));
-        list.add(p4);
 
         return list;
     }
@@ -244,9 +197,5 @@ public class DashboardController {
 
     public void setOnLogout(Runnable callback) {
         this.onLogout = callback;
-    }
-
-    public DashboardView getView() {
-        return view;
     }
 }

@@ -27,16 +27,33 @@ public class ProblemService {
      * Dùng cho GET_PROBLEMS response.
      */
     public List<Problem> getAllProblems() throws SQLException {
-        List<Problem> problems = problemRepository.findAll();
-        logger.debug("Fetched {} problems", problems.size());
-        return problems;
+        return problemRepository.findAll();
+    }
+
+    public List<Problem> getAllProblemsForStudent() throws SQLException {
+        return problemRepository.findAllForStudent();
+    }
+
+    /**
+     * Lấy danh sách bài toán theo lớp tín chỉ (hoặc bài tập chung).
+     */
+    public List<Problem> getProblemsByClass(int classId) throws SQLException {
+        if (classId <= 0) {
+            return problemRepository.findAll();
+        }
+        return problemRepository.findByClassId(classId);
+    }
+
+    public List<Problem> getProblemsByClassForStudent(int classId) throws SQLException {
+        if (classId <= 0) {
+            return problemRepository.findAllForStudent();
+        }
+        return problemRepository.findByClassIdForStudent(classId);
     }
 
     /**
      * Lấy chi tiết 1 bài toán kèm sample test cases.
      * Dùng cho GET_PROBLEM_DETAIL response.
-     *
-     * @throws IllegalArgumentException nếu không tìm thấy bài
      */
     public Problem getProblemDetail(int problemId) throws SQLException {
         Optional<Problem> opt = problemRepository.findById(problemId);
@@ -45,4 +62,23 @@ public class ProblemService {
         }
         return opt.get();
     }
+
+    /**
+     * Tạo bài toán mới kèm các test case.
+     */
+    public Problem createProblem(Problem problem, List<com.grading.server.model.TestCase> testCases) throws SQLException {
+        Problem saved = problemRepository.save(problem);
+        if (testCases != null && !testCases.isEmpty()) {
+            for (com.grading.server.model.TestCase tc : testCases) {
+                tc.setProblemId(saved.getId());
+                problemRepository.saveTestCase(tc);
+            }
+        }
+        return saved;
+    }
+
+    public void setProblemActive(int problemId, boolean active) throws SQLException {
+        problemRepository.updateProblemActive(problemId, active);
+    }
 }
+

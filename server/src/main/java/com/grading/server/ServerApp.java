@@ -64,6 +64,7 @@ public class ServerApp {
         UserRepository userRepository = new UserRepository();
         ProblemRepository problemRepository = new ProblemRepository();
         SubmissionRepository submissionRepository = new SubmissionRepository();
+        com.grading.server.repository.AcademicRepository academicRepository = new com.grading.server.repository.AcademicRepository();
 
         // ── 2. Judge infrastructure ───────────────────────────────────────────
         JudgeQueue judgeQueue = new JudgeQueue();
@@ -73,6 +74,7 @@ public class ServerApp {
         AuthService authService = new AuthService(userRepository);
         ProblemService problemService = new ProblemService(problemRepository);
         SubmissionService submissionService = new SubmissionService(submissionRepository, judgeQueue);
+        com.grading.server.service.AcademicService academicService = new com.grading.server.service.AcademicService(academicRepository);
 
         // ── 4. Judge Worker Pool ──────────────────────────────────────────────
         JudgeWorkerPool workerPool = new JudgeWorkerPool(
@@ -87,8 +89,10 @@ public class ServerApp {
                 authService,
                 problemService,
                 submissionService,
+                academicService,
                 connectionRegistry
         );
+
 
         // ── 6. Shutdown Hook — dọn dẹp khi nhận Ctrl+C hoặc SIGTERM ──────────
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {

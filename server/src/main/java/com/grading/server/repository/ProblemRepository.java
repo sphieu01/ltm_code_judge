@@ -18,14 +18,48 @@ public class ProblemRepository {
 
     private static final Logger logger = LoggerFactory.getLogger(ProblemRepository.class);
 
+    public ProblemRepository() {
+        initSchemaIfNeeded();
+    }
+
+    private void initSchemaIfNeeded() {
+        try (Connection conn = DatabaseConfig.getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("ALTER TABLE problems ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE");
+        } catch (SQLException e) {
+            logger.warn("Schema initialization notice for problems: {}", e.getMessage());
+        }
+    }
+
     // ─── SQL ──────────────────────────────────────────────────────────────────
     private static final String SQL_FIND_ALL =
-            "SELECT id, title, description, time_limit_ms, memory_limit_kb, difficulty, " +
-            "created_by, created_at FROM problems ORDER BY id";
+            "SELECT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
+            "p.created_by, p.class_id, cl.name AS class_name, p.is_active, p.created_at " +
+            "FROM problems p LEFT JOIN classes cl ON p.class_id = cl.id ORDER BY p.id";
+
+    private static final String SQL_FIND_ALL_FOR_STUDENT =
+            "SELECT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
+            "p.created_by, p.class_id, cl.name AS class_name, p.is_active, p.created_at " +
+            "FROM problems p LEFT JOIN classes cl ON p.class_id = cl.id " +
+            "WHERE (p.is_active IS NULL OR p.is_active = TRUE) ORDER BY p.id";
+
+    private static final String SQL_FIND_BY_CLASS =
+            "SELECT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
+            "p.created_by, p.class_id, cl.name AS class_name, p.is_active, p.created_at " +
+            "FROM problems p LEFT JOIN classes cl ON p.class_id = cl.id " +
+            "WHERE p.class_id = ? OR p.class_id IS NULL ORDER BY p.id";
+
+    private static final String SQL_FIND_BY_CLASS_FOR_STUDENT =
+            "SELECT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
+            "p.created_by, p.class_id, cl.name AS class_name, p.is_active, p.created_at " +
+            "FROM problems p LEFT JOIN classes cl ON p.class_id = cl.id " +
+            "WHERE (p.class_id = ? OR p.class_id IS NULL) " +
+            "AND (p.is_active IS NULL OR p.is_active = TRUE) ORDER BY p.id";
 
     private static final String SQL_FIND_BY_ID =
-            "SELECT id, title, description, time_limit_ms, memory_limit_kb, difficulty, " +
-            "created_by, created_at FROM problems WHERE id = ?";
+            "SELECT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
+            "p.created_by, p.class_id, cl.name AS class_name, p.is_active, p.created_at " +
+            "FROM problems p LEFT JOIN classes cl ON p.class_id = cl.id WHERE p.id = ?";
 
     private static final String SQL_FIND_TEST_CASES =
             "SELECT id, problem_id, input_data, expected_output, is_sample, order_num " +
@@ -36,8 +70,8 @@ public class ProblemRepository {
             "FROM test_cases WHERE problem_id = ? AND is_sample = TRUE ORDER BY order_num";
 
     private static final String SQL_INSERT_PROBLEM =
-            "INSERT INTO problems (title, description, time_limit_ms, memory_limit_kb, difficulty, created_by) " +
-            "VALUES (?, ?, ?, ?, ?::difficulty_level, ?) RETURNING id, created_at";
+            "INSERT INTO problems (title, description, time_limit_ms, memory_limit_kb, difficulty, created_by, class_id) " +
+            "VALUES (?, ?, ?, ?, ?::difficulty_level, ?, ?) RETURNING id, created_at";
 
     private static final String SQL_INSERT_TEST_CASE =
             "INSERT INTO test_cases (problem_id, input_data, expected_output, is_sample, order_num) " +
@@ -47,7 +81,6 @@ public class ProblemRepository {
 
     /**
      * Lấy danh sách tất cả bài toán (không kèm test cases).
-     * Dùng cho GET_PROBLEMS.
      */
     public List<Problem> findAll() throws SQLException {
         List<Problem> problems = new ArrayList<>();
@@ -64,6 +97,66 @@ public class ProblemRepository {
         }
         return problems;
     }
+
+    /**
+     * Lấy danh sách bài toán theo lớp tín chỉ (hoặc bài tập chung).
+     */
+    public List<Problem> findByClassId(int classId) throws SQLException {
+        if (classId <= 0) return findAll();
+
+        List<Problem> problems = new ArrayList<>();
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(SQL_FIND_BY_CLASS)) {
+
+            stmt.setInt(1, classId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    problems.add(mapProblemRow(rs));
+                }
+            }
+        } catch (SQLException e) {
+            logger.error("Error fetching problems for classId={}", classId, e);
+            throw e;
+        }
+        return problems;
+    }
+
+    public List<Problem> findAllForStudent() throws SQLException {
+        List<Problem> problems = new ArrayList<>();
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(SQL_FIND_ALL_FOR_STUDENT);
+             ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                problems.add(mapProblemRow(rs));
+            }
+        } catch (SQLException e) {
+            logger.error("Error fetching all problems for student", e);
+            throw e;
+        }
+        return problems;
+    }
+
+    public List<Problem> findByClassIdForStudent(int classId) throws SQLException {
+        if (classId <= 0) return findAllForStudent();
+
+        List<Problem> problems = new ArrayList<>();
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(SQL_FIND_BY_CLASS_FOR_STUDENT)) {
+
+            stmt.setInt(1, classId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    problems.add(mapProblemRow(rs));
+                }
+            }
+        } catch (SQLException e) {
+            logger.error("Error fetching problems for student classId={}", classId, e);
+            throw e;
+        }
+        return problems;
+    }
+
 
     /**
      * Lấy chi tiết 1 bài toán kèm sample test cases.
@@ -124,15 +217,22 @@ public class ProblemRepository {
             stmt.setInt(4, problem.getMemoryLimitKb() > 0 ? problem.getMemoryLimitKb() : 262144);
             stmt.setString(5, problem.getDifficulty() != null ? problem.getDifficulty() : "MEDIUM");
             stmt.setInt(6, problem.getCreatedBy());
+            if (problem.getClassId() != null && problem.getClassId() > 0) {
+                stmt.setInt(7, problem.getClassId());
+            } else {
+                stmt.setNull(7, Types.INTEGER);
+            }
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     problem.setId(rs.getInt("id"));
                     problem.setCreatedAt(rs.getTimestamp("created_at").toString());
-                    logger.info("Created problem: id={}, title='{}'", problem.getId(), problem.getTitle());
+                    logger.info("Created problem: id={}, title='{}', classId={}",
+                            problem.getId(), problem.getTitle(), problem.getClassId());
                     return problem;
                 }
             }
+
         } catch (SQLException e) {
             logger.error("Error saving problem title='{}'", problem.getTitle(), e);
             throw e;
@@ -190,10 +290,40 @@ public class ProblemRepository {
         p.setMemoryLimitKb(rs.getInt("memory_limit_kb"));
         p.setDifficulty(rs.getString("difficulty"));
         p.setCreatedBy(rs.getInt("created_by"));
+        try {
+            if (rs.getObject("class_id") != null) {
+                p.setClassId(rs.getInt("class_id"));
+            }
+            p.setClassName(rs.getString("class_name"));
+        } catch (SQLException ignored) {}
+        try {
+            if (rs.getObject("is_active") != null) {
+                p.setActive(rs.getBoolean("is_active"));
+            } else {
+                p.setActive(true);
+            }
+        } catch (SQLException ignored) {
+            p.setActive(true);
+        }
         Timestamp createdAt = rs.getTimestamp("created_at");
         if (createdAt != null) p.setCreatedAt(createdAt.toString());
         return p;
     }
+
+    public void updateProblemActive(int problemId, boolean active) throws SQLException {
+        String sql = "UPDATE problems SET is_active = ? WHERE id = ?";
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setBoolean(1, active);
+            stmt.setInt(2, problemId);
+            stmt.executeUpdate();
+            logger.info("Updated problem id={} active={}", problemId, active);
+        } catch (SQLException e) {
+            logger.error("Error updating problem id={} active={}", problemId, active, e);
+            throw e;
+        }
+    }
+
 
     private TestCase mapTestCaseRow(ResultSet rs) throws SQLException {
         TestCase tc = new TestCase();

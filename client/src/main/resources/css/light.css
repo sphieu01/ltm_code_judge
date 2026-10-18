@@ -854,3 +854,87 @@
 .table-cell:focused {
     -fx-background-color: transparent;
 }
+
+/* ===== AVATAR & PROFILE POPUP ===== */
+.avatar-btn {
+    -fx-background-color: -accent;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+    -fx-min-width: 32px;
+    -fx-max-width: 32px;
+    -fx-min-height: 32px;
+    -fx-max-height: 32px;
+    -fx-background-radius: 50%;
+    -fx-border-radius: 50%;
+    -fx-border-color: -border-subtle;
+    -fx-border-width: 1px;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+    -fx-alignment: CENTER;
+}
+.avatar-btn:hover {
+    -fx-background-color: -accent-hover;
+}
+
+.avatar-large {
+    -fx-background-color: -accent;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-weight: bold;
+    -fx-font-size: 18px;
+    -fx-min-width: 48px;
+    -fx-max-width: 48px;
+    -fx-min-height: 48px;
+    -fx-max-height: 48px;
+    -fx-background-radius: 50%;
+    -fx-border-radius: 50%;
+    -fx-alignment: CENTER;
+}
+
+.profile-popup {
+    -fx-background-color: -bg-surface;
+    -fx-border-color: -border-subtle;
+    -fx-border-width: 1px;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
+    -fx-padding: 16px;
+    -fx-spacing: 10px;
+}
+
+/* ===== ADMIN TABS & DROPZONE ===== */
+.admin-nav-btn {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: -text-secondary;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-padding: 8 16 8 16;
+    -fx-cursor: hand;
+    -fx-border-width: 0 0 2px 0;
+}
+.admin-nav-btn:hover {
+    -fx-text-fill: -text-bright;
+    -fx-background-color: -bg-hover;
+}
+.admin-nav-btn-active {
+    -fx-text-fill: #0969DA;
+    -fx-border-color: transparent transparent #0969DA transparent;
+    -fx-border-width: 0 0 2px 0;
+}
+
+.file-dropzone {
+    -fx-background-color: #F6F8FA;
+    -fx-border-color: -border-subtle;
+    -fx-border-width: 1.5px;
+    -fx-border-style: dashed;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 18px;
+    -fx-alignment: CENTER;
+    -fx-cursor: hand;
+}
+.file-dropzone:hover {
+    -fx-border-color: -accent;
+    -fx-background-color: -bg-hover;
+}
+

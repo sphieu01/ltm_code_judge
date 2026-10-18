@@ -69,21 +69,40 @@ public class ClientApp extends Application {
     }
 
     /**
-     * Hiển thị màn hình Đăng nhập / Đăng ký.
+     * Hiển thị màn hình Đăng nhập.
      */
     public void showLoginView() {
         LoginView loginView = new LoginView();
         LoginController loginController = new LoginController(loginView);
 
         loginController.setOnLoginSuccess(user -> {
-            showDashboardView(user);
+            if (user != null && user.isTeacher()) {
+                showAdminView(user);
+            } else {
+                showDashboardView(user);
+            }
         });
 
         switchScene(loginView, 950, 650);
     }
 
     /**
-     * Hiển thị màn hình Dashboard (Danh sách bài tập).
+     * Hiển thị Cổng Quản Trị dành riêng cho Giáo viên (AdminView).
+     */
+    public void showAdminView(User user) {
+        com.grading.client.view.AdminView adminView = new com.grading.client.view.AdminView();
+        adminView.setUser(user);
+
+        com.grading.client.controller.AdminController adminController =
+                new com.grading.client.controller.AdminController(adminView, primaryStage);
+
+        adminController.setOnLogout(this::showLoginView);
+
+        switchScene(adminView, 1150, 720);
+    }
+
+    /**
+     * Hiển thị màn hình Dashboard (Danh sách bài tập của Sinh viên).
      */
     public void showDashboardView(User user) {
         DashboardView dashboardView = new DashboardView();
@@ -95,9 +114,7 @@ public class ClientApp extends Application {
             showProblemView(problem);
         });
 
-        dashboardController.setOnLogout(() -> {
-            showLoginView();
-        });
+        dashboardController.setOnLogout(this::showLoginView);
 
         switchScene(dashboardView, 1100, 700);
     }
@@ -114,14 +131,19 @@ public class ClientApp extends Application {
 
         ProblemController problemController = new ProblemController(problemView);
 
-        // Nút quay lại Dashboard
+        // Nút quay lại: nếu là Giáo viên về AdminView, nếu là Sinh viên về DashboardView
         problemView.setOnBackToDashboard(() -> {
             User currentUser = SessionManager.getInstance().getCurrentUser();
-            showDashboardView(currentUser);
+            if (currentUser != null && currentUser.isTeacher()) {
+                showAdminView(currentUser);
+            } else {
+                showDashboardView(currentUser);
+            }
         });
 
         switchScene(problemView, 1200, 750);
     }
+
 
     private void switchScene(javafx.scene.Parent root, double width, double height) {
         if (mainScene == null) {
@@ -130,6 +152,15 @@ public class ClientApp extends Application {
             primaryStage.setScene(mainScene);
         } else {
             mainScene.setRoot(root);
+            if (!primaryStage.isMaximized()) {
+                if (primaryStage.getWidth() < width) {
+                    primaryStage.setWidth(width);
+                }
+                if (primaryStage.getHeight() < height) {
+                    primaryStage.setHeight(height);
+                }
+                primaryStage.centerOnScreen();
+            }
             com.grading.client.view.ThemeManager.getInstance().applyTheme(mainScene);
         }
     }

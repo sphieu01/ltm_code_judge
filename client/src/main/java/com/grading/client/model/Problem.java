@@ -10,11 +10,15 @@ public class Problem {
     private int timeLimitMs;
     private int memoryLimitKb;
     private String difficulty; // EASY, MEDIUM, HARD
+    private Integer classId;   // Lớp tín chỉ gắn với bài tập
+    private String className;  // Tên lớp tín chỉ
+    private boolean active = true; // Trạng thái hiển thị cho sinh viên làm bài
     private int totalTestCases;
     private int sampleTestCases;
     private String status = ""; // "AC", "WA", "CE", "TLE", hoặc "" nếu chưa làm
 
     public Problem() {}
+
 
     public int getId() { return id; }
     public void setId(int id) { this.id = id; }
@@ -34,7 +38,14 @@ public class Problem {
     public String getDifficulty() { return difficulty; }
     public void setDifficulty(String difficulty) { this.difficulty = difficulty; }
 
+    public Integer getClassId() { return classId; }
+    public void setClassId(Integer classId) { this.classId = classId; }
+
+    public String getClassName() { return className; }
+    public void setClassName(String className) { this.className = className; }
+
     public int getTotalTestCases() { return totalTestCases; }
+
     public void setTotalTestCases(int totalTestCases) { this.totalTestCases = totalTestCases; }
 
     public int getSampleTestCases() { return sampleTestCases; }
@@ -49,6 +60,9 @@ public class Problem {
 
     public String getStatus() { return status != null ? status : ""; }
     public void setStatus(String status) { this.status = status; }
+
+    public boolean isActive() { return active; }
+    public void setActive(boolean active) { this.active = active; }
 
     /**
      * Hiển thị memory limit dạng "256 MB"

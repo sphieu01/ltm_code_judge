@@ -62,18 +62,16 @@ FOR /F "tokens=5" %%P IN ('netstat -ano ^| findstr ":9999 " ^| findstr "LISTENIN
     timeout /t 1 /nobreak >nul
 )
 
-REM Build fat JAR neu chua co
-IF NOT EXIST "target\code-grading-server-1.0.0.jar" (
-    echo [BUILD] Building fat JAR...
-    call "%MVN_CMD%" clean package -DskipTests -q
-    IF ERRORLEVEL 1 (
-        echo [ERROR] Build failed!
-        pause
-        exit /b 1
-    )
-    echo [BUILD] Done!
-    echo.
+REM Build fat JAR de luon cap nhat code moi nhat
+echo [BUILD] Building fat JAR...
+call "%MVN_CMD%" clean package -DskipTests -q
+IF ERRORLEVEL 1 (
+    echo [ERROR] Build failed!
+    pause
+    exit /b 1
 )
+echo [BUILD] Done!
+echo.
 
 echo [SERVER] Starting server on port %SERVER_PORT%...
 echo Press Ctrl+C to stop.

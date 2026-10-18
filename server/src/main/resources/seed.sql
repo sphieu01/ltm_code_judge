@@ -10,15 +10,26 @@
 -- Các user dưới đây dùng password placeholder — THAY BẰNG HASH THẬT
 -- ──────────────────────────────────────────────────────────────
 
--- Teacher account
+-- Teacher account duy nhất ban đầu (Password: password123)
+-- Format: base64(salt):base64(sha256(salt + password))
 INSERT INTO users (username, password_hash, full_name, role) VALUES
-('teacher01', 'PLACEHOLDER_HASH', 'Giảng Viên LTM', 'TEACHER');
+('teacher01', 'Z1h4SmR5c21vY2s0bTExbg==:gP3q56bM7q4LwYc/u0GkS5MvG6L5v6I9B0A3J5bQ6Z4=', 'Giảng Viên Quản Trị', 'TEACHER')
+ON CONFLICT (username) DO NOTHING;
 
--- Student accounts
-INSERT INTO users (username, password_hash, full_name, role) VALUES
-('student01', 'PLACEHOLDER_HASH', 'Nguyễn Văn A', 'STUDENT'),
-('student02', 'PLACEHOLDER_HASH', 'Trần Thị B', 'STUDENT'),
-('student03', 'PLACEHOLDER_HASH', 'Lê Văn C', 'STUDENT');
+-- Môn học mẫu
+INSERT INTO courses (code, name, language, description) VALUES
+('INT2204', 'Lập trình C/C++', 'cpp', 'Môn học cơ sở lập trình hướng đối tượng và cấu trúc dữ liệu với C++'),
+('INT2205', 'Lập trình Java', 'java', 'Môn học lập trình ứng dụng và mạng với ngôn ngữ Java'),
+('INT2206', 'Lập trình Python', 'python', 'Môn học lập trình xử lý dữ liệu và kịch bản với Python')
+ON CONFLICT (code) DO NOTHING;
+
+-- Lớp tín chỉ mẫu
+INSERT INTO classes (class_code, name, course_id, teacher_id) VALUES
+('CPP_01', 'Lớp C++ Nhóm 1 - Sáng T2', (SELECT id FROM courses WHERE code='INT2204' LIMIT 1), (SELECT id FROM users WHERE username='teacher01')),
+('JAVA_01', 'Lớp Java Nhóm 2 - Chiều T4', (SELECT id FROM courses WHERE code='INT2205' LIMIT 1), (SELECT id FROM users WHERE username='teacher01')),
+('PY_01', 'Lớp Python Nhóm 1 - Sáng T6', (SELECT id FROM courses WHERE code='INT2206' LIMIT 1), (SELECT id FROM users WHERE username='teacher01'))
+ON CONFLICT (class_code) DO NOTHING;
+
 
 -- ──────────────────────────────────────────────────────────────
 -- Bài toán mẫu

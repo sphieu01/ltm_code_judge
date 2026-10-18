@@ -276,12 +276,136 @@ public class SocketClient {
         register(username, password, fullName, "STUDENT", callback);
     }
 
+    public void changePassword(String oldPassword, String newPassword, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("oldPassword", oldPassword);
+        data.addProperty("newPassword", newPassword);
+        sendRequest(MessageType.CHANGE_PASSWORD, data, callback);
+    }
+
     /**
      * Gửi GET_PROBLEMS request.
      */
     public void getProblems(Consumer<Response> callback) {
-        sendRequest(MessageType.GET_PROBLEMS, null, callback);
+        getProblems(null, callback);
     }
+
+    public void getProblems(Integer classId, Consumer<Response> callback) {
+        JsonObject data = null;
+        if (classId != null && classId > 0) {
+            data = new JsonObject();
+            data.addProperty("classId", classId);
+        }
+        sendRequest(MessageType.GET_PROBLEMS, data, callback);
+    }
+
+    /**
+     * Gửi CREATE_PROBLEM request (dành cho Giáo viên).
+     */
+    public void createProblem(JsonObject problemData, Consumer<Response> callback) {
+        sendRequest(MessageType.CREATE_PROBLEM, problemData, callback);
+    }
+
+    // ======================== ACADEMIC METHODS ========================
+
+    public void getCourses(Consumer<Response> callback) {
+        sendRequest(MessageType.GET_COURSES, null, callback);
+    }
+
+    public void createCourse(String code, String name, String language, String description, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("code", code);
+        data.addProperty("name", name);
+        data.addProperty("language", language);
+        data.addProperty("description", description);
+        sendRequest(MessageType.CREATE_COURSE, data, callback);
+    }
+
+    public void getClasses(Consumer<Response> callback) {
+        sendRequest(MessageType.GET_CLASSES, null, callback);
+    }
+
+    public void getMyClasses(Consumer<Response> callback) {
+        sendRequest(MessageType.GET_MY_CLASSES, null, callback);
+    }
+
+    public void createClass(String classCode, String name, int courseId, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("classCode", classCode);
+        data.addProperty("name", name);
+        data.addProperty("courseId", courseId);
+        sendRequest(MessageType.CREATE_CLASS, data, callback);
+    }
+
+    public void updateClass(int id, String classCode, String name, int courseId, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("id", id);
+        data.addProperty("classCode", classCode);
+        data.addProperty("name", name);
+        data.addProperty("courseId", courseId);
+        sendRequest(MessageType.UPDATE_CLASS, data, callback);
+    }
+
+    public void deleteClass(int classId, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("id", classId);
+        sendRequest(MessageType.DELETE_CLASS, data, callback);
+    }
+
+    public void getStudents(int classId, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("classId", classId);
+        sendRequest(MessageType.GET_STUDENTS, data, callback);
+    }
+
+    public void importStudents(int classId, com.google.gson.JsonArray studentsArray, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("classId", classId);
+        data.add("students", studentsArray);
+        sendRequest(MessageType.IMPORT_STUDENTS, data, callback);
+    }
+
+    public void updateStudent(int studentId, String fullName, Integer classId, String newPassword, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("studentId", studentId);
+        data.addProperty("fullName", fullName);
+        if (classId != null && classId > 0) {
+            data.addProperty("classId", classId);
+        } else {
+            data.add("classId", com.google.gson.JsonNull.INSTANCE);
+        }
+        if (newPassword != null && !newPassword.isBlank()) {
+            data.addProperty("newPassword", newPassword);
+        }
+        sendRequest(MessageType.UPDATE_STUDENT, data, callback);
+    }
+
+    public void deleteStudent(int studentId, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("studentId", studentId);
+        sendRequest(MessageType.DELETE_STUDENT, data, callback);
+    }
+
+    /**
+     * Gửi TOGGLE_COURSE_ACTIVE request — bật/tắt hiển thị môn học cho sinh viên.
+     */
+    public void toggleCourseActive(int courseId, boolean active, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("courseId", courseId);
+        data.addProperty("active", active);
+        sendRequest(MessageType.TOGGLE_COURSE_ACTIVE, data, callback);
+    }
+
+    /**
+     * Gửi TOGGLE_PROBLEM_ACTIVE request — bật/tắt hiển thị từng bài tập cho sinh viên.
+     */
+    public void toggleProblemActive(int problemId, boolean active, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("problemId", problemId);
+        data.addProperty("active", active);
+        sendRequest(MessageType.TOGGLE_PROBLEM_ACTIVE, data, callback);
+    }
+
 
     /**
      * Gửi GET_PROBLEM_DETAIL request.

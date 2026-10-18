@@ -66,6 +66,11 @@ public class Message {
         return m;
     }
 
+    /** Tạo response thành công không kèm data */
+    public static Message success(MessageType type, String requestId, String message) {
+        return success(type, requestId, message, null);
+    }
+
     /** Tạo response lỗi */
     public static Message error(String requestId, String errorMessage) {
         Message m = new Message(MessageType.ERROR, requestId);

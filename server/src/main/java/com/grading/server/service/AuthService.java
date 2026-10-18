@@ -1,5 +1,6 @@
 package com.grading.server.service;
 
+import com.grading.server.config.DatabaseConfig;
 import com.grading.server.config.ServerConfig;
 import com.grading.server.model.User;
 import com.grading.server.repository.UserRepository;
@@ -13,7 +14,10 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.Base64;
 import java.util.Date;
 import java.util.Optional;
@@ -111,22 +115,30 @@ public class AuthService {
 
     /**
      * Tạo JWT token cho user.
-     * Claims: sub (userId), username, role, iat, exp
+     * Claims: sub (userId), username, role, classId, className, iat, exp
      */
     public String generateJwt(User user) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + ServerConfig.JWT_EXPIRY_MS);
 
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(String.valueOf(user.getId()))
                 .claim("username", user.getUsername())
                 .claim("fullName", user.getFullName())
                 .claim("role", user.getRole())
                 .issuedAt(now)
-                .expiration(expiry)
-                .signWith(jwtKey)
-                .compact();
+                .expiration(expiry);
+
+        if (user.getClassId() != null) {
+            builder.claim("classId", user.getClassId());
+        }
+        if (user.getClassName() != null) {
+            builder.claim("className", user.getClassName());
+        }
+
+        return builder.signWith(jwtKey).compact();
     }
+
 
     /**
      * Verify JWT token và trả về Claims.
@@ -261,4 +273,89 @@ public class AuthService {
             throw new IllegalArgumentException("Password phải có ít nhất 6 ký tự");
         }
     }
+
+    public Integer getClassIdFromToken(String token) {
+        try {
+            Claims claims = verifyToken(token);
+            return claims.get("classId", Integer.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public String getClassNameFromToken(String token) {
+        try {
+            Claims claims = verifyToken(token);
+            return claims.get("className", String.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Tạo tài khoản sinh viên mới hoặc cập nhật lớp khi Import file data.
+     */
+    public User createOrUpdateStudent(String username, String rawPassword, String fullName, Integer classId) throws SQLException {
+        validateUsername(username);
+        if (rawPassword == null || rawPassword.isBlank()) {
+            rawPassword = "password123"; // Mật khẩu mặc định nếu file không có
+        }
+
+        String salt = generateSalt();
+        String passwordHash = hashPassword(rawPassword, salt);
+        String storedHash = salt + ":" + passwordHash;
+
+        Optional<User> existing = userRepository.findByUsername(username);
+        if (existing.isPresent()) {
+            User u = existing.get();
+            u.setClassId(classId);
+            if (fullName != null && !fullName.isBlank()) {
+                u.setFullName(fullName);
+            }
+            // Cập nhật lớp
+            try (Connection conn = DatabaseConfig.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement("UPDATE users SET class_id = ?, full_name = ? WHERE id = ?")) {
+                if (classId != null && classId > 0) stmt.setInt(1, classId);
+                else stmt.setNull(1, Types.INTEGER);
+                stmt.setString(2, u.getFullName());
+                stmt.setInt(3, u.getId());
+                stmt.executeUpdate();
+            }
+            return u;
+        } else {
+            User user = new User(username, storedHash, fullName != null ? fullName : username, "STUDENT");
+            user.setClassId(classId);
+            return userRepository.save(user);
+        }
+    }
+
+    /**
+     * Đổi mật khẩu người dùng (áp dụng cho Sinh viên và Giáo viên).
+     */
+    public void changePassword(int userId, String oldPassword, String newPassword) throws SQLException {
+        validatePassword(newPassword);
+
+        Optional<User> optUser = userRepository.findById(userId);
+        if (optUser.isEmpty()) {
+            throw new IllegalArgumentException("Tài khoản người dùng không tồn tại");
+        }
+
+        User user = optUser.get();
+        if (!verifyPassword(oldPassword, user.getPasswordHash())) {
+            throw new IllegalArgumentException("Mật khẩu hiện tại không chính xác");
+        }
+
+        String salt = generateSalt();
+        String passwordHash = hashPassword(newPassword, salt);
+        String storedHash = salt + ":" + passwordHash;
+
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement("UPDATE users SET password_hash = ? WHERE id = ?")) {
+            stmt.setString(1, storedHash);
+            stmt.setInt(2, userId);
+            stmt.executeUpdate();
+        }
+        logger.info("User id={} changed password successfully", userId);
+    }
 }
+

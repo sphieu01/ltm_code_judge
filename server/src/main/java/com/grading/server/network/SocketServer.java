@@ -37,6 +37,7 @@ public class SocketServer {
     private final AuthService authService;
     private final ProblemService problemService;
     private final SubmissionService submissionService;
+    private final com.grading.server.service.AcademicService academicService;
     private final ConnectionRegistry connectionRegistry;
 
     private ServerSocket serverSocket;
@@ -50,11 +51,13 @@ public class SocketServer {
     public SocketServer(AuthService authService,
                         ProblemService problemService,
                         SubmissionService submissionService,
+                        com.grading.server.service.AcademicService academicService,
                         ConnectionRegistry connectionRegistry) {
         this.port = ServerConfig.SERVER_PORT;
         this.authService = authService;
         this.problemService = problemService;
         this.submissionService = submissionService;
+        this.academicService = academicService;
         this.connectionRegistry = connectionRegistry;
     }
 
@@ -92,16 +95,17 @@ public class SocketServer {
                         clientSocket.getInetAddress().getHostAddress(),
                         clientSocket.getPort());
 
-                // Tạo handler và submit vào thread pool
                 ClientHandler handler = new ClientHandler(
                         clientSocket,
                         authService,
                         problemService,
                         submissionService,
+                        academicService,
                         connectionRegistry
                 );
 
                 threadPool.submit(handler);
+
 
             } catch (SocketException e) {
                 // Xảy ra khi serverSocket.close() được gọi từ shutdown()

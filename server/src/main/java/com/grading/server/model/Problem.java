@@ -15,6 +15,9 @@ public class Problem {
     private int memoryLimitKb;      // giới hạn bộ nhớ (KB)
     private String difficulty;      // "EASY" | "MEDIUM" | "HARD"
     private int createdBy;          // user_id của người tạo
+    private Integer classId;        // ID lớp tín chỉ chứa bài tập (NULL = chung)
+    private String className;       // Tên lớp tín chỉ
+    private boolean active = true;  // Trạng thái hiển thị cho sinh viên làm bài
     private String createdAt;
 
     // Các test cases — chỉ load khi cần (lazy)
@@ -45,8 +48,17 @@ public class Problem {
     public int getCreatedBy() { return createdBy; }
     public void setCreatedBy(int createdBy) { this.createdBy = createdBy; }
 
+    public Integer getClassId() { return classId; }
+    public void setClassId(Integer classId) { this.classId = classId; }
+
+    public String getClassName() { return className; }
+    public void setClassName(String className) { this.className = className; }
+
     public String getCreatedAt() { return createdAt; }
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+
+    public boolean isActive() { return active; }
+    public void setActive(boolean active) { this.active = active; }
 
     public List<TestCase> getTestCases() { return testCases; }
     public void setTestCases(List<TestCase> testCases) { this.testCases = testCases; }

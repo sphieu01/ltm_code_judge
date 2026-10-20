@@ -38,7 +38,9 @@ public class ProblemView extends BorderPane {
 
     // ======================== TOP TOOLBAR ========================
     private Button backButton;
+    private Label proctorBadge;
     private Button themeToggleBtn;
+    private boolean choosingFile = false;
 
     // ======================== PROBLEM DETAILS (LEFT COLUMN)
     // ========================
@@ -161,6 +163,10 @@ public class ProblemView extends BorderPane {
         backButton = new Button("⬅ Danh sách bài");
         backButton.getStyleClass().addAll("button", "btn-secondary");
 
+        proctorBadge = new Label("🛡️ Giám sát: Bình thường (Cho phép IDE)");
+        proctorBadge.setTooltip(new Tooltip("Hệ thống cho phép chuyển sang IDE ngoài (VS Code, CLion, Dev-C++...) để code.\nNghiêm cấm mở ChatGPT, Gemini hoặc các công cụ AI trợ giúp."));
+        proctorBadge.setStyle("-fx-background-color: rgba(34, 197, 94, 0.15); -fx-text-fill: #16a34a; -fx-padding: 4 12; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 12px; -fx-border-color: rgba(34, 197, 94, 0.3); -fx-border-radius: 12px;");
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
@@ -172,7 +178,7 @@ public class ProblemView extends BorderPane {
             themeToggleBtn.setText(ThemeManager.getInstance().getToggleIconText());
         });
 
-        toolbar.getChildren().addAll(backButton, spacer, themeToggleBtn);
+        toolbar.getChildren().addAll(backButton, proctorBadge, spacer, themeToggleBtn);
         return toolbar;
     }
 
@@ -474,10 +480,15 @@ public class ProblemView extends BorderPane {
                 new FileChooser.ExtensionFilter("Python Files (*.py)", "*.py"),
                 new FileChooser.ExtensionFilter("Mọi file (*.*)", "*.*"));
 
-        File file = chooser.showOpenDialog(getScene() != null ? getScene().getWindow() : null);
-        if (file != null) {
-            lastDirectory = file.getParentFile();
-            loadSelectedFile(file);
+        choosingFile = true;
+        try {
+            File file = chooser.showOpenDialog(getScene() != null ? getScene().getWindow() : null);
+            if (file != null) {
+                lastDirectory = file.getParentFile();
+                loadSelectedFile(file);
+            }
+        } finally {
+            choosingFile = false;
         }
     }
 
@@ -654,6 +665,7 @@ public class ProblemView extends BorderPane {
         }
 
         clearSelectedFile();
+        updateProctorStatus(0, "INFO", null);
 
         // Khởi tạo lịch sử mẫu nếu là bài GẤP ĐÔI (theo ảnh mẫu)
         if ("GẤP ĐÔI".equalsIgnoreCase(problem.getTitle()) || problem.getId() == 1) {
@@ -876,6 +888,43 @@ public class ProblemView extends BorderPane {
 
     public Problem getCurrentProblem() {
         return currentProblem;
+    }
+
+    public boolean isChoosingFile() {
+        return choosingFile;
+    }
+
+    public void updateProctorStatus(int violationCount, String severity, String detail) {
+        if (proctorBadge == null) return;
+        if (violationCount <= 0) {
+            proctorBadge.setText("🛡️ Giám sát: Bình thường (Cho phép IDE)");
+            proctorBadge.setStyle("-fx-background-color: rgba(34, 197, 94, 0.15); -fx-text-fill: #16a34a; -fx-padding: 4 12; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 12px; -fx-border-color: rgba(34, 197, 94, 0.3); -fx-border-radius: 12px;");
+        } else {
+            String shortDetail = (detail != null && !detail.isBlank()) ? detail : "ChatGPT/Gemini";
+            if (shortDetail.length() > 28) {
+                shortDetail = shortDetail.substring(0, 25) + "...";
+            }
+            proctorBadge.setText("🚨 Phát hiện AI: " + shortDetail + " (" + violationCount + " lần)");
+            proctorBadge.setStyle("-fx-background-color: rgba(239, 68, 68, 0.2); -fx-text-fill: #dc2626; -fx-padding: 4 12; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 12px; -fx-border-color: #ef4444; -fx-border-radius: 12px;");
+        }
+    }
+
+    public void showProctorWarningToast(String message, String severity) {
+        Alert alert = new Alert(
+                "CRITICAL".equalsIgnoreCase(severity) ? Alert.AlertType.ERROR : Alert.AlertType.WARNING
+        );
+        alert.setTitle("Cảnh Báo Giám Sát Chống Gian Lận");
+        alert.setHeaderText("Phát hiện mở công cụ AI (ChatGPT / Gemini)!");
+        alert.setContentText(message != null ? message : "Nghiêm cấm mở ChatGPT/Gemini trong quá trình làm bài.");
+        alert.show();
+    }
+
+    public void showAiWarningAlert(String warningMessage) {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle("Cảnh Báo Chống Gian Lận AI");
+        alert.setHeaderText("Phát hiện mã nguồn có dấu hiệu do AI sinh ra!");
+        alert.setContentText(warningMessage);
+        alert.show();
     }
 
     public void setOnSubmitCode(Consumer<ProblemView> handler) {

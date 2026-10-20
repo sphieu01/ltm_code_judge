@@ -75,6 +75,7 @@ public class ServerApp {
         ProblemService problemService = new ProblemService(problemRepository);
         SubmissionService submissionService = new SubmissionService(submissionRepository, judgeQueue);
         com.grading.server.service.AcademicService academicService = new com.grading.server.service.AcademicService(academicRepository);
+        com.grading.server.service.ProctorService proctorService = new com.grading.server.service.ProctorService();
 
         // ── 4. Judge Worker Pool ──────────────────────────────────────────────
         JudgeWorkerPool workerPool = new JudgeWorkerPool(
@@ -90,6 +91,7 @@ public class ServerApp {
                 problemService,
                 submissionService,
                 academicService,
+                proctorService,
                 connectionRegistry
         );
 

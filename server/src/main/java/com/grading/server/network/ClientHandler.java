@@ -46,6 +46,7 @@ public class ClientHandler implements Runnable {
     private final ProblemService problemService;
     private final SubmissionService submissionService;
     private final com.grading.server.service.AcademicService academicService;
+    private final com.grading.server.service.ProctorService proctorService;
     private final ConnectionRegistry connectionRegistry;
 
     // I/O streams
@@ -61,12 +62,14 @@ public class ClientHandler implements Runnable {
                          ProblemService problemService,
                          SubmissionService submissionService,
                          com.grading.server.service.AcademicService academicService,
+                         com.grading.server.service.ProctorService proctorService,
                          ConnectionRegistry connectionRegistry) {
         this.socket = socket;
         this.authService = authService;
         this.problemService = problemService;
         this.submissionService = submissionService;
         this.academicService = academicService;
+        this.proctorService = proctorService;
         this.connectionRegistry = connectionRegistry;
     }
 
@@ -155,6 +158,8 @@ public class ClientHandler implements Runnable {
                     case TOGGLE_COURSE_ACTIVE -> handleToggleCourseActive(request);
                     case TOGGLE_PROBLEM_ACTIVE -> handleToggleProblemActive(request);
                     case CHANGE_PASSWORD    -> handleChangePassword(request);
+                    case PROCTOR_EVENT      -> handleProctorEvent(request);
+                    case GET_PROCTOR_LOGS   -> handleGetProctorLogs(request);
                     default -> sendError(request.getRequestId(),
                             "Unknown message type: " + request.getType());
                 }
@@ -180,8 +185,8 @@ public class ClientHandler implements Runnable {
             authenticatedUserId = userId;
             authenticatedRole = role;
 
-            // Register connection để nhận push notifications
-            connectionRegistry.register(userId, writer);
+            // Register connection để nhận push notifications (Single Active Session & Kick-out)
+            connectionRegistry.register(userId, writer, socket, socket.getInetAddress().getHostAddress(), role);
 
             // Build response
             JsonObject responseData = new JsonObject();
@@ -829,6 +834,112 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    // ─── Proctoring / Anti-Cheat Handlers ─────────────────────────────────────
+
+    private void handleProctorEvent(Message request) {
+        try {
+            JsonObject data = (request.getData() != null && request.getData().isJsonObject())
+                    ? request.getData().getAsJsonObject()
+                    : new JsonObject();
+
+            int problemId = data.has("problemId") ? data.get("problemId").getAsInt() : 0;
+            String problemTitle = data.has("problemTitle") && !data.get("problemTitle").isJsonNull()
+                    ? data.get("problemTitle").getAsString()
+                    : "Bài tập #" + problemId;
+            String eventType = data.has("eventType") && !data.get("eventType").isJsonNull()
+                    ? data.get("eventType").getAsString()
+                    : "FOCUS_LOSS";
+
+            String username = authService.getUsernameFromToken(request.getToken());
+            if (username == null || username.isBlank()) {
+                username = "User#" + authenticatedUserId;
+            }
+            String fullName = authService.getFullNameFromToken(request.getToken());
+            if (fullName == null || fullName.isBlank()) {
+                fullName = username;
+            }
+            String detail = (data.has("detail") && !data.get("detail").isJsonNull())
+                    ? data.get("detail").getAsString()
+                    : null;
+            String clientIp = socket.getInetAddress().getHostAddress();
+
+            var result = proctorService.recordEvent(
+                    authenticatedUserId, username, fullName,
+                    problemId, problemTitle, eventType, detail, clientIp
+            );
+
+            // 1. Phản hồi cảnh báo cho sinh viên
+            JsonObject resData = new JsonObject();
+            resData.addProperty("violationCount", result.violationCount());
+            resData.addProperty("severity", result.severity());
+            resData.addProperty("warningMessage", result.warningMessage());
+
+            send(Message.success(
+                    MessageType.PROCTOR_EVENT_RESPONSE,
+                    request.getRequestId(),
+                    result.warningMessage(),
+                    resData
+            ));
+
+            // 2. Real-time push alert đến toàn bộ các tài khoản Giám thị / Giáo viên đang online
+            JsonObject alertData = new JsonObject();
+            alertData.addProperty("userId", authenticatedUserId);
+            alertData.addProperty("username", username);
+            alertData.addProperty("fullName", fullName);
+            alertData.addProperty("problemId", problemId);
+            alertData.addProperty("problemTitle", problemTitle);
+            alertData.addProperty("eventType", eventType);
+            alertData.addProperty("detail", detail != null ? detail : "");
+            alertData.addProperty("violationCount", result.violationCount());
+            alertData.addProperty("severity", result.severity());
+            alertData.addProperty("clientIp", clientIp);
+            alertData.addProperty("timestamp", System.currentTimeMillis());
+            alertData.addProperty("formattedTime", result.log().getFormattedTime());
+
+            String teacherMsg;
+            if ("AI_TOOL_DETECTED".equalsIgnoreCase(eventType)) {
+                teacherMsg = String.format("🚨 GIAN LẬN AI: Sinh viên %s (%s) đang mở [%s] (Bài: %s)",
+                        fullName, username, detail != null ? detail : "ChatGPT/Gemini", problemTitle);
+            } else if ("AI_CODE_PASTED".equalsIgnoreCase(eventType)) {
+                teacherMsg = String.format("🚨 GIAN LẬN AI: Sinh viên %s (%s) dán mã nguồn có dấu hiệu AI [%s] (Bài: %s)",
+                        fullName, username, detail != null ? detail : "", problemTitle);
+            } else {
+                teacherMsg = String.format("⚠️ Sinh viên %s (%s) vi phạm giám sát lần %d (Bài: %s)",
+                        fullName, username, result.violationCount(), problemTitle);
+            }
+
+            Message teacherAlert = new Message(MessageType.PROCTOR_ALERT, null);
+            teacherAlert.setStatus(result.severity());
+            teacherAlert.setMessage(teacherMsg);
+            teacherAlert.setData(alertData);
+
+            connectionRegistry.broadcastToTeachers(teacherAlert);
+
+        } catch (Exception e) {
+            logger.error("ProctorEvent error", e);
+            sendError(request.getRequestId(), "Lỗi ghi nhận sự kiện giám sát: " + e.getMessage());
+        }
+    }
+
+    private void handleGetProctorLogs(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền xem nhật ký giám sát");
+            return;
+        }
+        try {
+            var logs = proctorService.getAllLogs();
+            send(Message.success(
+                    MessageType.GET_PROCTOR_LOGS_RESPONSE,
+                    request.getRequestId(),
+                    "OK",
+                    MessageSerializer.toJsonElement(logs)
+            ));
+        } catch (Exception e) {
+            logger.error("GetProctorLogs error", e);
+            sendError(request.getRequestId(), "Không thể tải nhật ký giám sát");
+        }
+    }
+
     // ─── Auth middleware ──────────────────────────────────────────────────────
 
     /**
@@ -856,7 +967,7 @@ public class ClientHandler implements Runnable {
             if (authenticatedUserId != userId) {
                 authenticatedUserId = userId;
                 authenticatedRole = authService.getRoleFromToken(token);
-                connectionRegistry.register(userId, writer);
+                connectionRegistry.register(userId, writer, socket, socket.getInetAddress().getHostAddress(), authenticatedRole);
             }
 
             return true;
@@ -896,9 +1007,9 @@ public class ClientHandler implements Runnable {
     // ─── Cleanup ──────────────────────────────────────────────────────────────
 
     private void cleanup(String clientAddress) {
-        // Unregister từ ConnectionRegistry
+        // Unregister an toàn từ ConnectionRegistry (chỉ unregister nếu socket trùng khớp)
         if (authenticatedUserId > 0) {
-            connectionRegistry.unregister(authenticatedUserId);
+            connectionRegistry.unregister(authenticatedUserId, socket);
         }
 
         // Đóng socket và streams

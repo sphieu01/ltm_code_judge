@@ -38,6 +38,7 @@ public class SocketServer {
     private final ProblemService problemService;
     private final SubmissionService submissionService;
     private final com.grading.server.service.AcademicService academicService;
+    private final com.grading.server.service.ProctorService proctorService;
     private final ConnectionRegistry connectionRegistry;
 
     private ServerSocket serverSocket;
@@ -52,12 +53,14 @@ public class SocketServer {
                         ProblemService problemService,
                         SubmissionService submissionService,
                         com.grading.server.service.AcademicService academicService,
+                        com.grading.server.service.ProctorService proctorService,
                         ConnectionRegistry connectionRegistry) {
         this.port = ServerConfig.SERVER_PORT;
         this.authService = authService;
         this.problemService = problemService;
         this.submissionService = submissionService;
         this.academicService = academicService;
+        this.proctorService = proctorService;
         this.connectionRegistry = connectionRegistry;
     }
 
@@ -101,6 +104,7 @@ public class SocketServer {
                         problemService,
                         submissionService,
                         academicService,
+                        proctorService,
                         connectionRegistry
                 );
 

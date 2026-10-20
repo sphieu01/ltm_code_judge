@@ -59,6 +59,12 @@ public enum MessageType {
 
     // Notifications
     JUDGE_NOTIFICATION,
+    FORCE_LOGOUT,
+    PROCTOR_EVENT,
+    PROCTOR_EVENT_RESPONSE,
+    PROCTOR_ALERT,
+    GET_PROCTOR_LOGS,
+    GET_PROCTOR_LOGS_RESPONSE,
 
     // Connection
     DISCONNECT,

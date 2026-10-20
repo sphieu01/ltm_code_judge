@@ -48,6 +48,12 @@ public class SocketClient {
     // Callback cho push notifications (JUDGE_NOTIFICATION)
     private Consumer<Response> notificationCallback;
 
+    // Callback khi bị kick phiên (FORCE_LOGOUT)
+    private Consumer<String> forceLogoutCallback;
+
+    // Callback cho cảnh báo giám sát gửi tới Giáo viên (PROCTOR_ALERT)
+    private Consumer<Response> proctorAlertCallback;
+
     // Callback khi mất kết nối
     private Runnable onDisconnectCallback;
 
@@ -229,8 +235,28 @@ public class SocketClient {
      * Dispatch response đến đúng callback.
      */
     private void dispatchResponse(Response response) {
-        // 1. Nếu là push notification → gọi notificationCallback
+        // 1. Nếu là push notification hoặc sự kiện giám sát
         MessageType type = response.getMessageType();
+
+        if (type == MessageType.FORCE_LOGOUT) {
+            connected = false;
+            String reason = response.getMessage() != null
+                    ? response.getMessage()
+                    : "Tài khoản của bạn đã được đăng nhập từ một thiết bị khác.";
+            if (forceLogoutCallback != null) {
+                forceLogoutCallback.accept(reason);
+            }
+            closeResources();
+            return;
+        }
+
+        if (type == MessageType.PROCTOR_ALERT) {
+            if (proctorAlertCallback != null) {
+                proctorAlertCallback.accept(response);
+            }
+            return;
+        }
+
         if (type == MessageType.JUDGE_NOTIFICATION) {
             if (notificationCallback != null) {
                 notificationCallback.accept(response);
@@ -461,10 +487,51 @@ public class SocketClient {
     }
 
     /**
+     * Đăng ký callback khi tài khoản bị đăng nhập từ thiết bị khác (FORCE_LOGOUT).
+     */
+    public void setForceLogoutCallback(Consumer<String> callback) {
+        this.forceLogoutCallback = callback;
+    }
+
+    /**
+     * Đăng ký callback nhận cảnh báo giám sát thời gian thực (PROCTOR_ALERT - Teacher).
+     */
+    public void setProctorAlertCallback(Consumer<Response> callback) {
+        this.proctorAlertCallback = callback;
+    }
+
+    /**
      * Đăng ký callback khi mất kết nối.
      */
     public void setOnDisconnectCallback(Runnable callback) {
         this.onDisconnectCallback = callback;
+    }
+
+    // ======================== PROCTORING METHODS ========================
+
+    /**
+     * Báo cáo sự kiện giám sát phòng thi lên server (VD: AI_TOOL_DETECTED, FOCUS_LOSS...).
+     */
+    public void sendProctorEvent(int problemId, String problemTitle, String eventType, String detail, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("problemId", problemId);
+        data.addProperty("problemTitle", problemTitle);
+        data.addProperty("eventType", eventType);
+        if (detail != null) {
+            data.addProperty("detail", detail);
+        }
+        sendRequest(MessageType.PROCTOR_EVENT, data, callback);
+    }
+
+    public void sendProctorEvent(int problemId, String problemTitle, String eventType, Consumer<Response> callback) {
+        sendProctorEvent(problemId, problemTitle, eventType, null, callback);
+    }
+
+    /**
+     * Lấy toàn bộ nhật ký giám sát (dành cho Giáo viên).
+     */
+    public void getProctorLogs(Consumer<Response> callback) {
+        sendRequest(MessageType.GET_PROCTOR_LOGS, null, callback);
     }
 
     // ======================== UTILS ========================

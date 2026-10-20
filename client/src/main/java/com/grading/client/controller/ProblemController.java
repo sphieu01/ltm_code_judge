@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.grading.client.model.Problem;
 import com.grading.client.network.SessionManager;
 import com.grading.client.network.SocketClient;
+import com.grading.client.proctor.AiToolDetector;
 import com.grading.client.protocol.Response;
 import com.grading.client.view.ProblemView;
 import javafx.application.Platform;
@@ -30,6 +31,7 @@ public class ProblemController {
         this.sessionManager = SessionManager.getInstance();
         initHandlers();
         registerPushNotifications();
+        initProctoring();
     }
 
     private void initHandlers() {
@@ -59,6 +61,13 @@ public class ProblemController {
         if (code.isEmpty()) {
             v.showExecutionResult("Lỗi: Bạn chưa nhập mã nguồn để nộp.", "EMPTY_CODE", true);
             return;
+        }
+
+        // Kiểm tra chữ ký / định dạng sinh bởi AI (ChatGPT / Gemini)
+        String aiCodeSign = AiToolDetector.detectAiPastedCode(code);
+        if (aiCodeSign != null) {
+            reportAiViolation("AI_CODE_PASTED", aiCodeSign);
+            v.showAiWarningAlert("Hệ thống phát hiện mã nguồn có chứa cú pháp/câu giải thích từ AI (" + aiCodeSign + ").\nVi phạm này đã được gửi trực tiếp đến Giám thị coi thi.");
         }
 
         int problemId = (problem != null) ? problem.getId() : 1;
@@ -163,6 +172,117 @@ public class ProblemController {
 
     private void handleLanguageChange(String newLanguage) {
         // Dự phòng hook đổi ngôn ngữ
+    }
+
+    // =========================================================================
+    // PROCTORING: PHÁT HIỆN SỬ DỤNG CHATGPT / GEMINI (CHO PHÉP DÙNG IDE NGOÀI)
+    // =========================================================================
+
+    private long lastAiDetectionTime = 0;
+    private javafx.beans.value.ChangeListener<Boolean> currentFocusListener;
+    private javafx.stage.Window trackedWindow;
+    private javafx.animation.Timeline periodicAiChecker;
+
+    private void initProctoring() {
+        view.sceneProperty().addListener((obsScene, oldScene, newScene) -> {
+            if (newScene != null) {
+                newScene.windowProperty().addListener((obsWin, oldWin, newWin) -> {
+                    if (newWin != null) {
+                        attachWindowFocusListener(newWin);
+                    }
+                });
+                if (newScene.getWindow() != null) {
+                    attachWindowFocusListener(newScene.getWindow());
+                }
+            }
+        });
+
+        if (view.getScene() != null && view.getScene().getWindow() != null) {
+            attachWindowFocusListener(view.getScene().getWindow());
+        }
+
+        // Quét định kỳ kiểm tra AI mỗi 8 giây (đề phòng mở ChatGPT trên màn hình phụ)
+        periodicAiChecker = new javafx.animation.Timeline(
+                new javafx.animation.KeyFrame(javafx.util.Duration.seconds(8), e -> scanForAiCheating(false))
+        );
+        periodicAiChecker.setCycleCount(javafx.animation.Animation.INDEFINITE);
+        periodicAiChecker.play();
+    }
+
+    private void attachWindowFocusListener(javafx.stage.Window window) {
+        if (trackedWindow == window) {
+            return;
+        }
+        if (trackedWindow != null && currentFocusListener != null) {
+            trackedWindow.focusedProperty().removeListener(currentFocusListener);
+        }
+
+        trackedWindow = window;
+        currentFocusListener = (obs, wasFocused, isNowFocused) -> {
+            if (!isNowFocused) {
+                // Rời khỏi cửa sổ: Quét xem sinh viên có vào ChatGPT / Gemini hay không.
+                // Nếu sinh viên chỉ mở VS Code, CLion, Dev-C++... thì xem là hợp lệ và KHÔNG phạt!
+                scanForAiCheating(true);
+            }
+        };
+        window.focusedProperty().addListener(currentFocusListener);
+    }
+
+    private void scanForAiCheating(boolean triggeredByFocusLoss) {
+        if (view.isChoosingFile()) {
+            return; // Đang chọn file mã nguồn hợp lệ
+        }
+
+        long now = System.currentTimeMillis();
+        if (now - lastAiDetectionTime < 3000) {
+            return; // Debounce 3 giây tránh gửi trùng lặp
+        }
+
+        // Quét bất đồng bộ tiêu đề trình duyệt và tiến trình AI
+        AiToolDetector.detectRunningAiToolAsync().thenAccept(detectedAi -> {
+            if (detectedAi != null) {
+                // PHÁT HIỆN ĐANG MỞ CHATGPT / GEMINI / AI TOOL
+                lastAiDetectionTime = System.currentTimeMillis();
+                Platform.runLater(() -> reportAiViolation("AI_TOOL_DETECTED", detectedAi));
+            } else {
+                // Sinh viên chỉ sang IDE code (VS Code, CLion...) -> Hoàn toàn hợp lệ!
+            }
+        });
+    }
+
+    private void reportAiViolation(String eventType, String detail) {
+        Problem problem = view.getCurrentProblem();
+        int problemId = (problem != null) ? problem.getId() : 1;
+        String problemTitle = (problem != null && problem.getTitle() != null)
+                ? problem.getTitle()
+                : "Bài tập #" + problemId;
+
+        SocketClient socketClient = sessionManager.getSocketClient();
+        if (socketClient != null && socketClient.isConnected()) {
+            socketClient.sendProctorEvent(problemId, problemTitle, eventType, detail, response -> {
+                Platform.runLater(() -> {
+                    if ("SUCCESS".equalsIgnoreCase(response.getStatus())
+                            && response.getData() != null
+                            && response.getData().isJsonObject()) {
+                        JsonObject data = response.getData().getAsJsonObject();
+                        int count = data.has("violationCount") ? data.get("violationCount").getAsInt() : 1;
+                        String severity = data.has("severity") ? data.get("severity").getAsString() : "CRITICAL";
+                        String msg = data.has("warningMessage") ? data.get("warningMessage").getAsString() : response.getMessage();
+                        view.updateProctorStatus(count, severity, detail);
+                        view.showProctorWarningToast(msg, severity);
+                    }
+                });
+            });
+        }
+    }
+
+    public void cleanup() {
+        if (periodicAiChecker != null) {
+            periodicAiChecker.stop();
+        }
+        if (trackedWindow != null && currentFocusListener != null) {
+            trackedWindow.focusedProperty().removeListener(currentFocusListener);
+        }
     }
 
     public ProblemView getView() {

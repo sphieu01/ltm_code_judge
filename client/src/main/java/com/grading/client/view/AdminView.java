@@ -747,4 +747,12 @@ public class AdminView extends BorderPane {
     public void setOnLogout(Runnable onLogout) {
         this.onLogout = onLogout;
     }
+
+    public void showProctorAlertToast(String alertMessage) {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle("Hệ Thống Giám Sát Phòng Thi (Proctoring)");
+        alert.setHeaderText("Cảnh báo vi phạm từ sinh viên!");
+        alert.setContentText(alertMessage);
+        alert.show();
+    }
 }

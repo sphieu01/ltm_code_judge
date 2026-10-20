@@ -197,6 +197,18 @@ public class AuthService {
     }
 
     /**
+     * Lấy username từ JWT token.
+     */
+    public String getUsernameFromToken(String token) {
+        try {
+            Claims claims = verifyToken(token);
+            return claims.get("username", String.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
      * Kiểm tra token có hợp lệ không (convenience method).
      */
     public boolean isValidToken(String token) {

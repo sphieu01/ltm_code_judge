@@ -60,6 +60,14 @@ public enum MessageType {
     // ── Push Notification ─────────────────────────────────
     JUDGE_NOTIFICATION,     // Server → Client: kết quả chấm xong
 
+    // ── Anti-Cheating & Proctoring ─────────────────────────
+    FORCE_LOGOUT,               // Server → Client: đá khỏi phiên do đăng nhập nơi khác
+    PROCTOR_EVENT,              // Client → Server: sự kiện giám sát (mất focus cửa sổ...)
+    PROCTOR_EVENT_RESPONSE,     // Server → Client: phản hồi cảnh báo giám sát
+    PROCTOR_ALERT,              // Server → Teacher Client: push cảnh báo gian lận thời gian thực
+    GET_PROCTOR_LOGS,           // Teacher → Server: lấy danh sách nhật ký vi phạm
+    GET_PROCTOR_LOGS_RESPONSE,
+
     // ── Control ───────────────────────────────────────────
     DISCONNECT,             // Client → Server: ngắt kết nối chủ động
     ERROR,                  // Server → Client: lỗi chung

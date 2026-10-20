@@ -76,6 +76,24 @@ public class ClientApp extends Application {
         LoginController loginController = new LoginController(loginView);
 
         loginController.setOnLoginSuccess(user -> {
+            var client = SessionManager.getInstance().getSocketClient();
+            if (client != null) {
+                client.setForceLogoutCallback(reason -> {
+                    javafx.application.Platform.runLater(() -> {
+                        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                                javafx.scene.control.Alert.AlertType.WARNING
+                        );
+                        alert.setTitle("Cảnh báo bảo mật phiên");
+                        alert.setHeaderText("Phiên làm việc đã bị kết thúc!");
+                        alert.setContentText(reason);
+                        alert.show();
+
+                        SessionManager.getInstance().clear();
+                        showLoginView();
+                    });
+                });
+            }
+
             if (user != null && user.isTeacher()) {
                 showAdminView(user);
             } else {
@@ -92,6 +110,19 @@ public class ClientApp extends Application {
     public void showAdminView(User user) {
         com.grading.client.view.AdminView adminView = new com.grading.client.view.AdminView();
         adminView.setUser(user);
+
+        // Lắng nghe push cảnh báo giám sát từ sinh viên
+        var client = SessionManager.getInstance().getSocketClient();
+        if (client != null) {
+            client.setProctorAlertCallback(alertResponse -> {
+                javafx.application.Platform.runLater(() -> {
+                    String msg = alertResponse.getMessage() != null
+                            ? alertResponse.getMessage()
+                            : "Cảnh báo vi phạm phòng thi mới!";
+                    adminView.showProctorAlertToast(msg);
+                });
+            });
+        }
 
         com.grading.client.controller.AdminController adminController =
                 new com.grading.client.controller.AdminController(adminView, primaryStage);
@@ -133,6 +164,7 @@ public class ClientApp extends Application {
 
         // Nút quay lại: nếu là Giáo viên về AdminView, nếu là Sinh viên về DashboardView
         problemView.setOnBackToDashboard(() -> {
+            problemController.cleanup();
             User currentUser = SessionManager.getInstance().getCurrentUser();
             if (currentUser != null && currentUser.isTeacher()) {
                 showAdminView(currentUser);

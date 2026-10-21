@@ -161,6 +161,20 @@ public class AcademicRepository {
         }
     }
 
+    public void updateCourse(Course course) throws SQLException {
+        String sql = "UPDATE courses SET code = ?, name = ?, language = ?, description = ?, is_active = ? WHERE id = ?";
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, course.getCode());
+            stmt.setString(2, course.getName());
+            stmt.setString(3, course.getLanguage());
+            stmt.setString(4, course.getDescription());
+            stmt.setBoolean(5, course.isActive());
+            stmt.setInt(6, course.getId());
+            if (stmt.executeUpdate() == 0) throw new SQLException("Không tìm thấy môn học id=" + course.getId());
+        }
+    }
+
     /** Xóa môn học. Các lớp thuộc môn sẽ bị xóa theo FK; sinh viên/bài tập được bỏ gán lớp. */
     public void deleteCourse(int courseId) throws SQLException {
         try (Connection conn = DatabaseConfig.getConnection();

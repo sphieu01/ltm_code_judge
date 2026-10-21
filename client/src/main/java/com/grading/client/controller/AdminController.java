@@ -44,12 +44,14 @@ public class AdminController {
     private void initEvents() {
         // Tab 1: Môn học
         view.getAddCourseBtn().setOnAction(e -> handleAddCourse());
+        view.setOnEditCourse(this::handleEditCourse);
         view.setOnDeleteCourse(this::handleDeleteCourse);
 
         // Tab 2: Lớp tín chỉ
         view.getAddClassBtn().setOnAction(e -> handleAddClass());
         view.setOnEditClass(this::handleEditClass);
         view.setOnDeleteClass(this::handleDeleteClass);
+        view.setOnViewClass(this::handleViewClass);
 
         // Tab 3: Sinh viên
         view.getStudentFilterClassCombo().setOnAction(e -> {
@@ -68,6 +70,7 @@ public class AdminController {
         view.getAddProblemBtn().setOnAction(e -> handleAddProblem());
         view.setOnToggleProblemActive((problem, isChecked) -> handleToggleProblemActive(problem, isChecked));
         view.setOnEditProblem(this::handleEditProblem);
+        view.setOnDeleteProblem(this::handleDeleteProblem);
 
         // Đăng xuất
         view.setOnLogout(() -> {
@@ -151,6 +154,20 @@ public class AdminController {
                         else showError("Không thể tạo môn học", response.getMessage());
                     });
                 });
+            }
+        });
+    }
+
+    private void handleEditCourse(Course course) {
+        if (course == null) return;
+        TeacherCourseDialog dialog = new TeacherCourseDialog(stage, course);
+        dialog.showAndWait().ifPresent(updated -> {
+            SocketClient client = sessionManager.getSocketClient();
+            if (client != null && client.isConnected()) {
+                client.updateCourse(updated, response -> Platform.runLater(() -> {
+                    if ("SUCCESS".equalsIgnoreCase(response.getStatus())) loadAllData();
+                    else showError("Không thể cập nhật môn học", response.getMessage());
+                }));
             }
         });
     }
@@ -509,6 +526,29 @@ public class AdminController {
                     else showError("Không thể cập nhật bài tập", updateResponse.getMessage());
                 }));
             });
+        }));
+    }
+
+    private void handleViewClass(CreditClass creditClass) {
+        if (creditClass == null) return;
+        TeacherClassDetailDialog dialog = new TeacherClassDetailDialog(stage, creditClass);
+        dialog.showAndWait();
+        loadClasses();
+    }
+
+    private void handleDeleteProblem(Problem problem) {
+        if (problem == null) return;
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "Xóa bài tập \"" + problem.getTitle()
+                + "\" và toàn bộ bài nộp liên quan?", javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        confirm.initOwner(stage);
+        confirm.setHeaderText("Xác nhận xóa bài tập");
+        if (confirm.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL) != javafx.scene.control.ButtonType.OK) return;
+        SocketClient client = sessionManager.getSocketClient();
+        if (client != null && client.isConnected()) client.deleteProblem(problem.getId(), response -> Platform.runLater(() -> {
+            if ("SUCCESS".equalsIgnoreCase(response.getStatus())) {
+                CreditClass selected = view.getProblemFilterClassCombo().getSelectionModel().getSelectedItem();
+                loadProblems(selected == null ? null : selected.getId());
+            } else showError("Không thể xóa bài tập", response.getMessage());
         }));
     }
 

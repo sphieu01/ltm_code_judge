@@ -336,6 +336,12 @@ public class SocketClient {
         sendRequest(MessageType.UPDATE_PROBLEM, problemData, callback);
     }
 
+    public void deleteProblem(int problemId, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("id", problemId);
+        sendRequest(MessageType.DELETE_PROBLEM, data, callback);
+    }
+
     // ======================== ACADEMIC METHODS ========================
 
     public void getCourses(Consumer<Response> callback) {
@@ -349,6 +355,17 @@ public class SocketClient {
         data.addProperty("language", language);
         data.addProperty("description", description);
         sendRequest(MessageType.CREATE_COURSE, data, callback);
+    }
+
+    public void updateCourse(com.grading.client.model.Course course, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("id", course.getId());
+        data.addProperty("code", course.getCode());
+        data.addProperty("name", course.getName());
+        data.addProperty("language", course.getLanguage());
+        data.addProperty("description", course.getDescription());
+        data.addProperty("active", course.isActive());
+        sendRequest(MessageType.UPDATE_COURSE, data, callback);
     }
 
     public void deleteCourse(int courseId, Consumer<Response> callback) {
@@ -392,6 +409,12 @@ public class SocketClient {
         JsonObject data = new JsonObject();
         data.addProperty("classId", classId);
         sendRequest(MessageType.GET_STUDENTS, data, callback);
+    }
+
+    public void getClassStudentStats(int classId, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("classId", classId);
+        sendRequest(MessageType.GET_CLASS_STUDENT_STATS, data, callback);
     }
 
     public void importStudents(int classId, com.google.gson.JsonArray studentsArray, Consumer<Response> callback) {

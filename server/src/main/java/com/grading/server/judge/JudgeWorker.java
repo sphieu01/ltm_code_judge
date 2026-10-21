@@ -152,6 +152,7 @@ public class JudgeWorker implements Runnable {
                 submission.setVerdict(Submission.VERDICT_SV);
                 submission.setScore(0);
                 submission.setPassedTests(0);
+                submission.setTotalTests(problemRepository.findAllTestCases(submission.getProblemId()).size());
                 submission.setCompileOutput(secResult.reason());
                 finalizeSubmission(submission);
                 return;

@@ -3,7 +3,7 @@ package com.grading.client.view;
 import com.grading.client.model.CreditClass;
 import com.grading.client.model.Problem;
 import com.grading.client.model.User;
-import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.binding.Bindings;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
@@ -70,22 +70,23 @@ public class DashboardView extends BorderPane {
         // Lựa chọn lớp học
         classFilterCombo = new ComboBox<>();
         classFilterCombo.setPromptText("Lớp tín chỉ...");
-        classFilterCombo.setPrefWidth(210);
+        classFilterCombo.setPrefWidth(270);
 
         // Lọc theo độ khó
         difficultyFilterCombo = new ComboBox<>(FXCollections.observableArrayList(
                 "Tất cả độ khó", "EASY", "MEDIUM", "HARD"));
         difficultyFilterCombo.getSelectionModel().select(0);
-        difficultyFilterCombo.setPrefWidth(130);
+        difficultyFilterCombo.setPrefWidth(175);
 
         // Tìm kiếm theo tên bài
         searchField = new TextField();
         searchField.setPromptText("🔍 Tìm theo tên hoặc ID...");
-        searchField.setPrefWidth(200);
+        searchField.setPrefWidth(260);
 
         // Nút Lịch sử nộp bài
         historyBtn = new Button("📜 Lịch sử nộp bài");
         historyBtn.getStyleClass().addAll("button", "btn-secondary");
+        historyBtn.setPrefWidth(180);
         historyBtn.setOnAction(e -> showHistoryDialog());
 
         Region spacer = new Region();
@@ -121,7 +122,8 @@ public class DashboardView extends BorderPane {
         centerBox.setPadding(new Insets(12, 16, 12, 16));
 
         problemTable = buildProblemTable();
-        VBox.setVgrow(problemTable, Priority.ALWAYS);
+        // Bảng chỉ cao vừa đủ các hàng có dữ liệu và tự nở khi danh sách tăng.
+        VBox.setVgrow(problemTable, Priority.NEVER);
 
         centerBox.getChildren().add(problemTable);
         setCenter(centerBox);
@@ -200,16 +202,7 @@ public class DashboardView extends BorderPane {
         titleCol.setMinWidth(280);
         titleCol.setPrefWidth(420);
 
-        // 3. Cột Lớp tín chỉ
-        TableColumn<Problem, String> classCol = new TableColumn<>("Lớp học");
-        classCol.setCellValueFactory(cellData -> {
-            String cName = cellData.getValue().getClassName();
-            return new SimpleStringProperty(cName != null ? cName : "Chung");
-        });
-        classCol.setMinWidth(160);
-        classCol.setPrefWidth(200);
-
-        // 4. Cột Độ khó
+        // 3. Cột Độ khó. Lớp đang chọn đã hiển thị trên thanh trên.
         TableColumn<Problem, String> diffCol = new TableColumn<>("Độ khó");
         diffCol.setCellValueFactory(new PropertyValueFactory<>("difficulty"));
         diffCol.setMinWidth(110);
@@ -238,7 +231,7 @@ public class DashboardView extends BorderPane {
             }
         });
 
-        // 5. Cột Trạng thái làm bài
+        // 4. Cột Trạng thái làm bài
         TableColumn<Problem, String> statusCol = new TableColumn<>("Trạng thái");
         statusCol.setCellValueFactory(new PropertyValueFactory<>("status"));
         statusCol.setMinWidth(120);
@@ -269,7 +262,7 @@ public class DashboardView extends BorderPane {
             }
         });
 
-        // 6. Cột Thao tác
+        // 5. Cột Thao tác
         TableColumn<Problem, Void> actionCol = new TableColumn<>("Thao tác");
         actionCol.setMinWidth(100);
         actionCol.setPrefWidth(110);
@@ -295,7 +288,7 @@ public class DashboardView extends BorderPane {
             }
         });
 
-        table.getColumns().addAll(idCol, titleCol, classCol, diffCol, statusCol, actionCol);
+        table.getColumns().addAll(idCol, titleCol, diffCol, statusCol, actionCol);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
         // Nhấp đúp chuột để mở bài
@@ -342,6 +335,8 @@ public class DashboardView extends BorderPane {
         difficultyFilterCombo.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> updateFilter.run());
 
         problemTable.setItems(filteredProblems);
+        problemTable.prefHeightProperty().bind(Bindings.size(filteredProblems).multiply(48).add(34));
+        problemTable.maxHeightProperty().bind(Bindings.size(filteredProblems).multiply(48).add(34));
     }
 
     public void setUser(User user) {
@@ -366,7 +361,9 @@ public class DashboardView extends BorderPane {
     }
 
     public void setProblems(List<Problem> list) {
-        problemList.setAll(list);
+        problemList.setAll(list == null ? List.of() : list.stream()
+                .filter(problem -> problem != null && problem.getTitle() != null && !problem.getTitle().isBlank())
+                .toList());
     }
 
     public void addProblem(Problem p) {

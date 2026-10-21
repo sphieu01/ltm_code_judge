@@ -28,8 +28,8 @@ public class SubmissionRepository {
 
     // ─── SQL ──────────────────────────────────────────────────────────────────
     private static final String SQL_INSERT =
-            "INSERT INTO submissions (user_id, problem_id, source_code, language, verdict) " +
-            "VALUES (?, ?, ?, ?, 'PENDING'::verdict_type) RETURNING id, submitted_at";
+            "INSERT INTO submissions (user_id, problem_id, source_code, language, verdict, submitted_at) " +
+            "VALUES (?, ?, ?, ?, 'PENDING'::verdict_type, CURRENT_TIMESTAMP) RETURNING id, submitted_at";
 
     private static final String SQL_FIND_BY_ID =
             "SELECT s.id, s.user_id, s.problem_id, p.title AS problem_title, s.source_code, s.language, s.verdict, s.score, " +

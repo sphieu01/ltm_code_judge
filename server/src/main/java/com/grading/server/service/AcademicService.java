@@ -38,6 +38,13 @@ public class AcademicService {
         return academicRepository.createCourse(course);
     }
 
+    public void updateCourse(Course course) throws SQLException {
+        if (course.getId() <= 0) throw new IllegalArgumentException("Môn học không hợp lệ");
+        if (course.getCode() == null || course.getCode().isBlank()) throw new IllegalArgumentException("Mã môn học không được để trống");
+        if (course.getName() == null || course.getName().isBlank()) throw new IllegalArgumentException("Tên môn học không được để trống");
+        academicRepository.updateCourse(course);
+    }
+
     public List<CreditClass> getAllClasses() throws SQLException {
         return academicRepository.findAllClasses();
     }

@@ -41,7 +41,8 @@ public class ProblemRepository {
             "SELECT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
             "p.created_by, p.class_id, cl.name AS class_name, p.is_active, p.created_at " +
             "FROM problems p LEFT JOIN classes cl ON p.class_id = cl.id " +
-            "WHERE (p.is_active IS NULL OR p.is_active = TRUE) ORDER BY p.id";
+            "WHERE (p.is_active IS NULL OR p.is_active = TRUE) " +
+            "AND NULLIF(BTRIM(p.title), '') IS NOT NULL ORDER BY p.id";
 
     private static final String SQL_FIND_BY_CLASS =
             "SELECT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
@@ -54,7 +55,8 @@ public class ProblemRepository {
             "p.created_by, p.class_id, cl.name AS class_name, p.is_active, p.created_at " +
             "FROM problems p LEFT JOIN classes cl ON p.class_id = cl.id " +
             "WHERE (p.class_id = ? OR p.class_id IS NULL) " +
-            "AND (p.is_active IS NULL OR p.is_active = TRUE) ORDER BY p.id";
+            "AND (p.is_active IS NULL OR p.is_active = TRUE) " +
+            "AND NULLIF(BTRIM(p.title), '') IS NOT NULL ORDER BY p.id";
 
     private static final String SQL_FIND_BY_ID =
             "SELECT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
@@ -382,6 +384,14 @@ public class ProblemRepository {
         } catch (SQLException e) {
             logger.error("Error updating problem id={} active={}", problemId, active, e);
             throw e;
+        }
+    }
+
+    public void deleteProblem(int problemId) throws SQLException {
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement("DELETE FROM problems WHERE id = ?")) {
+            stmt.setInt(1, problemId);
+            if (stmt.executeUpdate() == 0) throw new SQLException("Không tìm thấy bài tập id=" + problemId);
         }
     }
 

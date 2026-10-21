@@ -316,8 +316,10 @@ public class ProblemController {
                                 ? obj.get("submittedAt").getAsString() : "";
                         String verdict = obj.has("verdict") && !obj.get("verdict").isJsonNull()
                                 ? obj.get("verdict").getAsString() : "--";
+                        String sourceCode = obj.has("sourceCode") && !obj.get("sourceCode").isJsonNull()
+                                ? obj.get("sourceCode").getAsString() : null;
 
-                        view.appendSubmissionHistory(title, time, verdict);
+                        view.appendSubmissionHistory(title, time, verdict, sourceCode);
                     }
                 }
             });

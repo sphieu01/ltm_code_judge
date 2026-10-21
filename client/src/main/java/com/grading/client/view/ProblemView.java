@@ -8,7 +8,6 @@ import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.input.*;
 import javafx.scene.layout.*;
-import javafx.scene.text.Font;
 import javafx.stage.FileChooser;
 import javafx.util.Duration;
 
@@ -25,14 +24,8 @@ import java.util.function.Consumer;
  * ProblemView — Giao diện nộp bài chuẩn Hệ thống thực hành ảo CNTT.
  *
  * Tối ưu hóa theo phản hồi:
- * 1. Đề bài hiển thị dạng văn bản tự nhiên, không đóng khung box xám.
- * 2. Lịch sử nộp bài nằm ở cột bên phải.
- * 3. Phần tải file lên và nút "Nộp bài" đi liền với nhau và cùng màu xanh với
- * nút "Nộp bài nhanh".
- * 4. Textbox dán code có nền màu xám, đi liền với nút "Nộp bài nhanh" ở ngay
- * bên dưới.
- * 5. Bỏ nhãn "Trạng thái: Chưa nộp bài".
- * 6. Bỏ thanh footer (máy chấm sẵn sàng, phím tắt...).
+ * Đề bài hiển thị trước, sinh viên tải tệp mã nguồn để nộp và lịch sử nằm cuối
+ * trang dưới dạng bảng.
  */
 public class ProblemView extends BorderPane {
 
@@ -51,10 +44,9 @@ public class ProblemView extends BorderPane {
     private VBox sampleTableContainer;
     private Label metaConstraintsLabel;
 
-    // ======================== HISTORY CARD (RIGHT COLUMN) ========================
-    private VBox historyCard;
-    private VBox historyListContainer;
-    private Label historyPlaceholderLabel;
+    // ======================== HISTORY TABLE (BOTTOM) ========================
+    private TableView<SubmissionHistoryRow> historyTable;
+    private javafx.collections.ObservableList<SubmissionHistoryRow> historyRows;
 
     // ======================== SUBMISSION & FILE UPLOAD ========================
     private ComboBox<String> languageComboBox;
@@ -66,10 +58,6 @@ public class ProblemView extends BorderPane {
 
     private ProgressBar progressBar;
     private Button submitButton;
-    private Button pasteAndSubmitButton;
-
-    // ======================== CODE TEXT AREA ========================
-    private TextArea codeEditorArea;
 
     // ======================== DATA & HANDLERS ========================
     private Problem currentProblem;
@@ -87,7 +75,6 @@ public class ProblemView extends BorderPane {
     public ProblemView() {
         buildLayout();
         setupFileUploadAndDragDrop();
-        setupEditorHandlers();
         setupEventBindings();
     }
 
@@ -102,7 +89,7 @@ public class ProblemView extends BorderPane {
         setTop(buildTopToolbar());
 
         // Center: ScrollPane chứa toàn bộ nội dung
-        VBox contentBox = new VBox(16);
+        VBox contentBox = new VBox(20);
         contentBox.setPadding(new Insets(18, 24, 24, 24));
         contentBox.setMaxWidth(1150);
 
@@ -110,33 +97,22 @@ public class ProblemView extends BorderPane {
         centerWrapper.setAlignment(Pos.TOP_CENTER);
         centerWrapper.setPadding(new Insets(0));
 
-        // 1. Hàng trên: Cột trái (Đề bài không box xám) + Cột phải (Lịch sử nộp bài)
-        HBox topSection = new HBox(24);
-        topSection.setAlignment(Pos.TOP_LEFT);
-
-        VBox problemColumn = new VBox(10);
-        HBox.setHgrow(problemColumn, Priority.ALWAYS);
+        // 1. Nội dung đề bài
+        VBox problemSection = new VBox(10);
 
         problemTitleHeader = new Label("GẤP ĐÔI");
         problemTitleHeader.getStyleClass().add("problem-title-header");
 
         VBox problemContent = buildProblemSection();
-        problemColumn.getChildren().addAll(problemTitleHeader, problemContent);
-
-        historyCard = buildHistoryCard();
-        historyCard.setPrefWidth(260);
-        historyCard.setMinWidth(240);
-        historyCard.setMaxWidth(280);
-
-        topSection.getChildren().addAll(problemColumn, historyCard);
+        problemSection.getChildren().addAll(problemTitleHeader, problemContent);
 
         // 2. Thanh thao tác: Tải file lên & Nộp bài đi liền với nhau
         BorderPane submissionBar = buildSubmissionBar();
 
-        // 3. Khung dán mã nguồn màu xám kèm nút "Dán và Nộp bài" ở dưới
-        VBox codeEditorSection = buildCodeEditorSection();
+        // 3. Lịch sử nộp bài ở cuối trang
+        VBox historySection = buildHistorySection();
 
-        contentBox.getChildren().addAll(topSection, submissionBar, codeEditorSection);
+        contentBox.getChildren().addAll(problemSection, submissionBar, historySection);
 
         ScrollPane scrollPane = new ScrollPane(centerWrapper);
         scrollPane.getStyleClass().add("scroll-pane");
@@ -164,8 +140,10 @@ public class ProblemView extends BorderPane {
         backButton.getStyleClass().addAll("button", "btn-secondary");
 
         proctorBadge = new Label("🛡️ Giám sát: Bình thường (Cho phép IDE)");
-        proctorBadge.setTooltip(new Tooltip("Hệ thống cho phép chuyển sang IDE ngoài (VS Code, CLion, Dev-C++...) để code.\nNghiêm cấm mở ChatGPT, Gemini hoặc các công cụ AI trợ giúp."));
-        proctorBadge.setStyle("-fx-background-color: rgba(34, 197, 94, 0.15); -fx-text-fill: #16a34a; -fx-padding: 4 12; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 12px; -fx-border-color: rgba(34, 197, 94, 0.3); -fx-border-radius: 12px;");
+        proctorBadge.setTooltip(new Tooltip(
+                "Hệ thống cho phép chuyển sang IDE ngoài (VS Code, CLion, Dev-C++...) để code.\nNghiêm cấm mở ChatGPT, Gemini hoặc các công cụ AI trợ giúp."));
+        proctorBadge.setStyle(
+                "-fx-background-color: rgba(34, 197, 94, 0.15); -fx-text-fill: #16a34a; -fx-padding: 4 12; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 12px; -fx-border-color: rgba(34, 197, 94, 0.3); -fx-border-radius: 12px;");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -193,129 +171,140 @@ public class ProblemView extends BorderPane {
         // Nội dung mô tả đề bài hiển thị trực tiếp dạng văn bản tự nhiên
         descriptionLabel = new Label("Mô tả bài toán đang được tải...");
         descriptionLabel.setWrapText(true);
-        descriptionLabel.setStyle("-fx-font-size: 13.5px; -fx-text-fill: -text-primary; -fx-line-spacing: 3px;");
+        descriptionLabel.setStyle("-fx-font-size: 15px; -fx-text-fill: -text-primary; -fx-line-spacing: 4px;");
 
         // Input
         Label inTitle = new Label("Input");
         inTitle.setStyle(
-                "-fx-font-weight: bold; -fx-text-fill: -text-primary; -fx-font-size: 13px; -fx-padding: 4 0 0 0;");
+                "-fx-font-weight: bold; -fx-text-fill: -text-primary; -fx-font-size: 15px; -fx-padding: 6 0 0 0;");
         inputFormatLabel = new Label("Đang tải định dạng đầu vào...");
         inputFormatLabel.setWrapText(true);
-        inputFormatLabel.setStyle("-fx-text-fill: -text-primary; -fx-font-size: 13px;");
+        inputFormatLabel.setStyle("-fx-text-fill: -text-primary; -fx-font-size: 15px;");
 
         // Output
         Label outTitle = new Label("Output");
         outTitle.setStyle(
-                "-fx-font-weight: bold; -fx-text-fill: -text-primary; -fx-font-size: 13px; -fx-padding: 4 0 0 0;");
+                "-fx-font-weight: bold; -fx-text-fill: -text-primary; -fx-font-size: 15px; -fx-padding: 6 0 0 0;");
         outputFormatLabel = new Label("Đang tải định dạng đầu ra...");
         outputFormatLabel.setWrapText(true);
-        outputFormatLabel.setStyle("-fx-text-fill: -text-primary; -fx-font-size: 13px;");
+        outputFormatLabel.setStyle("-fx-text-fill: -text-primary; -fx-font-size: 15px;");
 
         // Bảng ví dụ mẫu
         Label sampleTitle = new Label("Ví dụ");
         sampleTitle.setStyle(
-                "-fx-font-weight: bold; -fx-text-fill: -text-primary; -fx-font-size: 13px; -fx-padding: 4 0 0 0;");
+                "-fx-font-weight: bold; -fx-text-fill: -text-primary; -fx-font-size: 15px; -fx-padding: 6 0 0 0;");
         sampleTableContainer = new VBox(6);
 
         // Giới hạn thời gian / bộ nhớ
         metaConstraintsLabel = new Label("Giới hạn thời gian: 1s  |  Giới hạn bộ nhớ: 65536Kb");
-        metaConstraintsLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: -text-secondary; -fx-padding: 6 0 0 0;");
+        metaConstraintsLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: -text-secondary;");
 
         section.getChildren().addAll(
                 descriptionLabel,
                 inTitle, inputFormatLabel,
                 outTitle, outputFormatLabel,
-                sampleTitle, sampleTableContainer,
-                metaConstraintsLabel);
+                sampleTitle, sampleTableContainer);
 
         return section;
     }
 
     // =========================================================================
-    // 4. THẺ LỊCH SỬ NỘP BÀI (HISTORY CARD - CỘT PHẢI)
+    // 4. LỊCH SỬ NỘP BÀI (BẢNG Ở CUỐI TRANG)
     // =========================================================================
 
-    private VBox buildHistoryCard() {
-        VBox card = new VBox(8);
-        card.getStyleClass().add("history-card");
+    private VBox buildHistorySection() {
+        VBox section = new VBox(10);
+        Label title = new Label("Lịch sử nộp bài");
+        title.setStyle("-fx-font-size: 17px; -fx-font-weight: bold; -fx-text-fill: -text-primary;");
 
-        Label histTitle = new Label("Lịch sử nộp bài:");
-        histTitle.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: -text-secondary;");
+        historyRows = FXCollections.observableArrayList();
+        historyTable = new TableView<>(historyRows);
+        historyTable.getStyleClass().add("table-view");
+        historyTable.setPlaceholder(new Label("Chưa có lượt nộp bài nào."));
+        historyTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        historyTable.setPrefHeight(210);
 
-        historyListContainer = new VBox(6);
+        TableColumn<SubmissionHistoryRow, String> problemCol = new TableColumn<>("Bài tập");
+        problemCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().title()));
+        TableColumn<SubmissionHistoryRow, String> timeCol = new TableColumn<>("Thời gian nộp");
+        timeCol.setCellValueFactory(
+                data -> new javafx.beans.property.SimpleStringProperty(data.getValue().timestamp()));
+        TableColumn<SubmissionHistoryRow, String> verdictCol = new TableColumn<>("Kết quả");
+        verdictCol.setCellValueFactory(
+                data -> new javafx.beans.property.SimpleStringProperty(verdictToBadge(data.getValue().verdict())));
+        verdictCol.setStyle("-fx-alignment: CENTER;");
+        verdictCol.setCellFactory(column -> new TableCell<SubmissionHistoryRow, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setGraphic(null);
+                    setText(null);
+                    return;
+                }
+                Label pill = new Label(item);
+                applyPillStyle(pill, item);
+                setGraphic(pill);
+                setText(null);
+            }
+        });
+        TableColumn<SubmissionHistoryRow, Void> viewCodeCol = new TableColumn<>("Thao tác");
+        viewCodeCol.setStyle("-fx-alignment: CENTER;");
+        viewCodeCol.setCellFactory(column -> new TableCell<SubmissionHistoryRow, Void>() {
+            private final Button viewButton = new Button("Mở mã nguồn");
+            {
+                viewButton.getStyleClass().addAll("button", "btn-secondary");
+                viewButton.setOnAction(event -> {
+                    SubmissionHistoryRow row = getTableView().getItems().get(getIndex());
+                    showSubmittedCode(row);
+                });
+            }
 
-        historyPlaceholderLabel = new Label("Chưa có lượt nộp bài nào.");
-        historyPlaceholderLabel
-                .setStyle("-fx-font-size: 11.5px; -fx-text-fill: -text-secondary; -fx-padding: 6 0 6 0;");
-        historyListContainer.getChildren().add(historyPlaceholderLabel);
-
-        card.getChildren().addAll(histTitle, historyListContainer);
-        return card;
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                setGraphic(empty ? null : viewButton);
+            }
+        });
+        historyTable.getColumns().addAll(problemCol, timeCol, verdictCol, viewCodeCol);
+        section.getChildren().addAll(title, historyTable);
+        return section;
     }
 
     public void clearHistory() {
-        historyListContainer.getChildren().clear();
-        if (historyPlaceholderLabel != null) {
-            historyListContainer.getChildren().add(historyPlaceholderLabel);
-        }
+        historyRows.clear();
     }
 
-    public void appendSubmissionHistory(String title, String timestamp, String verdict) {
-        if (historyPlaceholderLabel != null) {
-            historyListContainer.getChildren().remove(historyPlaceholderLabel);
-        }
-
-        HBox item = new HBox(8);
-        item.setAlignment(Pos.CENTER_LEFT);
-        item.setStyle(
-                "-fx-padding: 4 0 6 0; -fx-border-color: transparent transparent -border-subtle transparent; -fx-border-width: 0 0 1 0;");
-
-        VBox textCol = new VBox(2);
-        Label titleLbl = new Label(title);
-        titleLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
-
-        String timeDisplay = (timestamp != null && timestamp.length() > 19) ? timestamp.substring(0, 19) : (timestamp != null ? timestamp : "");
-        Label timeLbl = new Label(timeDisplay);
-        timeLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: -text-secondary;");
-        textCol.getChildren().addAll(titleLbl, timeLbl);
-
-        Region sp = new Region();
-        HBox.setHgrow(sp, Priority.ALWAYS);
-
-        Label pill = new Label(verdictToBadge(verdict));
-        applyPillStyle(pill, verdict);
-
-        item.getChildren().addAll(textCol, sp, pill);
-        historyListContainer.getChildren().add(item);
+    public void appendSubmissionHistory(String title, String timestamp, String verdict, String sourceCode) {
+        historyRows.add(new SubmissionHistoryRow(title, formatTimestamp(timestamp), verdict, sourceCode));
     }
 
-    public void addSubmissionHistory(String title, String timestamp, String verdict) {
-        if (historyPlaceholderLabel != null) {
-            historyListContainer.getChildren().remove(historyPlaceholderLabel);
-        }
+    public void addSubmissionHistory(String title, String timestamp, String verdict, String sourceCode) {
+        historyRows.add(0, new SubmissionHistoryRow(title, formatTimestamp(timestamp), verdict, sourceCode));
+    }
 
-        HBox item = new HBox(8);
-        item.setAlignment(Pos.CENTER_LEFT);
-        item.setStyle(
-                "-fx-padding: 4 0 6 0; -fx-border-color: transparent transparent -border-subtle transparent; -fx-border-width: 0 0 1 0;");
+    private void showSubmittedCode(SubmissionHistoryRow row) {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Mã nguồn đã nộp");
+        dialog.setHeaderText(row.title() + " — " + row.timestamp());
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
 
-        VBox textCol = new VBox(2);
-        Label titleLbl = new Label(title);
-        titleLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
+        TextArea codeArea = new TextArea(row.sourceCode() == null || row.sourceCode().isBlank()
+                ? "Không có mã nguồn để hiển thị."
+                : row.sourceCode());
+        codeArea.setEditable(false);
+        codeArea.setWrapText(false);
+        codeArea.getStyleClass().add("code-editor");
+        codeArea.setPrefSize(700, 420);
 
-        String timeDisplay = (timestamp != null && timestamp.length() > 19) ? timestamp.substring(0, 19) : (timestamp != null ? timestamp : "");
-        Label timeLbl = new Label(timeDisplay);
-        timeLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: -text-secondary;");
-        textCol.getChildren().addAll(titleLbl, timeLbl);
+        dialog.getDialogPane().setContent(codeArea);
+        dialog.getDialogPane().setPrefSize(760, 520);
+        dialog.showAndWait();
+    }
 
-        Region sp = new Region();
-        HBox.setHgrow(sp, Priority.ALWAYS);
-
-        Label pill = new Label(verdictToBadge(verdict));
-        applyPillStyle(pill, verdict);
-
-        item.getChildren().addAll(textCol, sp, pill);
-        historyListContainer.getChildren().add(0, item);
+    private String formatTimestamp(String timestamp) {
+        return timestamp != null && timestamp.length() > 19 ? timestamp.substring(0, 19)
+                : (timestamp != null ? timestamp : "");
     }
 
     private String verdictToBadge(String v) {
@@ -343,31 +332,30 @@ public class ProblemView extends BorderPane {
         BorderPane pane = new BorderPane();
         pane.setPadding(new Insets(6, 0, 6, 0));
 
-        // Trình biên dịch bên trái
+        // Bên trái chỉ hiển thị giới hạn chấm bài.
         HBox leftBox = new HBox(10);
         leftBox.setAlignment(Pos.CENTER_LEFT);
-
-        Label compilerLabel = new Label("Trình biên dịch:");
-        compilerLabel.setStyle("-fx-font-weight: normal; -fx-text-fill: -text-primary; -fx-font-size: 13px;");
-
-        languageComboBox = new ComboBox<>(FXCollections.observableArrayList(
-                "C",
-                "C++",
-                "Java",
-                "Python 3"));
-        languageComboBox.getSelectionModel().select("C");
-        languageComboBox.setPrefWidth(120);
-
-        leftBox.getChildren().addAll(compilerLabel, languageComboBox);
+        leftBox.getChildren().add(metaConstraintsLabel);
         pane.setLeft(leftBox);
+        pane.setAlignment(leftBox, Pos.TOP_LEFT);
 
         final double BTN_WIDTH = 200;
         final double BTN_HEIGHT = 36;
 
         // Khối thao tác bên phải: Tải file lên và Nộp bài đi liền với nhau
         VBox rightActions = new VBox(8);
-        rightActions.setPrefWidth(BTN_WIDTH);
+        rightActions.setPrefWidth(480);
         rightActions.setAlignment(Pos.CENTER_RIGHT);
+
+        HBox compilerBox = new HBox(8);
+        compilerBox.setAlignment(Pos.CENTER_RIGHT);
+        Label compilerLabel = new Label("Trình biên dịch:");
+        compilerLabel.setStyle("-fx-text-fill: -text-primary; -fx-font-size: 14px;");
+        compilerLabel.setMinWidth(105);
+        languageComboBox = new ComboBox<>(FXCollections.observableArrayList("C", "C++", "Java", "Python 3"));
+        languageComboBox.getSelectionModel().select("C");
+        languageComboBox.setPrefWidth(130);
+        compilerBox.getChildren().addAll(compilerLabel, languageComboBox);
 
         // 1. Nút Tải file lên (kích thước chuẩn 200x36)
         uploadDropZone = new HBox(8);
@@ -381,6 +369,10 @@ public class ProblemView extends BorderPane {
         uploadText.setStyle("-fx-font-size: 13px; -fx-text-fill: -text-primary; -fx-font-weight: normal;");
 
         uploadDropZone.getChildren().addAll(uploadText);
+
+        // Chọn trình biên dịch nằm cùng hàng, bên trái nút tải file.
+        HBox uploadRow = new HBox(10, compilerBox, uploadDropZone);
+        uploadRow.setAlignment(Pos.CENTER_RIGHT);
 
         // 1.5. Hiển thị file đã chọn (nếu có)
         selectedFileBox = new HBox(6);
@@ -420,47 +412,10 @@ public class ProblemView extends BorderPane {
         submitButton.setMinSize(BTN_WIDTH, BTN_HEIGHT);
         submitButton.setMaxSize(BTN_WIDTH, BTN_HEIGHT);
 
-        rightActions.getChildren().addAll(uploadDropZone, selectedFileBox, progressBar, submitButton);
+        rightActions.getChildren().addAll(uploadRow, selectedFileBox, progressBar, submitButton);
         pane.setRight(rightActions);
 
         return pane;
-    }
-
-    // =========================================================================
-    // 6. KHUNG GÕ / DÁN MÃ NGUỒN (TEXTBOX MÀU XÁM KÈM NÚT NỘP BÀI NHANH Ở DƯỚI)
-    // =========================================================================
-
-    private VBox buildCodeEditorSection() {
-        VBox box = new VBox(8);
-
-        // Textbox dán code có nền màu xám nhạt #F0F2F5
-        codeEditorArea = new TextArea();
-        codeEditorArea.getStyleClass().addAll("text-area", "code-editor");
-        codeEditorArea.setStyle("-fx-control-inner-background: #F0F2F5; -fx-background-color: #F0F2F5;");
-        codeEditorArea.setPromptText("Dán code của bạn vào đây và nhấn 'Nộp bài nhanh'...");
-        codeEditorArea.setPrefRowCount(14);
-        codeEditorArea.setMinHeight(260);
-
-        Font monoFont = Font.font("JetBrains Mono", 13.0);
-        if (monoFont.getFamily().equals("System")) {
-            monoFont = Font.font("Consolas", 13.0);
-        }
-        codeEditorArea.setFont(monoFont);
-
-        // Hàng chứa nút "Nộp bài nhanh" ở ngay dưới ô textbox (kích thước chuẩn 200x36)
-        HBox pasteSubmitRow = new HBox();
-        pasteSubmitRow.setAlignment(Pos.CENTER_RIGHT);
-
-        pasteAndSubmitButton = new Button("Nộp bài nhanh");
-        pasteAndSubmitButton.getStyleClass().add("btn-paste-submit");
-        pasteAndSubmitButton.setPrefSize(200, 36);
-        pasteAndSubmitButton.setMinSize(200, 36);
-        pasteAndSubmitButton.setMaxSize(200, 36);
-
-        pasteSubmitRow.getChildren().add(pasteAndSubmitButton);
-
-        box.getChildren().addAll(codeEditorArea, pasteSubmitRow);
-        return box;
     }
 
     // =========================================================================
@@ -537,6 +492,7 @@ public class ProblemView extends BorderPane {
         try {
             String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
             this.fileCodeContent = content;
+            this.activeSubmissionCode = content;
 
             // Tự động nhận diện ngôn ngữ theo phần mở rộng file
             String fileName = file.getName().toLowerCase();
@@ -580,6 +536,7 @@ public class ProblemView extends BorderPane {
     private void clearSelectedFile() {
         this.selectedFile = null;
         this.fileCodeContent = null;
+        this.activeSubmissionCode = null;
         selectedFileBox.setVisible(false);
         selectedFileBox.setManaged(false);
     }
@@ -587,41 +544,6 @@ public class ProblemView extends BorderPane {
     // =========================================================================
     // 8. CẤU HÌNH EVENT BINDINGS & PHÍM TẮT
     // =========================================================================
-
-    private void setupEditorHandlers() {
-        // Phím Tab thụt lề 4 spaces & Ctrl+Enter nộp bài nhanh
-        codeEditorArea.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
-            if (event.getCode() == KeyCode.TAB) {
-                event.consume();
-                int caretPos = codeEditorArea.getCaretPosition();
-                codeEditorArea.insertText(caretPos, "    ");
-            } else if (event.getCode() == KeyCode.ENTER && (event.isControlDown() || event.isMetaDown())) {
-                event.consume();
-                String code = codeEditorArea.getText().trim();
-                if (code.isEmpty()) {
-                    showWarning("Vui lòng dán mã nguồn vào ô trước khi nhấn 'Nộp bài nhanh'.");
-                    return;
-                }
-                this.activeSubmissionCode = code;
-                triggerSubmit();
-            }
-        });
-
-        addEventFilter(KeyEvent.KEY_PRESSED, event -> {
-            if (event.getCode() == KeyCode.ENTER && (event.isControlDown() || event.isMetaDown())) {
-                event.consume();
-                if (!codeEditorArea.getText().trim().isEmpty()) {
-                    this.activeSubmissionCode = codeEditorArea.getText().trim();
-                    triggerSubmit();
-                } else if (fileCodeContent != null && !fileCodeContent.trim().isEmpty()) {
-                    this.activeSubmissionCode = fileCodeContent;
-                    triggerSubmit();
-                } else {
-                    showWarning("Vui lòng tải file mã nguồn hoặc dán mã vào ô trước khi nộp bài.");
-                }
-            }
-        });
-    }
 
     private void setupEventBindings() {
         backButton.setOnAction(e -> {
@@ -639,24 +561,6 @@ public class ProblemView extends BorderPane {
             triggerSubmit();
         });
 
-        // Nút Nộp bài nhanh: lấy code từ ô textbox (hoặc clipboard nếu ô đang trống) và nộp ngay
-        pasteAndSubmitButton.setOnAction(e -> {
-            String code = codeEditorArea.getText().trim();
-            if (code.isEmpty()) {
-                Clipboard clipboard = Clipboard.getSystemClipboard();
-                if (clipboard.hasString() && !clipboard.getString().trim().isEmpty()) {
-                    code = clipboard.getString().trim();
-                    codeEditorArea.setText(code);
-                }
-            }
-            if (code.isEmpty()) {
-                showWarning("Vui lòng dán code vào ô trước khi nhấn 'Nộp bài nhanh'.");
-                return;
-            }
-            this.activeSubmissionCode = code;
-            triggerSubmit();
-        });
-
         languageComboBox.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (onLanguageChangeHandler != null && newVal != null) {
                 onLanguageChangeHandler.accept(newVal);
@@ -665,7 +569,8 @@ public class ProblemView extends BorderPane {
     }
 
     private void triggerSubmit() {
-        String code = getCode().trim();
+        String source = getCode();
+        String code = source == null ? "" : source.trim();
         if (code.isEmpty()) {
             showWarning("Vui lòng tải file mã nguồn lên hoặc dán code vào ô trước khi nộp bài.");
             return;
@@ -758,6 +663,8 @@ public class ProblemView extends BorderPane {
             Label inHeader = new Label("Input");
             inHeader.getStyleClass().add("sample-table-header-cell");
             inHeader.setMaxWidth(Double.MAX_VALUE);
+            inHeader.setStyle(
+                    "-fx-border-color: transparent -border-subtle transparent transparent; -fx-border-width: 0 1 0 0;");
 
             Label outHeader = new Label("Output");
             outHeader.getStyleClass().add("sample-table-header-cell");
@@ -770,6 +677,8 @@ public class ProblemView extends BorderPane {
             HBox inCell = new HBox(8);
             inCell.getStyleClass().add("sample-table-data-cell");
             inCell.setAlignment(Pos.CENTER_LEFT);
+            inCell.setStyle(
+                    "-fx-border-color: transparent -border-subtle transparent transparent; -fx-border-width: 0 1 0 0;");
             Label inData = new Label(sc.input.trim());
             inData.setStyle("-fx-font-family: 'JetBrains Mono', Consolas, monospace; -fx-text-fill: -text-primary;");
             Region sp1 = new Region();
@@ -821,7 +730,7 @@ public class ProblemView extends BorderPane {
         String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         String probTitle = (currentProblem != null) ? currentProblem.getTitle() : "BÀI TẬP";
 
-        addSubmissionHistory(probTitle, nowStr, verdict);
+        addSubmissionHistory(probTitle, nowStr, verdict, getCode());
 
         // Nếu có lỗi biên dịch, hiển thị popup thông báo chi tiết
         if (compileError != null && !compileError.trim().isEmpty()) {
@@ -840,7 +749,6 @@ public class ProblemView extends BorderPane {
 
     public void setBusy(boolean isBusy, String waitingMessage) {
         submitButton.setDisable(isBusy);
-        pasteAndSubmitButton.setDisable(isBusy);
         uploadDropZone.setDisable(isBusy);
 
         if (isBusy) {
@@ -891,15 +799,11 @@ public class ProblemView extends BorderPane {
 
     // Getters & Handlers
     public String getCode() {
-        if (activeSubmissionCode != null) {
-            return activeSubmissionCode;
-        }
-        return codeEditorArea.getText();
+        return activeSubmissionCode != null ? activeSubmissionCode : fileCodeContent;
     }
 
     public void setCode(String code) {
         this.activeSubmissionCode = code;
-        codeEditorArea.setText(code);
     }
 
     public String getSelectedLanguage() {
@@ -926,24 +830,26 @@ public class ProblemView extends BorderPane {
     }
 
     public void updateProctorStatus(int violationCount, String severity, String detail) {
-        if (proctorBadge == null) return;
+        if (proctorBadge == null)
+            return;
         if (violationCount <= 0) {
             proctorBadge.setText("🛡️ Giám sát: Bình thường (Cho phép IDE)");
-            proctorBadge.setStyle("-fx-background-color: rgba(34, 197, 94, 0.15); -fx-text-fill: #16a34a; -fx-padding: 4 12; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 12px; -fx-border-color: rgba(34, 197, 94, 0.3); -fx-border-radius: 12px;");
+            proctorBadge.setStyle(
+                    "-fx-background-color: rgba(34, 197, 94, 0.15); -fx-text-fill: #16a34a; -fx-padding: 4 12; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 12px; -fx-border-color: rgba(34, 197, 94, 0.3); -fx-border-radius: 12px;");
         } else {
             String shortDetail = (detail != null && !detail.isBlank()) ? detail : "ChatGPT/Gemini";
             if (shortDetail.length() > 28) {
                 shortDetail = shortDetail.substring(0, 25) + "...";
             }
             proctorBadge.setText("🚨 Phát hiện AI: " + shortDetail + " (" + violationCount + " lần)");
-            proctorBadge.setStyle("-fx-background-color: rgba(239, 68, 68, 0.2); -fx-text-fill: #dc2626; -fx-padding: 4 12; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 12px; -fx-border-color: #ef4444; -fx-border-radius: 12px;");
+            proctorBadge.setStyle(
+                    "-fx-background-color: rgba(239, 68, 68, 0.2); -fx-text-fill: #dc2626; -fx-padding: 4 12; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 12px; -fx-border-color: #ef4444; -fx-border-radius: 12px;");
         }
     }
 
     public void showProctorWarningToast(String message, String severity) {
         Alert alert = new Alert(
-                "CRITICAL".equalsIgnoreCase(severity) ? Alert.AlertType.ERROR : Alert.AlertType.WARNING
-        );
+                "CRITICAL".equalsIgnoreCase(severity) ? Alert.AlertType.ERROR : Alert.AlertType.WARNING);
         alert.setTitle("Cảnh Báo Giám Sát Chống Gian Lận");
         alert.setHeaderText("Phát hiện mở công cụ AI (ChatGPT / Gemini)!");
         alert.setContentText(message != null ? message : "Nghiêm cấm mở ChatGPT/Gemini trong quá trình làm bài.");
@@ -984,5 +890,8 @@ public class ProblemView extends BorderPane {
             this.input = input;
             this.output = output;
         }
+    }
+
+    private record SubmissionHistoryRow(String title, String timestamp, String verdict, String sourceCode) {
     }
 }

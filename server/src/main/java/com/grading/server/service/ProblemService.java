@@ -85,6 +85,10 @@ public class ProblemService {
         problemRepository.updateProblemActive(problemId, active);
     }
 
+    public void deleteProblem(int problemId) throws SQLException {
+        problemRepository.deleteProblem(problemId);
+    }
+
     public Problem updateProblem(Problem problem, List<com.grading.server.model.TestCase> testCases) throws SQLException {
         if (testCases == null || testCases.isEmpty()) {
             throw new IllegalArgumentException("Bài tập phải có ít nhất một test case");

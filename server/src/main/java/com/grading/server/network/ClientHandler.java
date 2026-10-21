@@ -1,6 +1,7 @@
 package com.grading.server.network;
 
 import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
 import com.grading.server.model.Problem;
 import com.grading.server.model.Submission;
 import com.grading.server.model.User;
@@ -19,6 +20,9 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 
 /**
  * ClientHandler — xử lý 1 TCP connection với 1 client.
@@ -142,11 +146,13 @@ public class ClientHandler implements Runnable {
                     case GET_PROBLEM_DETAIL -> handleGetProblemDetail(request);
                     case CREATE_PROBLEM     -> handleCreateProblem(request);
                     case UPDATE_PROBLEM     -> handleUpdateProblem(request);
+                    case DELETE_PROBLEM     -> handleDeleteProblem(request);
                     case SUBMIT             -> handleSubmit(request);
                     case GET_RESULT         -> handleGetResult(request);
                     case GET_HISTORY        -> handleGetHistory(request);
                     case GET_COURSES        -> handleGetCourses(request);
                     case CREATE_COURSE      -> handleCreateCourse(request);
+                    case UPDATE_COURSE      -> handleUpdateCourse(request);
                     case DELETE_COURSE      -> handleDeleteCourse(request);
                     case GET_CLASSES        -> handleGetClasses(request);
                     case CREATE_CLASS       -> handleCreateClass(request);
@@ -156,6 +162,7 @@ public class ClientHandler implements Runnable {
                     case IMPORT_STUDENTS    -> handleImportStudents(request);
                     case UPDATE_STUDENT     -> handleUpdateStudent(request);
                     case DELETE_STUDENT     -> handleDeleteStudent(request);
+                    case GET_CLASS_STUDENT_STATS -> handleGetClassStudentStats(request);
                     case GET_MY_CLASSES     -> handleGetMyClasses(request);
                     case TOGGLE_COURSE_ACTIVE -> handleToggleCourseActive(request);
                     case TOGGLE_PROBLEM_ACTIVE -> handleToggleProblemActive(request);
@@ -514,6 +521,44 @@ public class ClientHandler implements Runnable {
         } catch (Exception e) {
             logger.error("CreateCourse error", e);
             sendError(request.getRequestId(), "Không thể tạo môn học: " + e.getMessage());
+        }
+    }
+
+    private void handleDeleteProblem(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền xóa bài tập");
+            return;
+        }
+        try {
+            int id = request.getData().getAsJsonObject().get("id").getAsInt();
+            problemService.deleteProblem(id);
+            send(Message.success(MessageType.DELETE_PROBLEM_RESPONSE, request.getRequestId(), "Đã xóa bài tập", null));
+        } catch (Exception e) {
+            logger.error("DeleteProblem error", e);
+            sendError(request.getRequestId(), "Không thể xóa bài tập: " + e.getMessage());
+        }
+    }
+
+    private void handleUpdateCourse(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền cập nhật môn học");
+            return;
+        }
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            com.grading.server.model.Course course = new com.grading.server.model.Course();
+            course.setId(data.get("id").getAsInt());
+            course.setCode(data.get("code").getAsString());
+            course.setName(data.get("name").getAsString());
+            course.setLanguage(data.has("language") ? data.get("language").getAsString() : "cpp");
+            course.setDescription(data.has("description") ? data.get("description").getAsString() : "");
+            course.setActive(!data.has("active") || data.get("active").getAsBoolean());
+            academicService.updateCourse(course);
+            send(Message.success(MessageType.UPDATE_COURSE_RESPONSE, request.getRequestId(),
+                    "Cập nhật môn học thành công", null));
+        } catch (Exception e) {
+            logger.error("UpdateCourse error", e);
+            sendError(request.getRequestId(), "Không thể cập nhật môn học: " + e.getMessage());
         }
     }
 
@@ -999,6 +1044,36 @@ public class ClientHandler implements Runnable {
         } catch (Exception e) {
             logger.error("ProctorEvent error", e);
             sendError(request.getRequestId(), "Lỗi ghi nhận sự kiện giám sát: " + e.getMessage());
+        }
+    }
+
+    private void handleGetClassStudentStats(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền xem thống kê lớp");
+            return;
+        }
+        try {
+            int classId = request.getData().getAsJsonObject().get("classId").getAsInt();
+            String sql = "SELECT u.id AS student_id, COUNT(DISTINCT s.problem_id) AS solved_count " +
+                    "FROM users u LEFT JOIN submissions s ON s.user_id = u.id AND s.verdict = 'AC' " +
+                    "WHERE u.role = 'STUDENT' AND u.class_id = ? GROUP BY u.id";
+            JsonArray rows = new JsonArray();
+            try (Connection conn = com.grading.server.config.DatabaseConfig.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setInt(1, classId);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        JsonObject row = new JsonObject();
+                        row.addProperty("studentId", rs.getInt("student_id"));
+                        row.addProperty("solvedCount", rs.getInt("solved_count"));
+                        rows.add(row);
+                    }
+                }
+            }
+            send(Message.success(MessageType.GET_CLASS_STUDENT_STATS_RESPONSE, request.getRequestId(), "OK", rows));
+        } catch (Exception e) {
+            logger.error("GetClassStudentStats error", e);
+            sendError(request.getRequestId(), "Không thể tải thống kê sinh viên");
         }
     }
 

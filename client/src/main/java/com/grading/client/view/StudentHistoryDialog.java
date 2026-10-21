@@ -29,7 +29,6 @@ public class StudentHistoryDialog extends Dialog<Void> {
 
     private TableView<Submission> table;
     private ObservableList<Submission> submissions = FXCollections.observableArrayList();
-    private TextArea codePreviewArea;
     private Label totalSubmissionsLabel;
 
     public StudentHistoryDialog(Stage owner) {
@@ -44,8 +43,8 @@ public class StudentHistoryDialog extends Dialog<Void> {
         if (res != null) {
             pane.getStylesheets().setAll(res.toExternalForm());
         }
-        pane.setPrefWidth(920);
-        pane.setPrefHeight(620);
+        pane.setPrefWidth(1000);
+        pane.setPrefHeight(510);
 
         VBox contentBox = new VBox(12);
         contentBox.setPadding(new Insets(16));
@@ -69,7 +68,7 @@ public class StudentHistoryDialog extends Dialog<Void> {
         table = new TableView<>();
         table.getStyleClass().add("table-view");
         table.setPlaceholder(new Label("Chưa có lượt nộp bài nào trong quá khứ"));
-        table.setPrefHeight(320);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
         TableColumn<Submission, Integer> colId = new TableColumn<>("#ID");
         colId.setCellValueFactory(new PropertyValueFactory<>("id"));
@@ -81,16 +80,16 @@ public class StudentHistoryDialog extends Dialog<Void> {
             String t = c.getValue().getProblemTitle();
             return new SimpleStringProperty(t != null && !t.isBlank() ? t : "Bài #" + c.getValue().getProblemId());
         });
-        colTitle.setPrefWidth(220);
+        colTitle.setPrefWidth(260);
 
         TableColumn<Submission, String> colLang = new TableColumn<>("Ngôn ngữ");
         colLang.setCellValueFactory(new PropertyValueFactory<>("language"));
-        colLang.setPrefWidth(90);
+        colLang.setPrefWidth(95);
         colLang.setStyle("-fx-alignment: CENTER;");
 
         TableColumn<Submission, String> colVerdict = new TableColumn<>("Kết quả");
         colVerdict.setCellValueFactory(new PropertyValueFactory<>("verdict"));
-        colVerdict.setPrefWidth(110);
+        colVerdict.setPrefWidth(105);
         colVerdict.setStyle("-fx-alignment: CENTER;");
         colVerdict.setCellFactory(col -> new TableCell<Submission, String>() {
             @Override
@@ -119,48 +118,35 @@ public class StudentHistoryDialog extends Dialog<Void> {
             }
         });
 
-        TableColumn<Submission, String> colPass = new TableColumn<>("Test pass");
-        colPass.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getPassedTests() + "/" + c.getValue().getTotalTests()));
+        TableColumn<Submission, String> colPass = new TableColumn<>("Test đạt");
+        colPass.setCellValueFactory(c -> new SimpleStringProperty(formatTestResult(c.getValue())));
         colPass.setPrefWidth(90);
         colPass.setStyle("-fx-alignment: CENTER;");
 
-        TableColumn<Submission, Integer> colScore = new TableColumn<>("Điểm");
-        colScore.setCellValueFactory(new PropertyValueFactory<>("score"));
-        colScore.setPrefWidth(70);
-        colScore.setStyle("-fx-alignment: CENTER;");
-
         TableColumn<Submission, String> colTime = new TableColumn<>("Thời gian");
-        colTime.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getExecTimeMs() + "ms"));
-        colTime.setPrefWidth(90);
+        colTime.setCellValueFactory(c -> new SimpleStringProperty(formatExecutionTime(c.getValue().getExecTimeMs())));
+        colTime.setPrefWidth(105);
         colTime.setStyle("-fx-alignment: CENTER;");
 
         TableColumn<Submission, String> colDate = new TableColumn<>("Thời điểm nộp");
-        colDate.setCellValueFactory(new PropertyValueFactory<>("submittedAt"));
-        colDate.setPrefWidth(160);
+        colDate.setCellValueFactory(c -> new SimpleStringProperty(formatSubmittedAt(c.getValue().getSubmittedAt())));
+        colDate.setPrefWidth(180);
 
-        table.getColumns().addAll(colId, colTitle, colLang, colVerdict, colPass, colScore, colTime, colDate);
+        table.getColumns().addAll(colId, colTitle, colLang, colVerdict, colPass, colTime, colDate);
         table.setItems(submissions);
         VBox.setVgrow(table, Priority.ALWAYS);
 
-        // Preview Code khi click chọn dòng
-        Label previewTitle = new Label("Mã nguồn bài nộp được chọn:");
-        previewTitle.getStyleClass().add("meta-item");
-
-        codePreviewArea = new TextArea();
-        codePreviewArea.setPromptText("Nhấp chọn một lượt nộp bài ở bảng trên để xem lại mã nguồn đã nộp...");
-        codePreviewArea.setEditable(false);
-        codePreviewArea.setPrefRowCount(7);
-        codePreviewArea.getStyleClass().add("code-editor");
-
-        table.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null && newVal.getSourceCode() != null) {
-                codePreviewArea.setText(newVal.getSourceCode());
-            } else {
-                codePreviewArea.setText("");
-            }
+        table.setRowFactory(view -> {
+            TableRow<Submission> row = new TableRow<>();
+            row.setOnMouseClicked(event -> {
+                if (!row.isEmpty() && event.getClickCount() == 1) {
+                    showSourceCode(row.getItem());
+                }
+            });
+            return row;
         });
 
-        contentBox.getChildren().addAll(topInfo, table, previewTitle, codePreviewArea);
+        contentBox.getChildren().addAll(topInfo, table);
         pane.setContent(contentBox);
 
         ButtonType closeBtnType = new ButtonType("Đóng", ButtonBar.ButtonData.CANCEL_CLOSE);
@@ -195,21 +181,55 @@ public class StudentHistoryDialog extends Dialog<Void> {
                         }
                         if (obj.has("verdict")) s.setVerdict(obj.get("verdict").getAsString());
                         if (obj.has("score")) s.setScore(obj.get("score").getAsInt());
-                        if (obj.has("passedTestCases")) s.setPassedTests(obj.get("passedTestCases").getAsInt());
-                        if (obj.has("totalTestCases")) s.setTotalTests(obj.get("totalTestCases").getAsInt());
-                        if (obj.has("executionTimeMs")) s.setExecTimeMs(obj.get("executionTimeMs").getAsInt());
+                        if (obj.has("passedTests")) s.setPassedTests(obj.get("passedTests").getAsInt());
+                        else if (obj.has("passedTestCases")) s.setPassedTests(obj.get("passedTestCases").getAsInt());
+                        if (obj.has("totalTests")) s.setTotalTests(obj.get("totalTests").getAsInt());
+                        else if (obj.has("totalTestCases")) s.setTotalTests(obj.get("totalTestCases").getAsInt());
+                        if (obj.has("execTimeMs")) s.setExecTimeMs(obj.get("execTimeMs").getAsInt());
+                        else if (obj.has("executionTimeMs")) s.setExecTimeMs(obj.get("executionTimeMs").getAsInt());
                         if (obj.has("memoryUsedKb")) s.setMemoryUsedKb(obj.get("memoryUsedKb").getAsInt());
-                        if (obj.has("createdAt")) s.setSubmittedAt(obj.get("createdAt").getAsString());
+                        if (obj.has("submittedAt") && !obj.get("submittedAt").isJsonNull()) s.setSubmittedAt(obj.get("submittedAt").getAsString());
+                        else if (obj.has("createdAt")) s.setSubmittedAt(obj.get("createdAt").getAsString());
 
                         list.add(s);
                     }
                     submissions.setAll(list);
                     totalSubmissionsLabel.setText("Tổng cộng: " + list.size() + " lượt nộp");
-                    if (!list.isEmpty()) {
-                        table.getSelectionModel().select(0);
-                    }
                 }
             });
         });
+    }
+
+    private String formatExecutionTime(int executionTimeMs) {
+        return executionTimeMs > 0 ? executionTimeMs + " ms" : "—";
+    }
+
+    private String formatTestResult(Submission submission) {
+        return submission.getTotalTests() > 0
+                ? submission.getPassedTests() + "/" + submission.getTotalTests()
+                : "—";
+    }
+
+    private String formatSubmittedAt(String submittedAt) {
+        return submittedAt != null && submittedAt.length() > 19
+                ? submittedAt.substring(0, 19) : (submittedAt == null ? "—" : submittedAt);
+    }
+
+    private void showSourceCode(Submission submission) {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Mã nguồn đã nộp");
+        dialog.setHeaderText(submission.getProblemTitle() + " — " + submission.getSubmittedAt());
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+        TextArea sourceArea = new TextArea(submission.getSourceCode() == null || submission.getSourceCode().isBlank()
+                ? "Không có mã nguồn để hiển thị." : submission.getSourceCode());
+        sourceArea.setEditable(false);
+        sourceArea.setWrapText(false);
+        sourceArea.getStyleClass().add("code-editor");
+        sourceArea.setPrefSize(760, 450);
+
+        dialog.getDialogPane().setContent(sourceArea);
+        dialog.getDialogPane().setPrefSize(820, 550);
+        dialog.showAndWait();
     }
 }

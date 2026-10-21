@@ -39,7 +39,6 @@ public class AdminView extends BorderPane {
     // Navigation Tab Buttons
     private Button navCoursesBtn;
     private Button navClassesBtn;
-    private Button navStudentsBtn;
     private Button navProblemsBtn;
 
     // Stack container for Tab contents
@@ -55,6 +54,7 @@ public class AdminView extends BorderPane {
     private TableView<Course> courseTable;
     private ObservableList<Course> courseList = FXCollections.observableArrayList();
     private Button addCourseBtn;
+    private Consumer<Course> onEditCourse;
     private Consumer<Course> onDeleteCourse;
 
     // ─── TAB 2: CLASSES ───
@@ -63,6 +63,7 @@ public class AdminView extends BorderPane {
     private Button addClassBtn;
     private Consumer<CreditClass> onEditClass;
     private Consumer<CreditClass> onDeleteClass;
+    private Consumer<CreditClass> onViewClass;
 
     // ─── TAB 3: STUDENTS ───
     private ComboBox<CreditClass> studentFilterClassCombo;
@@ -89,6 +90,7 @@ public class AdminView extends BorderPane {
     private Label problemPageLbl;
     private java.util.function.BiConsumer<Problem, Boolean> onToggleProblemActive;
     private Consumer<Problem> onEditProblem;
+    private Consumer<Problem> onDeleteProblem;
 
     // Callbacks
     private Runnable onLogout;
@@ -106,6 +108,7 @@ public class AdminView extends BorderPane {
 
     private void buildLayout() {
         getStyleClass().add("main-pane");
+        setStyle("-fx-font-size: 14px;");
 
         // 1. TOP HEADER
         HBox topBar = new HBox(12);
@@ -114,7 +117,7 @@ public class AdminView extends BorderPane {
         topBar.setPadding(new Insets(8, 20, 8, 20));
 
         brandLabel = new Label("Auto Grader — Cổng Quản Trị Giáo Viên");
-        brandLabel.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
+        brandLabel.setStyle("-fx-font-size: 17px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
 
         Label adminBadge = new Label("ADMIN / GIÁO VIÊN");
         adminBadge.getStyleClass().add("badge-role");
@@ -144,10 +147,9 @@ public class AdminView extends BorderPane {
 
         navCoursesBtn = createNavButton("Môn học");
         navClassesBtn = createNavButton("Lớp tín chỉ");
-        navStudentsBtn = createNavButton("Sinh viên");
         navProblemsBtn = createNavButton("Bài tập");
 
-        navBar.getChildren().addAll(navCoursesBtn, navClassesBtn, navStudentsBtn, navProblemsBtn);
+        navBar.getChildren().addAll(navCoursesBtn, navClassesBtn, navProblemsBtn);
 
         // 3. CENTER CONTENT STACK
         contentStack = new StackPane();
@@ -158,7 +160,7 @@ public class AdminView extends BorderPane {
         studentsPane = buildStudentsPane();
         problemsPane = buildProblemsPane();
 
-        contentStack.getChildren().addAll(coursesPane, classesPane, studentsPane, problemsPane);
+        contentStack.getChildren().addAll(coursesPane, classesPane, problemsPane);
 
         VBox centerContainer = new VBox(navBar, contentStack);
         VBox.setVgrow(contentStack, Priority.ALWAYS);
@@ -169,8 +171,7 @@ public class AdminView extends BorderPane {
 
         navCoursesBtn.setOnAction(e -> switchTab(0));
         navClassesBtn.setOnAction(e -> switchTab(1));
-        navStudentsBtn.setOnAction(e -> switchTab(2));
-        navProblemsBtn.setOnAction(e -> switchTab(3));
+        navProblemsBtn.setOnAction(e -> switchTab(2));
     }
 
     private Button createNavButton(String text) {
@@ -182,15 +183,12 @@ public class AdminView extends BorderPane {
     private void switchTab(int index) {
         navCoursesBtn.getStyleClass().remove("admin-nav-btn-active");
         navClassesBtn.getStyleClass().remove("admin-nav-btn-active");
-        navStudentsBtn.getStyleClass().remove("admin-nav-btn-active");
         navProblemsBtn.getStyleClass().remove("admin-nav-btn-active");
 
         coursesPane.setVisible(false);
         coursesPane.setManaged(false);
         classesPane.setVisible(false);
         classesPane.setManaged(false);
-        studentsPane.setVisible(false);
-        studentsPane.setManaged(false);
         problemsPane.setVisible(false);
         problemsPane.setManaged(false);
 
@@ -206,11 +204,6 @@ public class AdminView extends BorderPane {
                 classesPane.setManaged(true);
             }
             case 2 -> {
-                navStudentsBtn.getStyleClass().add("admin-nav-btn-active");
-                studentsPane.setVisible(true);
-                studentsPane.setManaged(true);
-            }
-            case 3 -> {
                 navProblemsBtn.getStyleClass().add("admin-nav-btn-active");
                 problemsPane.setVisible(true);
                 problemsPane.setManaged(true);
@@ -260,9 +253,13 @@ public class AdminView extends BorderPane {
 
         TableColumn<Course, Void> colActions = new TableColumn<>("Thao tác");
         colActions.setCellFactory(col -> new TableCell<>() {
+            private final Button editBtn = new Button("Sửa");
             private final Button deleteBtn = new Button("Xóa");
-            { deleteBtn.getStyleClass().addAll("button", "btn-danger"); deleteBtn.setOnAction(e -> { if (onDeleteCourse != null) onDeleteCourse.accept(getTableView().getItems().get(getIndex())); }); }
-            @Override protected void updateItem(Void item, boolean empty) { super.updateItem(item, empty); setGraphic(empty ? null : deleteBtn); }
+            private final HBox actions = new HBox(8, editBtn, deleteBtn);
+            { editBtn.getStyleClass().addAll("button", "btn-secondary"); deleteBtn.getStyleClass().addAll("button", "btn-danger");
+              editBtn.setOnAction(e -> { if (onEditCourse != null) onEditCourse.accept(getTableView().getItems().get(getIndex())); });
+              deleteBtn.setOnAction(e -> { if (onDeleteCourse != null) onDeleteCourse.accept(getTableView().getItems().get(getIndex())); }); }
+            @Override protected void updateItem(Void item, boolean empty) { super.updateItem(item, empty); setGraphic(empty ? null : actions); }
         });
         courseTable.getColumns().addAll(colId, colCode, colName, colLang, colDesc, colActions);
         courseTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
@@ -312,18 +309,27 @@ public class AdminView extends BorderPane {
         colCount.setMaxWidth(140);
 
         TableColumn<CreditClass, Void> colActions = new TableColumn<>("Thao tác");
-        colActions.setMinWidth(130);
-        colActions.setMaxWidth(160);
+        colActions.setMinWidth(230);
+        colActions.setMaxWidth(260);
         colActions.setCellFactory(col -> new TableCell<CreditClass, Void>() {
+            private final Button viewBtn = new Button("Xem");
             private final Button editBtn = new Button("Sửa");
             private final Button delBtn = new Button("Xóa");
-            private final HBox box = new HBox(8, editBtn, delBtn);
+            private final HBox box = new HBox(8, viewBtn, editBtn, delBtn);
             {
                 box.setAlignment(Pos.CENTER);
+                viewBtn.getStyleClass().addAll("button", "btn-primary");
+                viewBtn.setStyle("-fx-padding: 3px 12px; -fx-font-size: 12px;");
                 editBtn.getStyleClass().addAll("button", "btn-secondary");
                 editBtn.setStyle("-fx-padding: 3px 12px; -fx-font-size: 11px;");
                 delBtn.getStyleClass().addAll("button", "btn-secondary");
                 delBtn.setStyle("-fx-padding: 3px 12px; -fx-font-size: 11px; -fx-text-fill: #F85149; -fx-border-color: #F85149;");
+
+                viewBtn.setOnAction(e -> {
+                    e.consume();
+                    CreditClass item = (getTableRow() != null) ? getTableRow().getItem() : null;
+                    if (item != null && onViewClass != null) onViewClass.accept(item);
+                });
 
                 editBtn.setOnAction(e -> {
                     CreditClass item = (getTableRow() != null) ? getTableRow().getItem() : null;
@@ -356,6 +362,15 @@ public class AdminView extends BorderPane {
         classTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         classTable.setItems(classList);
         VBox.setVgrow(classTable, Priority.ALWAYS);
+        classTable.setRowFactory(table -> {
+            TableRow<CreditClass> row = new TableRow<>();
+            row.setOnMouseClicked(event -> {
+                if (!row.isEmpty() && event.getClickCount() == 1 && onViewClass != null) {
+                    onViewClass.accept(row.getItem());
+                }
+            });
+            return row;
+        });
 
         pane.getChildren().addAll(toolbar, classTable);
         return pane;
@@ -592,8 +607,12 @@ public class AdminView extends BorderPane {
         TableColumn<Problem, Void> colActions = new TableColumn<>("Thao tác");
         colActions.setCellFactory(col -> new TableCell<>() {
             private final Button editBtn = new Button("Sửa");
-            { editBtn.getStyleClass().addAll("button", "btn-secondary"); editBtn.setOnAction(e -> { if (onEditProblem != null) onEditProblem.accept(getTableView().getItems().get(getIndex())); }); }
-            @Override protected void updateItem(Void item, boolean empty) { super.updateItem(item, empty); setGraphic(empty ? null : editBtn); }
+            private final Button deleteBtn = new Button("Xóa");
+            private final HBox actions = new HBox(8, editBtn, deleteBtn);
+            { editBtn.getStyleClass().addAll("button", "btn-secondary"); deleteBtn.getStyleClass().addAll("button", "btn-danger");
+              editBtn.setOnAction(e -> { if (onEditProblem != null) onEditProblem.accept(getTableView().getItems().get(getIndex())); });
+              deleteBtn.setOnAction(e -> { if (onDeleteProblem != null) onDeleteProblem.accept(getTableView().getItems().get(getIndex())); }); }
+            @Override protected void updateItem(Void item, boolean empty) { super.updateItem(item, empty); setGraphic(empty ? null : actions); }
         });
         problemTable.getColumns().addAll(colId, colTitle, colDiff, colClass, colStatus, colTime, colMem, colActions);
         problemTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
@@ -731,6 +750,7 @@ public class AdminView extends BorderPane {
     public Button getAddCourseBtn() { return addCourseBtn; }
 
     public void setOnDeleteCourse(Consumer<Course> onDeleteCourse) { this.onDeleteCourse = onDeleteCourse; }
+    public void setOnEditCourse(Consumer<Course> onEditCourse) { this.onEditCourse = onEditCourse; }
 
     public Button getAddClassBtn() { return addClassBtn; }
 
@@ -748,6 +768,10 @@ public class AdminView extends BorderPane {
         this.onDeleteClass = onDeleteClass;
     }
 
+    public void setOnViewClass(Consumer<CreditClass> onViewClass) {
+        this.onViewClass = onViewClass;
+    }
+
     public void setOnEditStudent(Consumer<User.UserDTO> onEditStudent) {
         this.onEditStudent = onEditStudent;
     }
@@ -761,6 +785,7 @@ public class AdminView extends BorderPane {
     }
 
     public void setOnEditProblem(Consumer<Problem> onEditProblem) { this.onEditProblem = onEditProblem; }
+    public void setOnDeleteProblem(Consumer<Problem> onDeleteProblem) { this.onDeleteProblem = onDeleteProblem; }
 
     public void setOnLogout(Runnable onLogout) {
         this.onLogout = onLogout;

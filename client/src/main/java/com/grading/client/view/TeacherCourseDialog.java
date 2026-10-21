@@ -20,9 +20,13 @@ public class TeacherCourseDialog extends Dialog<Course> {
     private TextArea descArea;
 
     public TeacherCourseDialog(Stage owner) {
+        this(owner, null);
+    }
+
+    public TeacherCourseDialog(Stage owner, Course existing) {
         initOwner(owner);
         initModality(Modality.APPLICATION_MODAL);
-        setTitle("Thêm Môn Học Mới");
+        setTitle(existing == null ? "Thêm Môn Học Mới" : "Sửa Môn Học");
 
         DialogPane pane = getDialogPane();
         pane.getStyleClass().add("card");
@@ -56,12 +60,19 @@ public class TeacherCourseDialog extends Dialog<Course> {
         ));
         languageCombo.getSelectionModel().select(0);
         languageCombo.setMaxWidth(Double.MAX_VALUE);
+        if (existing != null) {
+            codeField.setText(existing.getCode());
+            nameField.setText(existing.getName());
+            String language = existing.getLanguage() == null ? "cpp" : existing.getLanguage();
+            languageCombo.getSelectionModel().select(language.equals("java") ? 1 : language.equals("python") ? 2 : language.equals("c") ? 3 : 0);
+        }
 
         Label descLabel = new Label("Mô tả môn học");
         descLabel.getStyleClass().add("meta-item");
         descArea = new TextArea();
         descArea.setPromptText("Mô tả tóm tắt nội dung môn học...");
         descArea.setPrefRowCount(3);
+        if (existing != null) descArea.setText(existing.getDescription());
 
         form.getChildren().addAll(codeLabel, codeField, nameLabel, nameField, langLabel, languageCombo, descLabel, descArea);
         pane.setContent(form);
@@ -88,6 +99,7 @@ public class TeacherCourseDialog extends Dialog<Course> {
                 else if (langRaw != null && langRaw.startsWith("c -")) lang = "c";
 
                 Course c = new Course();
+                if (existing != null) { c.setId(existing.getId()); c.setActive(existing.isActive()); }
                 c.setCode(code);
                 c.setName(name);
                 c.setLanguage(lang);

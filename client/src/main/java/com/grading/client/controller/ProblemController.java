@@ -1,6 +1,8 @@
 package com.grading.client.controller;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.grading.client.model.Problem;
 import com.grading.client.network.SessionManager;
@@ -32,6 +34,7 @@ public class ProblemController {
         initHandlers();
         registerPushNotifications();
         initProctoring();
+        loadSubmissionHistory();
     }
 
     private void initHandlers() {
@@ -283,6 +286,42 @@ public class ProblemController {
         if (trackedWindow != null && currentFocusListener != null) {
             trackedWindow.focusedProperty().removeListener(currentFocusListener);
         }
+    }
+
+    /**
+     * Tải lịch sử nộp bài của riêng bài tập này từ Server và hiển thị vào thẻ Lịch sử ở cột phải.
+     */
+    public void loadSubmissionHistory() {
+        Problem problem = view.getCurrentProblem();
+        if (problem == null) return;
+        int problemId = problem.getId();
+
+        SocketClient socketClient = sessionManager.getSocketClient();
+        if (socketClient == null || !socketClient.isConnected()) return;
+
+        socketClient.getHistory(problemId, response -> {
+            Platform.runLater(() -> {
+                if ("SUCCESS".equalsIgnoreCase(response.getStatus())
+                        && response.getData() != null && response.getData().isJsonArray()) {
+                    view.clearHistory();
+                    JsonArray arr = response.getData().getAsJsonArray();
+                    for (JsonElement el : arr) {
+                        if (!el.isJsonObject()) continue;
+                        JsonObject obj = el.getAsJsonObject();
+                        String title = problem.getTitle();
+                        if (obj.has("problemTitle") && !obj.get("problemTitle").isJsonNull()) {
+                            title = obj.get("problemTitle").getAsString();
+                        }
+                        String time = obj.has("submittedAt") && !obj.get("submittedAt").isJsonNull()
+                                ? obj.get("submittedAt").getAsString() : "";
+                        String verdict = obj.has("verdict") && !obj.get("verdict").isJsonNull()
+                                ? obj.get("verdict").getAsString() : "--";
+
+                        view.appendSubmissionHistory(title, time, verdict);
+                    }
+                }
+            });
+        });
     }
 
     public ProblemView getView() {

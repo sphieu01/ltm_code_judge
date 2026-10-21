@@ -32,20 +32,22 @@ public class SubmissionRepository {
             "VALUES (?, ?, ?, ?, 'PENDING'::verdict_type) RETURNING id, submitted_at";
 
     private static final String SQL_FIND_BY_ID =
-            "SELECT id, user_id, problem_id, source_code, language, verdict, score, " +
-            "passed_tests, total_tests, exec_time_ms, memory_used_kb, compile_output, " +
-            "submitted_at, judged_at FROM submissions WHERE id = ?";
+            "SELECT s.id, s.user_id, s.problem_id, p.title AS problem_title, s.source_code, s.language, s.verdict, s.score, " +
+            "s.passed_tests, s.total_tests, s.exec_time_ms, s.memory_used_kb, s.compile_output, " +
+            "s.submitted_at, s.judged_at FROM submissions s " +
+            "LEFT JOIN problems p ON s.problem_id = p.id WHERE s.id = ?";
 
     private static final String SQL_FIND_BY_USER =
-            "SELECT id, user_id, problem_id, source_code, language, verdict, score, " +
-            "passed_tests, total_tests, exec_time_ms, memory_used_kb, compile_output, " +
-            "submitted_at, judged_at FROM submissions WHERE user_id = ? ORDER BY submitted_at DESC";
+            "SELECT s.id, s.user_id, s.problem_id, p.title AS problem_title, s.source_code, s.language, s.verdict, s.score, " +
+            "s.passed_tests, s.total_tests, s.exec_time_ms, s.memory_used_kb, s.compile_output, " +
+            "s.submitted_at, s.judged_at FROM submissions s " +
+            "LEFT JOIN problems p ON s.problem_id = p.id WHERE s.user_id = ? ORDER BY s.submitted_at DESC";
 
     private static final String SQL_FIND_BY_USER_AND_PROBLEM =
-            "SELECT id, user_id, problem_id, source_code, language, verdict, score, " +
-            "passed_tests, total_tests, exec_time_ms, memory_used_kb, compile_output, " +
-            "submitted_at, judged_at FROM submissions " +
-            "WHERE user_id = ? AND problem_id = ? ORDER BY submitted_at DESC";
+            "SELECT s.id, s.user_id, s.problem_id, p.title AS problem_title, s.source_code, s.language, s.verdict, s.score, " +
+            "s.passed_tests, s.total_tests, s.exec_time_ms, s.memory_used_kb, s.compile_output, " +
+            "s.submitted_at, s.judged_at FROM submissions s " +
+            "LEFT JOIN problems p ON s.problem_id = p.id WHERE s.user_id = ? AND s.problem_id = ? ORDER BY s.submitted_at DESC";
 
     private static final String SQL_UPDATE_VERDICT =
             "UPDATE submissions SET verdict = ?::verdict_type, score = ?, " +
@@ -225,6 +227,9 @@ public class SubmissionRepository {
         s.setId(rs.getInt("id"));
         s.setUserId(rs.getInt("user_id"));
         s.setProblemId(rs.getInt("problem_id"));
+        try {
+            s.setProblemTitle(rs.getString("problem_title"));
+        } catch (SQLException ignored) {}
         s.setSourceCode(rs.getString("source_code"));
         s.setLanguage(rs.getString("language"));
         s.setVerdict(rs.getString("verdict"));

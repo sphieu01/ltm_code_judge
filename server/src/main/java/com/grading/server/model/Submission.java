@@ -23,6 +23,7 @@ public class Submission {
     private int id;
     private int userId;
     private int problemId;
+    private String problemTitle;
     private String sourceCode;
     private String language;        // "java" | "cpp" | "python"
     private String verdict;         // PENDING | JUDGING | AC | WA | TLE | RE | CE
@@ -60,6 +61,9 @@ public class Submission {
 
     public int getProblemId() { return problemId; }
     public void setProblemId(int problemId) { this.problemId = problemId; }
+
+    public String getProblemTitle() { return problemTitle; }
+    public void setProblemTitle(String problemTitle) { this.problemTitle = problemTitle; }
 
     public String getSourceCode() { return sourceCode; }
     public void setSourceCode(String sourceCode) { this.sourceCode = sourceCode; }

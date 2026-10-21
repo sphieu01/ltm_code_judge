@@ -247,6 +247,42 @@ public class ProblemView extends BorderPane {
         return card;
     }
 
+    public void clearHistory() {
+        historyListContainer.getChildren().clear();
+        if (historyPlaceholderLabel != null) {
+            historyListContainer.getChildren().add(historyPlaceholderLabel);
+        }
+    }
+
+    public void appendSubmissionHistory(String title, String timestamp, String verdict) {
+        if (historyPlaceholderLabel != null) {
+            historyListContainer.getChildren().remove(historyPlaceholderLabel);
+        }
+
+        HBox item = new HBox(8);
+        item.setAlignment(Pos.CENTER_LEFT);
+        item.setStyle(
+                "-fx-padding: 4 0 6 0; -fx-border-color: transparent transparent -border-subtle transparent; -fx-border-width: 0 0 1 0;");
+
+        VBox textCol = new VBox(2);
+        Label titleLbl = new Label(title);
+        titleLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
+
+        String timeDisplay = (timestamp != null && timestamp.length() > 19) ? timestamp.substring(0, 19) : (timestamp != null ? timestamp : "");
+        Label timeLbl = new Label(timeDisplay);
+        timeLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: -text-secondary;");
+        textCol.getChildren().addAll(titleLbl, timeLbl);
+
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
+
+        Label pill = new Label(verdictToBadge(verdict));
+        applyPillStyle(pill, verdict);
+
+        item.getChildren().addAll(textCol, sp, pill);
+        historyListContainer.getChildren().add(item);
+    }
+
     public void addSubmissionHistory(String title, String timestamp, String verdict) {
         if (historyPlaceholderLabel != null) {
             historyListContainer.getChildren().remove(historyPlaceholderLabel);
@@ -261,7 +297,8 @@ public class ProblemView extends BorderPane {
         Label titleLbl = new Label(title);
         titleLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
 
-        Label timeLbl = new Label(timestamp);
+        String timeDisplay = (timestamp != null && timestamp.length() > 19) ? timestamp.substring(0, 19) : (timestamp != null ? timestamp : "");
+        Label timeLbl = new Label(timeDisplay);
         timeLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: -text-secondary;");
         textCol.getChildren().addAll(titleLbl, timeLbl);
 
@@ -654,13 +691,7 @@ public class ProblemView extends BorderPane {
         }
 
         clearSelectedFile();
-
-        // Khởi tạo lịch sử mẫu nếu là bài GẤP ĐÔI (theo ảnh mẫu)
-        if ("GẤP ĐÔI".equalsIgnoreCase(problem.getTitle()) || problem.getId() == 1) {
-            if (historyListContainer.getChildren().contains(historyPlaceholderLabel)) {
-                addSubmissionHistory("GẤP ĐÔI", "2025-10-05 23:40:00", "AC");
-            }
-        }
+        clearHistory();
     }
 
     public void setProblemDetails(String description, String inputFormat, String outputFormat,

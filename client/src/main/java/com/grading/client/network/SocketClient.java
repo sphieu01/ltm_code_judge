@@ -437,10 +437,22 @@ public class SocketClient {
     }
 
     /**
-     * Gửi GET_HISTORY request.
+     * Gửi GET_HISTORY request cho 1 bài tập cụ thể hoặc tất cả bài nộp nếu problemId == null.
+     */
+    public void getHistory(Integer problemId, Consumer<Response> callback) {
+        JsonObject data = null;
+        if (problemId != null && problemId > 0) {
+            data = new JsonObject();
+            data.addProperty("problemId", problemId);
+        }
+        sendRequest(MessageType.GET_HISTORY, data, callback);
+    }
+
+    /**
+     * Gửi GET_HISTORY request lấy toàn bộ lịch sử nộp bài của sinh viên.
      */
     public void getHistory(Consumer<Response> callback) {
-        sendRequest(MessageType.GET_HISTORY, null, callback);
+        getHistory(null, callback);
     }
 
     // ======================== SETTERS ========================

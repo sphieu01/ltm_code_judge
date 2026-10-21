@@ -177,20 +177,20 @@ public class TeacherImportStudentsDialog extends Dialog<TeacherImportStudentsDia
                     continue; // Bỏ qua dòng trống, comment, hoặc header
                 }
 
-                String[] parts = line.split("[,;\\t]");
-                if (parts.length >= 1) {
-                    String username = parts[0].trim();
+                List<String> parts = parseDelimitedLine(line);
+                if (!parts.isEmpty()) {
+                    String username = parts.get(0).trim();
                     String password = "password123";
                     String fullName = username;
 
-                    if (parts.length >= 3) {
-                        password = parts[1].trim();
-                        fullName = parts[2].trim();
-                    } else if (parts.length == 2) {
-                        fullName = parts[1].trim();
+                    if (parts.size() >= 3) {
+                        password = parts.get(1).trim();
+                        fullName = parts.get(2).trim();
+                    } else if (parts.size() == 2) {
+                        fullName = parts.get(1).trim();
                     }
 
-                    if (!username.isEmpty()) {
+                    if (username.matches("[A-Za-z0-9_.-]{3,50}") && !fullName.isBlank() && password.length() >= 6) {
                         previewList.add(new StudentPreviewRow(username, password, fullName));
                     }
                 }
@@ -200,5 +200,23 @@ public class TeacherImportStudentsDialog extends Dialog<TeacherImportStudentsDia
         } catch (Exception ex) {
             fileStatusLabel.setText("Lỗi đọc file: " + ex.getMessage());
         }
+    }
+
+    private List<String> parseDelimitedLine(String line) {
+        List<String> values = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean quoted = false;
+        for (int i = 0; i < line.length(); i++) {
+            char ch = line.charAt(i);
+            if (ch == '"') {
+                if (quoted && i + 1 < line.length() && line.charAt(i + 1) == '"') { current.append(ch); i++; }
+                else quoted = !quoted;
+            } else if (!quoted && (ch == ',' || ch == ';' || ch == '\t')) {
+                values.add(current.toString());
+                current.setLength(0);
+            } else current.append(ch);
+        }
+        values.add(current.toString());
+        return values;
     }
 }

@@ -141,11 +141,13 @@ public class ClientHandler implements Runnable {
                     case GET_PROBLEMS       -> handleGetProblems(request);
                     case GET_PROBLEM_DETAIL -> handleGetProblemDetail(request);
                     case CREATE_PROBLEM     -> handleCreateProblem(request);
+                    case UPDATE_PROBLEM     -> handleUpdateProblem(request);
                     case SUBMIT             -> handleSubmit(request);
                     case GET_RESULT         -> handleGetResult(request);
                     case GET_HISTORY        -> handleGetHistory(request);
                     case GET_COURSES        -> handleGetCourses(request);
                     case CREATE_COURSE      -> handleCreateCourse(request);
+                    case DELETE_COURSE      -> handleDeleteCourse(request);
                     case GET_CLASSES        -> handleGetClasses(request);
                     case CREATE_CLASS       -> handleCreateClass(request);
                     case UPDATE_CLASS       -> handleUpdateClass(request);
@@ -366,6 +368,57 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    private void handleUpdateProblem(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền cập nhật bài tập");
+            return;
+        }
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            if (!data.has("id") || data.get("id").getAsInt() <= 0) {
+                throw new IllegalArgumentException("Thiếu mã bài tập cần cập nhật");
+            }
+            Problem p = new Problem();
+            p.setId(data.get("id").getAsInt());
+            p.setTitle(data.get("title").getAsString().trim());
+            p.setDescription(data.get("description").getAsString());
+            p.setDifficulty(data.has("difficulty") ? data.get("difficulty").getAsString() : "MEDIUM");
+            p.setTimeLimitMs(data.has("timeLimitMs") ? data.get("timeLimitMs").getAsInt() : 2000);
+            p.setMemoryLimitKb(data.has("memoryLimitKb") ? data.get("memoryLimitKb").getAsInt() : 262144);
+            if (data.has("classId") && !data.get("classId").isJsonNull()) p.setClassId(data.get("classId").getAsInt());
+            List<com.grading.server.model.TestCase> testCases = parseTestCases(data);
+            Problem updated = problemService.updateProblem(p, testCases);
+            send(Message.success(MessageType.UPDATE_PROBLEM_RESPONSE, request.getRequestId(),
+                    "Cập nhật bài tập và test case thành công", MessageSerializer.toJsonElement(updated)));
+        } catch (Exception e) {
+            logger.error("UpdateProblem error", e);
+            sendError(request.getRequestId(), "Không thể cập nhật bài tập: " + e.getMessage());
+        }
+    }
+
+    private List<com.grading.server.model.TestCase> parseTestCases(JsonObject data) {
+        if (!data.has("testCases") || !data.get("testCases").isJsonArray()) {
+            throw new IllegalArgumentException("Danh sách test case không hợp lệ");
+        }
+        List<com.grading.server.model.TestCase> testCases = new java.util.ArrayList<>();
+        int order = 1;
+        for (com.google.gson.JsonElement el : data.getAsJsonArray("testCases")) {
+            if (!el.isJsonObject()) continue;
+            com.google.gson.JsonObject tcObj = el.getAsJsonObject();
+            String input = tcObj.has("inputData") && !tcObj.get("inputData").isJsonNull() ? tcObj.get("inputData").getAsString() : "";
+            String output = tcObj.has("expectedOutput") && !tcObj.get("expectedOutput").isJsonNull() ? tcObj.get("expectedOutput").getAsString() : "";
+            if (output.isBlank()) throw new IllegalArgumentException("Output mong đợi của test case không được để trống");
+            com.grading.server.model.TestCase tc = new com.grading.server.model.TestCase();
+            tc.setInputData(input);
+            tc.setExpectedOutput(output);
+            tc.setSample(tcObj.has("isSample") && tcObj.get("isSample").getAsBoolean());
+            tc.setOrderNum(order++);
+            testCases.add(tc);
+        }
+        if (testCases.isEmpty()) throw new IllegalArgumentException("Bài tập phải có ít nhất một test case");
+        return testCases;
+    }
+
     private void handleToggleProblemActive(Message request) {
         if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
             sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền thay đổi trạng thái bài tập");
@@ -489,6 +542,22 @@ public class ClientHandler implements Runnable {
         } catch (Exception e) {
             logger.error("ToggleCourseActive error", e);
             sendError(request.getRequestId(), "Không thể cập nhật trạng thái môn học: " + e.getMessage());
+        }
+    }
+
+    private void handleDeleteCourse(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền xóa môn học");
+            return;
+        }
+        try {
+            int id = request.getData().getAsJsonObject().get("id").getAsInt();
+            academicService.deleteCourse(id);
+            send(Message.success(MessageType.DELETE_COURSE_RESPONSE, request.getRequestId(),
+                    "Đã xóa môn học; các lớp thuộc môn đã được gỡ liên kết", null));
+        } catch (Exception e) {
+            logger.error("DeleteCourse error", e);
+            sendError(request.getRequestId(), "Không thể xóa môn học: " + e.getMessage());
         }
     }
 
@@ -630,28 +699,39 @@ public class ClientHandler implements Runnable {
             JsonObject data = request.getData().getAsJsonObject();
             int classId = data.get("classId").getAsInt();
             var studentsArray = data.getAsJsonArray("students");
+            boolean classExists = academicService.getAllClasses().stream().anyMatch(c -> c.getId() == classId);
+            if (!classExists) throw new IllegalArgumentException("Lớp tín chỉ được chọn không tồn tại");
 
             int successCount = 0;
             int errorCount = 0;
+            com.google.gson.JsonArray errors = new com.google.gson.JsonArray();
 
+            int row = 0;
             for (var el : studentsArray) {
+                row++;
                 try {
                     JsonObject stuObj = el.getAsJsonObject();
-                    String username = stuObj.get("username").getAsString();
+                    String username = stuObj.has("username") ? stuObj.get("username").getAsString().trim() : "";
                     String rawPassword = stuObj.has("password") ? stuObj.get("password").getAsString() : "password123";
-                    String fullName = stuObj.has("fullName") ? stuObj.get("fullName").getAsString() : username;
+                    String fullName = stuObj.has("fullName") ? stuObj.get("fullName").getAsString().trim() : username;
+                    if (fullName.isBlank()) throw new IllegalArgumentException("Họ tên không được để trống");
 
                     authService.createOrUpdateStudent(username, rawPassword, fullName, classId);
                     successCount++;
                 } catch (Exception ex) {
                     errorCount++;
                     logger.warn("Failed to import student line: {}", ex.getMessage());
+                    JsonObject error = new JsonObject();
+                    error.addProperty("row", row);
+                    error.addProperty("message", ex.getMessage());
+                    errors.add(error);
                 }
             }
 
             JsonObject resultData = new JsonObject();
             resultData.addProperty("successCount", successCount);
             resultData.addProperty("errorCount", errorCount);
+            resultData.add("errors", errors);
 
             send(Message.success(
                     MessageType.IMPORT_STUDENTS_RESPONSE,
@@ -722,7 +802,8 @@ public class ClientHandler implements Runnable {
             JsonObject data = request.getData().getAsJsonObject();
             int problemId = data.get("problemId").getAsInt();
 
-            Problem problem = problemService.getProblemDetail(problemId);
+            boolean includeHiddenTests = "TEACHER".equalsIgnoreCase(authenticatedRole);
+            Problem problem = problemService.getProblemDetail(problemId, includeHiddenTests);
 
             Message response = Message.success(
                     MessageType.GET_PROBLEM_DETAIL_RESPONSE,

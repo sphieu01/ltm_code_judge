@@ -56,7 +56,11 @@ public class ProblemService {
      * Dùng cho GET_PROBLEM_DETAIL response.
      */
     public Problem getProblemDetail(int problemId) throws SQLException {
-        Optional<Problem> opt = problemRepository.findById(problemId);
+        return getProblemDetail(problemId, false);
+    }
+
+    public Problem getProblemDetail(int problemId, boolean includeHiddenTests) throws SQLException {
+        Optional<Problem> opt = problemRepository.findById(problemId, includeHiddenTests);
         if (opt.isEmpty()) {
             throw new IllegalArgumentException("Bài toán id=" + problemId + " không tồn tại");
         }
@@ -80,5 +84,11 @@ public class ProblemService {
     public void setProblemActive(int problemId, boolean active) throws SQLException {
         problemRepository.updateProblemActive(problemId, active);
     }
-}
 
+    public Problem updateProblem(Problem problem, List<com.grading.server.model.TestCase> testCases) throws SQLException {
+        if (testCases == null || testCases.isEmpty()) {
+            throw new IllegalArgumentException("Bài tập phải có ít nhất một test case");
+        }
+        return problemRepository.updateWithTestCases(problem, testCases);
+    }
+}

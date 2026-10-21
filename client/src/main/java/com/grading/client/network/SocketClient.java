@@ -332,6 +332,10 @@ public class SocketClient {
         sendRequest(MessageType.CREATE_PROBLEM, problemData, callback);
     }
 
+    public void updateProblem(JsonObject problemData, Consumer<Response> callback) {
+        sendRequest(MessageType.UPDATE_PROBLEM, problemData, callback);
+    }
+
     // ======================== ACADEMIC METHODS ========================
 
     public void getCourses(Consumer<Response> callback) {
@@ -345,6 +349,12 @@ public class SocketClient {
         data.addProperty("language", language);
         data.addProperty("description", description);
         sendRequest(MessageType.CREATE_COURSE, data, callback);
+    }
+
+    public void deleteCourse(int courseId, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("id", courseId);
+        sendRequest(MessageType.DELETE_COURSE, data, callback);
     }
 
     public void getClasses(Consumer<Response> callback) {

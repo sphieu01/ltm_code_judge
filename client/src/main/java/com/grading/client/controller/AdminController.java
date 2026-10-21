@@ -44,6 +44,7 @@ public class AdminController {
     private void initEvents() {
         // Tab 1: Môn học
         view.getAddCourseBtn().setOnAction(e -> handleAddCourse());
+        view.setOnDeleteCourse(this::handleDeleteCourse);
 
         // Tab 2: Lớp tín chỉ
         view.getAddClassBtn().setOnAction(e -> handleAddClass());
@@ -66,6 +67,7 @@ public class AdminController {
         });
         view.getAddProblemBtn().setOnAction(e -> handleAddProblem());
         view.setOnToggleProblemActive((problem, isChecked) -> handleToggleProblemActive(problem, isChecked));
+        view.setOnEditProblem(this::handleEditProblem);
 
         // Đăng xuất
         view.setOnLogout(() -> {
@@ -145,11 +147,30 @@ public class AdminController {
             if (client != null && client.isConnected()) {
                 client.createCourse(course.getCode(), course.getName(), course.getLanguage(), course.getDescription(), response -> {
                     Platform.runLater(() -> {
-                        loadCourses();
+                        if ("SUCCESS".equalsIgnoreCase(response.getStatus())) loadCourses();
+                        else showError("Không thể tạo môn học", response.getMessage());
                     });
                 });
             }
         });
+    }
+
+    private void handleDeleteCourse(Course course) {
+        if (course == null) return;
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.initOwner(stage);
+        confirm.setTitle("Xác nhận xóa môn học");
+        confirm.setHeaderText("Xóa môn " + course.getName());
+        confirm.setContentText("Các lớp thuộc môn sẽ bị xóa; sinh viên và bài tập sẽ được gỡ khỏi lớp. Tiếp tục?");
+        if (confirm.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL) != javafx.scene.control.ButtonType.OK) return;
+        SocketClient client = sessionManager.getSocketClient();
+        if (client != null && client.isConnected()) {
+            client.deleteCourse(course.getId(), response -> Platform.runLater(() -> {
+                if ("SUCCESS".equalsIgnoreCase(response.getStatus())) {
+                    loadAllData();
+                } else showError("Không thể xóa môn học", response.getMessage());
+            }));
+        }
     }
 
     // ─── 2. CLASSES ──────────────────────────────────────────────────────────
@@ -455,11 +476,61 @@ public class AdminController {
 
                 client.createProblem(data, response -> {
                     Platform.runLater(() -> {
-                        loadProblems(problem.getClassId());
+                        if ("SUCCESS".equalsIgnoreCase(response.getStatus())) {
+                            loadProblems(problem.getClassId());
+                        } else {
+                            showError("Không thể tạo bài tập", response.getMessage());
+                        }
                     });
                 });
             }
         });
+    }
+
+    private void handleEditProblem(Problem problem) {
+        if (problem == null) return;
+        SocketClient client = sessionManager.getSocketClient();
+        if (client == null || !client.isConnected()) return;
+        client.getProblemDetail(problem.getId(), response -> Platform.runLater(() -> {
+            if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null || !response.getData().isJsonObject()) {
+                showError("Không thể tải bài tập", response.getMessage());
+                return;
+            }
+            JsonObject data = response.getData().getAsJsonObject();
+            TeacherProblemDialog dialog = new TeacherProblemDialog(stage, cachedClasses,
+                    view.getProblemFilterClassCombo().getSelectionModel().getSelectedItem());
+            dialog.loadForEditing(problem, data.has("testCases") && data.get("testCases").isJsonArray()
+                    ? data.getAsJsonArray("testCases") : new JsonArray());
+            dialog.showAndWait().ifPresent(updated -> {
+                JsonObject payload = buildProblemPayload(updated, dialog);
+                payload.addProperty("id", problem.getId());
+                client.updateProblem(payload, updateResponse -> Platform.runLater(() -> {
+                    if ("SUCCESS".equalsIgnoreCase(updateResponse.getStatus())) loadProblems(updated.getClassId());
+                    else showError("Không thể cập nhật bài tập", updateResponse.getMessage());
+                }));
+            });
+        }));
+    }
+
+    private JsonObject buildProblemPayload(Problem problem, TeacherProblemDialog dialog) {
+        JsonObject data = new JsonObject();
+        data.addProperty("title", problem.getTitle());
+        data.addProperty("difficulty", problem.getDifficulty());
+        data.addProperty("timeLimitMs", problem.getTimeLimitMs());
+        data.addProperty("memoryLimitKb", problem.getMemoryLimitKb());
+        data.addProperty("description", problem.getDescription());
+        if (problem.getClassId() != null) data.addProperty("classId", problem.getClassId());
+        data.add("testCases", dialog.getTestCasesArray());
+        return data;
+    }
+
+    private void showError(String header, String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.initOwner(stage);
+        alert.setTitle("Lỗi");
+        alert.setHeaderText(header);
+        alert.setContentText(message == null || message.isBlank() ? "Yêu cầu không thành công." : message);
+        alert.showAndWait();
     }
 
     public void setOnLogout(Runnable onLogout) {

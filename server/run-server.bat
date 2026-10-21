@@ -47,7 +47,7 @@ IF %ERRORLEVEL% EQU 0 (
 
 echo.
 echo ====================================================
-echo   Code Grading Server ^| BTL Lap Trinh Mang
+echo   Code Grading Server - BTL Lap Trinh Mang
 echo ====================================================
 echo.
 echo DB URL: %DB_URL%

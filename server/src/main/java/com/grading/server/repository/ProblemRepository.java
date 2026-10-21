@@ -163,6 +163,11 @@ public class ProblemRepository {
      * Dùng cho GET_PROBLEM_DETAIL.
      */
     public Optional<Problem> findById(int id) throws SQLException {
+        return findById(id, false);
+    }
+
+    /** Giáo viên cần toàn bộ test case để có thể chỉnh sửa; sinh viên chỉ nhận test mẫu. */
+    public Optional<Problem> findById(int id, boolean includeHiddenTests) throws SQLException {
         try (Connection conn = DatabaseConfig.getConnection();
              PreparedStatement stmt = conn.prepareStatement(SQL_FIND_BY_ID)) {
 
@@ -170,8 +175,9 @@ public class ProblemRepository {
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     Problem problem = mapProblemRow(rs);
-                    // Load sample test cases để hiển thị cho student
-                    problem.setTestCases(findSampleTestCases(conn, id));
+                    problem.setTestCases(includeHiddenTests
+                            ? findAllTestCases(conn, id)
+                            : findSampleTestCases(conn, id));
                     return Optional.of(problem);
                 }
             }
@@ -200,6 +206,17 @@ public class ProblemRepository {
         } catch (SQLException e) {
             logger.error("Error fetching test cases for problem id={}", problemId, e);
             throw e;
+        }
+        return testCases;
+    }
+
+    private List<TestCase> findAllTestCases(Connection conn, int problemId) throws SQLException {
+        List<TestCase> testCases = new ArrayList<>();
+        try (PreparedStatement stmt = conn.prepareStatement(SQL_FIND_TEST_CASES)) {
+            stmt.setInt(1, problemId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) testCases.add(mapTestCaseRow(rs));
+            }
         }
         return testCases;
     }
@@ -264,6 +281,50 @@ public class ProblemRepository {
             throw e;
         }
         throw new SQLException("Failed to create test case");
+    }
+
+    /** Thay thế đồng thời metadata và danh sách test case của một bài. */
+    public Problem updateWithTestCases(Problem problem, List<TestCase> testCases) throws SQLException {
+        try (Connection conn = DatabaseConfig.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                String update = "UPDATE problems SET title=?, description=?, time_limit_ms=?, memory_limit_kb=?, difficulty=?::difficulty_level, class_id=? WHERE id=?";
+                try (PreparedStatement stmt = conn.prepareStatement(update)) {
+                    stmt.setString(1, problem.getTitle());
+                    stmt.setString(2, problem.getDescription());
+                    stmt.setInt(3, problem.getTimeLimitMs());
+                    stmt.setInt(4, problem.getMemoryLimitKb());
+                    stmt.setString(5, problem.getDifficulty());
+                    if (problem.getClassId() != null && problem.getClassId() > 0) stmt.setInt(6, problem.getClassId());
+                    else stmt.setNull(6, Types.INTEGER);
+                    stmt.setInt(7, problem.getId());
+                    if (stmt.executeUpdate() == 0) throw new SQLException("Không tìm thấy bài tập id=" + problem.getId());
+                }
+                try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM test_cases WHERE problem_id=?")) {
+                    stmt.setInt(1, problem.getId());
+                    stmt.executeUpdate();
+                }
+                try (PreparedStatement stmt = conn.prepareStatement(SQL_INSERT_TEST_CASE)) {
+                    int order = 1;
+                    for (TestCase tc : testCases) {
+                        stmt.setInt(1, problem.getId());
+                        stmt.setString(2, tc.getInputData());
+                        stmt.setString(3, tc.getExpectedOutput());
+                        stmt.setBoolean(4, tc.isSample());
+                        stmt.setInt(5, order++);
+                        stmt.addBatch();
+                    }
+                    stmt.executeBatch();
+                }
+                conn.commit();
+                return problem;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
     }
 
     // ─── Private Helpers ──────────────────────────────────────────────────────

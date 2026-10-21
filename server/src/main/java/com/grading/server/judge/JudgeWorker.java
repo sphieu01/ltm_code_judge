@@ -161,10 +161,11 @@ public class JudgeWorker implements Runnable {
             List<TestCase> testCases = problemRepository.findAllTestCases(submission.getProblemId());
             if (testCases.isEmpty()) {
                 // Không có test case — trả AC (edge case)
-                submission.setVerdict(Submission.VERDICT_AC);
-                submission.setScore(100);
+                submission.setVerdict(Submission.VERDICT_RE);
+                submission.setScore(0);
                 submission.setPassedTests(0);
                 submission.setTotalTests(0);
+                submission.setCompileOutput("Bài tập chưa được cấu hình test case");
                 finalizeSubmission(submission);
                 return;
             }

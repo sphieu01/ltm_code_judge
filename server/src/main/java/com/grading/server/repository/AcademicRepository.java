@@ -161,6 +161,17 @@ public class AcademicRepository {
         }
     }
 
+    /** Xóa môn học. Các lớp thuộc môn sẽ bị xóa theo FK; sinh viên/bài tập được bỏ gán lớp. */
+    public void deleteCourse(int courseId) throws SQLException {
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement("DELETE FROM courses WHERE id = ?")) {
+            stmt.setInt(1, courseId);
+            if (stmt.executeUpdate() == 0) {
+                throw new SQLException("Không tìm thấy môn học id=" + courseId);
+            }
+        }
+    }
+
     // ─── CLASSES ─────────────────────────────────────────────────────────────
 
     public List<CreditClass> findAllClasses() throws SQLException {
@@ -482,4 +493,3 @@ public class AcademicRepository {
         }
     }
 }
-

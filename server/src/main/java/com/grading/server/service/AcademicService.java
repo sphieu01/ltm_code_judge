@@ -84,6 +84,10 @@ public class AcademicService {
         academicRepository.updateCourseActive(courseId, active);
     }
 
+    public void deleteCourse(int courseId) throws SQLException {
+        academicRepository.deleteCourse(courseId);
+    }
+
     public void updateStudent(int studentId, String fullName, Integer classId, String newPassword) throws SQLException {
         if (fullName == null || fullName.isBlank()) {
             throw new IllegalArgumentException("Họ tên sinh viên không được để trống");

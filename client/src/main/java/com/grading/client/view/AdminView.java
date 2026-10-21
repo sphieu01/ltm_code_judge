@@ -55,6 +55,7 @@ public class AdminView extends BorderPane {
     private TableView<Course> courseTable;
     private ObservableList<Course> courseList = FXCollections.observableArrayList();
     private Button addCourseBtn;
+    private Consumer<Course> onDeleteCourse;
 
     // ─── TAB 2: CLASSES ───
     private TableView<CreditClass> classTable;
@@ -87,6 +88,7 @@ public class AdminView extends BorderPane {
     private Button problemNextBtn;
     private Label problemPageLbl;
     private java.util.function.BiConsumer<Problem, Boolean> onToggleProblemActive;
+    private Consumer<Problem> onEditProblem;
 
     // Callbacks
     private Runnable onLogout;
@@ -256,7 +258,13 @@ public class AdminView extends BorderPane {
         colDesc.setCellValueFactory(new PropertyValueFactory<>("description"));
         colDesc.setMinWidth(220);
 
-        courseTable.getColumns().addAll(colId, colCode, colName, colLang, colDesc);
+        TableColumn<Course, Void> colActions = new TableColumn<>("Thao tác");
+        colActions.setCellFactory(col -> new TableCell<>() {
+            private final Button deleteBtn = new Button("Xóa");
+            { deleteBtn.getStyleClass().addAll("button", "btn-danger"); deleteBtn.setOnAction(e -> { if (onDeleteCourse != null) onDeleteCourse.accept(getTableView().getItems().get(getIndex())); }); }
+            @Override protected void updateItem(Void item, boolean empty) { super.updateItem(item, empty); setGraphic(empty ? null : deleteBtn); }
+        });
+        courseTable.getColumns().addAll(colId, colCode, colName, colLang, colDesc, colActions);
         courseTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         courseTable.setItems(courseList);
         VBox.setVgrow(courseTable, Priority.ALWAYS);
@@ -581,7 +589,13 @@ public class AdminView extends BorderPane {
         colMem.setMinWidth(110);
         colMem.setMaxWidth(140);
 
-        problemTable.getColumns().addAll(colId, colTitle, colDiff, colClass, colStatus, colTime, colMem);
+        TableColumn<Problem, Void> colActions = new TableColumn<>("Thao tác");
+        colActions.setCellFactory(col -> new TableCell<>() {
+            private final Button editBtn = new Button("Sửa");
+            { editBtn.getStyleClass().addAll("button", "btn-secondary"); editBtn.setOnAction(e -> { if (onEditProblem != null) onEditProblem.accept(getTableView().getItems().get(getIndex())); }); }
+            @Override protected void updateItem(Void item, boolean empty) { super.updateItem(item, empty); setGraphic(empty ? null : editBtn); }
+        });
+        problemTable.getColumns().addAll(colId, colTitle, colDiff, colClass, colStatus, colTime, colMem, colActions);
         problemTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         problemTable.setItems(problemList);
         VBox.setVgrow(problemTable, Priority.ALWAYS);
@@ -716,6 +730,8 @@ public class AdminView extends BorderPane {
 
     public Button getAddCourseBtn() { return addCourseBtn; }
 
+    public void setOnDeleteCourse(Consumer<Course> onDeleteCourse) { this.onDeleteCourse = onDeleteCourse; }
+
     public Button getAddClassBtn() { return addClassBtn; }
 
     public ComboBox<CreditClass> getStudentFilterClassCombo() { return studentFilterClassCombo; }
@@ -743,6 +759,8 @@ public class AdminView extends BorderPane {
     public void setOnToggleProblemActive(java.util.function.BiConsumer<Problem, Boolean> onToggleProblemActive) {
         this.onToggleProblemActive = onToggleProblemActive;
     }
+
+    public void setOnEditProblem(Consumer<Problem> onEditProblem) { this.onEditProblem = onEditProblem; }
 
     public void setOnLogout(Runnable onLogout) {
         this.onLogout = onLogout;

@@ -1,6 +1,7 @@
 package com.grading.client.view;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.grading.client.model.CreditClass;
 import com.grading.client.model.Problem;
@@ -326,6 +327,34 @@ public class TeacherProblemDialog extends Dialog<Problem> {
             arr.add(obj);
         }
         return arr;
+    }
+
+    /** Nạp dữ liệu bài đã có để giáo viên sửa cả metadata lẫn test case. */
+    public void loadForEditing(Problem problem, JsonArray testCases) {
+        if (problem == null) return;
+        setTitle("Chỉnh sửa bài tập");
+        titleField.setText(problem.getTitle() == null ? "" : problem.getTitle());
+        difficultyCombo.getSelectionModel().select(problem.getDifficulty());
+        timeLimitField.setText(String.valueOf(problem.getTimeLimitMs()));
+        memoryLimitField.setText(String.valueOf(problem.getMemoryLimitKb()));
+        descriptionArea.setText(problem.getDescription() == null ? "" : problem.getDescription());
+        if (classCombo != null && problem.getClassId() != null) {
+            for (CreditClass c : classCombo.getItems()) {
+                if (c.getId() == problem.getClassId()) { classCombo.getSelectionModel().select(c); break; }
+            }
+        }
+        testCaseItems.clear();
+        testCasesContainer.getChildren().clear();
+        if (testCases != null) {
+            for (JsonElement element : testCases) {
+                if (!element.isJsonObject()) continue;
+                JsonObject test = element.getAsJsonObject();
+                addTestCase(test.has("isSample") && test.get("isSample").getAsBoolean(),
+                        test.has("inputData") ? test.get("inputData").getAsString() : "",
+                        test.has("expectedOutput") ? test.get("expectedOutput").getAsString() : "");
+            }
+        }
+        if (testCaseItems.isEmpty()) addTestCase(true, "", "");
     }
 
     public String getSampleInput() {

@@ -17,6 +17,15 @@ public class SubmissionRepository {
 
     private static final Logger logger = LoggerFactory.getLogger(SubmissionRepository.class);
 
+    public SubmissionRepository() {
+        try (Connection conn = DatabaseConfig.getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("UPDATE submissions SET score = 0 WHERE total_tests = 0 AND score <> 0");
+        } catch (SQLException e) {
+            logger.warn("Could not normalize legacy submission scores: {}", e.getMessage());
+        }
+    }
+
     // ─── SQL ──────────────────────────────────────────────────────────────────
     private static final String SQL_INSERT =
             "INSERT INTO submissions (user_id, problem_id, source_code, language, verdict) " +

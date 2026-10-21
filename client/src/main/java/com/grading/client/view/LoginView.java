@@ -88,20 +88,13 @@ public class LoginView extends BorderPane {
         submitBtn.setMaxWidth(Double.MAX_VALUE);
         submitBtn.setStyle("-fx-font-size: 13.5px; -fx-padding: 8 0 8 0;");
 
-        // Ghi chú hệ thống
-        Label noteLabel = new Label("ℹ️ Tài khoản Sinh viên được Giáo viên cấp qua việc nạp dữ liệu lớp tín chỉ. Ban đầu vui lòng đăng nhập bằng tài khoản Giáo viên.");
-        noteLabel.setWrapText(true);
-        noteLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: -text-secondary; -fx-line-spacing: 2px;");
-
         card.getChildren().addAll(
                 topTitleBox,
                 subtitleLabel,
                 userBox,
                 passBox,
                 errorLabel,
-                submitBtn,
-                noteLabel
-        );
+                submitBtn);
 
         centerWrapper.getChildren().add(card);
         setCenter(centerWrapper);

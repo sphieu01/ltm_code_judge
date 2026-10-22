@@ -938,3 +938,19 @@
     -fx-background-color: -bg-hover;
 }
 
+/* Shared UI zoom: component fonts follow the root font size managed at runtime. */
+.root .button,
+.root .label,
+.root .text-field,
+.root .password-field,
+.root .text-area,
+.root .combo-box,
+.root .date-picker,
+.root .spinner,
+.root .check-box,
+.root .radio-button,
+.root .tab-label,
+.root .table-cell,
+.root .table-view .column-header .label {
+    -fx-font-size: 1em;
+}

@@ -59,6 +59,11 @@ public enum MessageType {
     TOGGLE_COURSE_ACTIVE,
     TOGGLE_COURSE_ACTIVE_RESPONSE,
 
+    CREATE_ASSESSMENT,
+    CREATE_ASSESSMENT_RESPONSE,
+    GET_ACTIVE_ASSESSMENT,
+    GET_ACTIVE_ASSESSMENT_RESPONSE,
+
     // ── Submissions ───────────────────────────────────────
     SUBMIT,
     SUBMIT_RESPONSE,

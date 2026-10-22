@@ -228,43 +228,48 @@ public class AdminView extends BorderPane {
         courseTable.getStyleClass().add("table-view");
         courseTable.setPlaceholder(new Label("Chưa có môn học nào"));
 
-        TableColumn<Course, Integer> colId = new TableColumn<>("ID");
-        colId.setCellValueFactory(new PropertyValueFactory<>("id"));
-        colId.setMinWidth(50);
-        colId.setMaxWidth(70);
-
         TableColumn<Course, String> colCode = new TableColumn<>("Mã môn");
         colCode.setCellValueFactory(new PropertyValueFactory<>("code"));
         colCode.setMinWidth(100);
-        colCode.setMaxWidth(160);
+        colCode.setPrefWidth(120);
+        colCode.setMaxWidth(145);
 
         TableColumn<Course, String> colName = new TableColumn<>("Tên môn học");
         colName.setCellValueFactory(new PropertyValueFactory<>("name"));
-        colName.setMinWidth(180);
+        colName.setMinWidth(175);
+        colName.setPrefWidth(210);
 
         TableColumn<Course, String> colLang = new TableColumn<>("Ngôn ngữ chính");
         colLang.setCellValueFactory(new PropertyValueFactory<>("language"));
-        colLang.setMinWidth(110);
-        colLang.setMaxWidth(160);
+        colLang.setMinWidth(140);
+        colLang.setPrefWidth(170);
+        colLang.setMaxWidth(200);
 
         TableColumn<Course, String> colDesc = new TableColumn<>("Mô tả");
         colDesc.setCellValueFactory(new PropertyValueFactory<>("description"));
-        colDesc.setMinWidth(220);
+        colDesc.setMinWidth(250);
+        colDesc.setPrefWidth(360);
 
         TableColumn<Course, Void> colActions = new TableColumn<>("Thao tác");
+        colActions.setMinWidth(130);
+        colActions.setPrefWidth(140);
+        colActions.setMaxWidth(155);
+        colActions.setStyle("-fx-alignment: CENTER;");
         colActions.setCellFactory(col -> new TableCell<>() {
             private final Button editBtn = new Button("Sửa");
             private final Button deleteBtn = new Button("Xóa");
-            private final HBox actions = new HBox(8, editBtn, deleteBtn);
-            { editBtn.getStyleClass().addAll("button", "btn-secondary"); deleteBtn.getStyleClass().addAll("button", "btn-danger");
-              editBtn.setOnAction(e -> { if (onEditCourse != null) onEditCourse.accept(getTableView().getItems().get(getIndex())); });
-              deleteBtn.setOnAction(e -> { if (onDeleteCourse != null) onDeleteCourse.accept(getTableView().getItems().get(getIndex())); }); }
-            @Override protected void updateItem(Void item, boolean empty) { super.updateItem(item, empty); setGraphic(empty ? null : actions); }
+            private final HBox actions = new HBox(6, editBtn, deleteBtn);
+            { actions.setAlignment(Pos.CENTER); editBtn.getStyleClass().addAll("button", "btn-secondary"); deleteBtn.getStyleClass().addAll("button", "btn-danger");
+              editBtn.setStyle("-fx-font-size: 12px; -fx-padding: 4px 11px;"); deleteBtn.setStyle("-fx-font-size: 12px; -fx-padding: 4px 11px;");
+              editBtn.setOnAction(e -> { Course item = getTableRow() == null ? null : getTableRow().getItem(); if (onEditCourse != null && item != null) onEditCourse.accept(item); });
+              deleteBtn.setOnAction(e -> { Course item = getTableRow() == null ? null : getTableRow().getItem(); if (onDeleteCourse != null && item != null) onDeleteCourse.accept(item); }); }
+            @Override protected void updateItem(Void item, boolean empty) { super.updateItem(item, empty); setGraphic(empty ? null : actions); setAlignment(Pos.CENTER); }
         });
-        courseTable.getColumns().addAll(colId, colCode, colName, colLang, colDesc, colActions);
+        courseTable.getColumns().addAll(colCode, colName, colLang, colDesc, colActions);
         courseTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         courseTable.setItems(courseList);
-        VBox.setVgrow(courseTable, Priority.ALWAYS);
+        TableViewSupport.fitHeightToRows(courseTable, 15);
+        VBox.setVgrow(courseTable, Priority.NEVER);
 
         pane.getChildren().addAll(toolbar, courseTable);
         return pane;
@@ -285,45 +290,47 @@ public class AdminView extends BorderPane {
         classTable.getStyleClass().add("table-view");
         classTable.setPlaceholder(new Label("Chưa có lớp tín chỉ nào"));
 
-        TableColumn<CreditClass, Integer> colId = new TableColumn<>("ID");
-        colId.setCellValueFactory(new PropertyValueFactory<>("id"));
-        colId.setMinWidth(50);
-        colId.setMaxWidth(70);
-
         TableColumn<CreditClass, String> colCode = new TableColumn<>("Mã lớp");
         colCode.setCellValueFactory(new PropertyValueFactory<>("classCode"));
-        colCode.setMinWidth(110);
-        colCode.setMaxWidth(160);
+        colCode.setMinWidth(105);
+        colCode.setPrefWidth(125);
+        colCode.setMaxWidth(150);
 
         TableColumn<CreditClass, String> colName = new TableColumn<>("Tên lớp tín chỉ");
         colName.setCellValueFactory(new PropertyValueFactory<>("name"));
-        colName.setMinWidth(180);
+        colName.setMinWidth(210);
+        colName.setPrefWidth(280);
 
         TableColumn<CreditClass, String> colCourse = new TableColumn<>("Môn học");
         colCourse.setCellValueFactory(new PropertyValueFactory<>("courseName"));
-        colCourse.setMinWidth(140);
+        colCourse.setMinWidth(170);
+        colCourse.setPrefWidth(230);
 
         TableColumn<CreditClass, Integer> colCount = new TableColumn<>("Sĩ số sinh viên");
         colCount.setCellValueFactory(new PropertyValueFactory<>("studentCount"));
         colCount.setMinWidth(100);
-        colCount.setMaxWidth(140);
+        colCount.setPrefWidth(125);
+        colCount.setMaxWidth(145);
+        colCount.setStyle("-fx-alignment: CENTER;");
 
         TableColumn<CreditClass, Void> colActions = new TableColumn<>("Thao tác");
-        colActions.setMinWidth(230);
-        colActions.setMaxWidth(260);
+        colActions.setMinWidth(175);
+        colActions.setPrefWidth(185);
+        colActions.setMaxWidth(200);
+        colActions.setStyle("-fx-alignment: CENTER;");
         colActions.setCellFactory(col -> new TableCell<CreditClass, Void>() {
             private final Button viewBtn = new Button("Xem");
             private final Button editBtn = new Button("Sửa");
             private final Button delBtn = new Button("Xóa");
-            private final HBox box = new HBox(8, viewBtn, editBtn, delBtn);
+            private final HBox box = new HBox(5, viewBtn, editBtn, delBtn);
             {
                 box.setAlignment(Pos.CENTER);
                 viewBtn.getStyleClass().addAll("button", "btn-primary");
-                viewBtn.setStyle("-fx-padding: 3px 12px; -fx-font-size: 12px;");
+                viewBtn.setStyle("-fx-padding: 4px 11px; -fx-font-size: 12px;");
                 editBtn.getStyleClass().addAll("button", "btn-secondary");
-                editBtn.setStyle("-fx-padding: 3px 12px; -fx-font-size: 11px;");
+                editBtn.setStyle("-fx-padding: 4px 11px; -fx-font-size: 12px;");
                 delBtn.getStyleClass().addAll("button", "btn-secondary");
-                delBtn.setStyle("-fx-padding: 3px 12px; -fx-font-size: 11px; -fx-text-fill: #F85149; -fx-border-color: #F85149;");
+                delBtn.setStyle("-fx-padding: 4px 11px; -fx-font-size: 12px; -fx-text-fill: #F85149; -fx-border-color: #F85149;");
 
                 viewBtn.setOnAction(e -> {
                     e.consume();
@@ -358,14 +365,15 @@ public class AdminView extends BorderPane {
             }
         });
 
-        classTable.getColumns().addAll(colId, colCode, colName, colCourse, colCount, colActions);
+        classTable.getColumns().addAll(colCode, colName, colCourse, colCount, colActions);
         classTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         classTable.setItems(classList);
-        VBox.setVgrow(classTable, Priority.ALWAYS);
+        TableViewSupport.fitHeightToRows(classTable, 15);
+        VBox.setVgrow(classTable, Priority.NEVER);
         classTable.setRowFactory(table -> {
             TableRow<CreditClass> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
-                if (!row.isEmpty() && event.getClickCount() == 1 && onViewClass != null) {
+                if (!row.isEmpty() && event.getClickCount() == 2 && onViewClass != null) {
                     onViewClass.accept(row.getItem());
                 }
             });
@@ -398,28 +406,27 @@ public class AdminView extends BorderPane {
         studentTable.getStyleClass().add("table-view");
         studentTable.setPlaceholder(new Label("Chưa có sinh viên nào trong danh sách"));
 
-        TableColumn<User.UserDTO, Integer> colId = new TableColumn<>("ID");
-        colId.setCellValueFactory(new PropertyValueFactory<>("id"));
-        colId.setMinWidth(50);
-        colId.setMaxWidth(70);
-
         TableColumn<User.UserDTO, String> colUser = new TableColumn<>("Tên đăng nhập (Username)");
         colUser.setCellValueFactory(new PropertyValueFactory<>("username"));
-        colUser.setMinWidth(120);
-        colUser.setMaxWidth(180);
+        colUser.setMinWidth(165);
+        colUser.setPrefWidth(190);
+        colUser.setMaxWidth(225);
 
         TableColumn<User.UserDTO, String> colName = new TableColumn<>("Họ và tên sinh viên");
         colName.setCellValueFactory(new PropertyValueFactory<>("fullName"));
-        colName.setMinWidth(180);
+        colName.setMinWidth(230);
+        colName.setPrefWidth(300);
 
         TableColumn<User.UserDTO, String> colClass = new TableColumn<>("Lớp tín chỉ");
         colClass.setCellValueFactory(new PropertyValueFactory<>("className"));
-        colClass.setMinWidth(130);
+        colClass.setMinWidth(165);
+        colClass.setPrefWidth(220);
 
         TableColumn<User.UserDTO, String> colDate = new TableColumn<>("Ngày cấp tài khoản");
         colDate.setCellValueFactory(new PropertyValueFactory<>("createdAt"));
-        colDate.setMinWidth(130);
-        colDate.setMaxWidth(170);
+        colDate.setMinWidth(150);
+        colDate.setPrefWidth(175);
+        colDate.setMaxWidth(200);
 
         // Cột Thao tác (Sửa, Xóa) cho sinh viên
         TableColumn<User.UserDTO, Void> colActions = new TableColumn<>("Thao tác");
@@ -428,13 +435,13 @@ public class AdminView extends BorderPane {
         colActions.setCellFactory(col -> new TableCell<User.UserDTO, Void>() {
             private final Button editBtn = new Button("Sửa");
             private final Button delBtn = new Button("Xóa");
-            private final HBox box = new HBox(8, editBtn, delBtn);
+            private final HBox box = new HBox(6, editBtn, delBtn);
             {
                 box.setAlignment(Pos.CENTER);
                 editBtn.getStyleClass().addAll("button", "btn-secondary");
-                editBtn.setStyle("-fx-padding: 3px 12px; -fx-font-size: 11px;");
+                editBtn.setStyle("-fx-padding: 4px 11px; -fx-font-size: 12px;");
                 delBtn.getStyleClass().addAll("button", "btn-secondary");
-                delBtn.setStyle("-fx-padding: 3px 12px; -fx-font-size: 11px; -fx-text-fill: #F85149; -fx-border-color: #F85149;");
+                delBtn.setStyle("-fx-padding: 4px 11px; -fx-font-size: 12px; -fx-text-fill: #F85149; -fx-border-color: #F85149;");
 
                 editBtn.setOnAction(e -> {
                     User.UserDTO item = (getTableRow() != null) ? getTableRow().getItem() : null;
@@ -463,10 +470,11 @@ public class AdminView extends BorderPane {
             }
         });
 
-        studentTable.getColumns().addAll(colId, colUser, colName, colClass, colDate, colActions);
+        studentTable.getColumns().addAll(colUser, colName, colClass, colDate, colActions);
         studentTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         studentTable.setItems(studentList);
-        VBox.setVgrow(studentTable, Priority.ALWAYS);
+        TableViewSupport.fitHeightToRows(studentTable, 15);
+        VBox.setVgrow(studentTable, Priority.NEVER);
 
         // Thanh phân trang Sinh viên
         HBox studentPaginationBar = new HBox(12);
@@ -525,27 +533,26 @@ public class AdminView extends BorderPane {
         problemTable.getStyleClass().add("table-view");
         problemTable.setPlaceholder(new Label("Chưa có bài tập nào cho lớp này"));
 
-        TableColumn<Problem, Integer> colId = new TableColumn<>("ID");
-        colId.setCellValueFactory(new PropertyValueFactory<>("id"));
-        colId.setMinWidth(50);
-        colId.setMaxWidth(70);
-
         TableColumn<Problem, String> colTitle = new TableColumn<>("Tiêu đề bài tập");
         colTitle.setCellValueFactory(new PropertyValueFactory<>("title"));
-        colTitle.setMinWidth(200);
+        colTitle.setMinWidth(240);
+        colTitle.setPrefWidth(330);
 
         TableColumn<Problem, String> colDiff = new TableColumn<>("Độ khó");
         colDiff.setCellValueFactory(new PropertyValueFactory<>("difficulty"));
         colDiff.setMinWidth(90);
-        colDiff.setMaxWidth(120);
+        colDiff.setPrefWidth(105);
+        colDiff.setMaxWidth(125);
+        colDiff.setStyle("-fx-alignment: CENTER;");
 
         TableColumn<Problem, String> colClass = new TableColumn<>("Lớp áp dụng");
         colClass.setCellValueFactory(cellData -> {
             String cName = cellData.getValue().getClassName();
             return new SimpleStringProperty(cName != null ? cName : "Chung cho tất cả");
         });
-        colClass.setMinWidth(140);
-        colClass.setMaxWidth(220);
+        colClass.setMinWidth(145);
+        colClass.setPrefWidth(185);
+        colClass.setMaxWidth(230);
 
         // Cột Trạng thái có ô tick CheckBox cho từng bài tập
         TableColumn<Problem, Boolean> colStatus = new TableColumn<>("Trạng thái");
@@ -597,27 +604,52 @@ public class AdminView extends BorderPane {
         TableColumn<Problem, String> colTime = new TableColumn<>("Thời gian chạy");
         colTime.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().getTimeLimitFormatted()));
         colTime.setMinWidth(110);
-        colTime.setMaxWidth(140);
+        colTime.setPrefWidth(125);
+        colTime.setMaxWidth(145);
+        colTime.setStyle("-fx-alignment: CENTER;");
 
         TableColumn<Problem, String> colMem = new TableColumn<>("Bộ nhớ tối đa");
         colMem.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().getMemoryLimitFormatted()));
         colMem.setMinWidth(110);
-        colMem.setMaxWidth(140);
+        colMem.setPrefWidth(125);
+        colMem.setMaxWidth(145);
+        colMem.setStyle("-fx-alignment: CENTER;");
 
         TableColumn<Problem, Void> colActions = new TableColumn<>("Thao tác");
+        colActions.setMinWidth(135);
+        colActions.setPrefWidth(145);
+        colActions.setMaxWidth(160);
+        colActions.setStyle("-fx-alignment: CENTER;");
         colActions.setCellFactory(col -> new TableCell<>() {
             private final Button editBtn = new Button("Sửa");
             private final Button deleteBtn = new Button("Xóa");
-            private final HBox actions = new HBox(8, editBtn, deleteBtn);
-            { editBtn.getStyleClass().addAll("button", "btn-secondary"); deleteBtn.getStyleClass().addAll("button", "btn-danger");
-              editBtn.setOnAction(e -> { if (onEditProblem != null) onEditProblem.accept(getTableView().getItems().get(getIndex())); });
-              deleteBtn.setOnAction(e -> { if (onDeleteProblem != null) onDeleteProblem.accept(getTableView().getItems().get(getIndex())); }); }
-            @Override protected void updateItem(Void item, boolean empty) { super.updateItem(item, empty); setGraphic(empty ? null : actions); }
+            private final HBox actions = new HBox(6, editBtn, deleteBtn);
+            {
+                actions.setAlignment(Pos.CENTER);
+                editBtn.getStyleClass().addAll("button", "btn-secondary");
+                deleteBtn.getStyleClass().addAll("button", "btn-danger");
+                editBtn.setStyle("-fx-font-size: 12px; -fx-padding: 4px 11px;");
+                deleteBtn.setStyle("-fx-font-size: 12px; -fx-padding: 4px 11px;");
+                editBtn.setOnAction(e -> {
+                    Problem problem = getTableRow() == null ? null : getTableRow().getItem();
+                    if (onEditProblem != null && problem != null) onEditProblem.accept(problem);
+                });
+                deleteBtn.setOnAction(e -> {
+                    Problem problem = getTableRow() == null ? null : getTableRow().getItem();
+                    if (onDeleteProblem != null && problem != null) onDeleteProblem.accept(problem);
+                });
+            }
+            @Override protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                setGraphic(empty ? null : actions);
+                setAlignment(Pos.CENTER);
+            }
         });
-        problemTable.getColumns().addAll(colId, colTitle, colDiff, colClass, colStatus, colTime, colMem, colActions);
+        problemTable.getColumns().addAll(colTitle, colDiff, colClass, colStatus, colTime, colMem, colActions);
         problemTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         problemTable.setItems(problemList);
-        VBox.setVgrow(problemTable, Priority.ALWAYS);
+        TableViewSupport.fitHeightToRows(problemTable, 15);
+        VBox.setVgrow(problemTable, Priority.NEVER);
 
         // Thanh phân trang Bài tập
         HBox problemPaginationBar = new HBox(12);

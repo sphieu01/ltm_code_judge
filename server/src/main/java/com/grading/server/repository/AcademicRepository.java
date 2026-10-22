@@ -65,6 +65,21 @@ public class AcademicRepository {
                     "ALTER TABLE users ADD COLUMN IF NOT EXISTS class_id INT REFERENCES classes(id) ON DELETE SET NULL"
             );
 
+            // Một sinh viên có thể thuộc nhiều lớp tín chỉ.
+            stmt.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS class_enrollments (" +
+                    "class_id INT NOT NULL REFERENCES classes(id) ON DELETE CASCADE," +
+                    "student_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE," +
+                    "enrolled_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                    "PRIMARY KEY (class_id, student_id))"
+            );
+            stmt.executeUpdate(
+                    "INSERT INTO class_enrollments (class_id, student_id) " +
+                    "SELECT class_id, id FROM users " +
+                    "WHERE UPPER(TRIM(role::text)) = 'STUDENT' AND class_id IS NOT NULL " +
+                    "ON CONFLICT (class_id, student_id) DO NOTHING"
+            );
+
             // 4. Bổ sung cột class_id vào problems nếu chưa có
             stmt.executeUpdate(
                     "ALTER TABLE problems ADD COLUMN IF NOT EXISTS class_id INT REFERENCES classes(id) ON DELETE SET NULL"
@@ -192,7 +207,7 @@ public class AcademicRepository {
         List<CreditClass> list = new ArrayList<>();
         String sql = "SELECT cl.id, cl.class_code, cl.name, cl.course_id, cl.teacher_id, cl.created_at, " +
                      "co.name AS course_name, co.language AS course_lang, " +
-                     "(SELECT COUNT(*) FROM users u WHERE u.class_id = cl.id) AS student_count " +
+                     "(SELECT COUNT(*) FROM class_enrollments ce WHERE ce.class_id = cl.id) AS student_count " +
                      "FROM classes cl " +
                      "LEFT JOIN courses co ON cl.course_id = co.id " +
                      "ORDER BY cl.id";
@@ -221,7 +236,7 @@ public class AcademicRepository {
         List<CreditClass> list = new ArrayList<>();
         String sql = "SELECT cl.id, cl.class_code, cl.name, cl.course_id, cl.teacher_id, cl.created_at, " +
                      "co.name AS course_name, co.language AS course_lang, " +
-                     "(SELECT COUNT(*) FROM users u WHERE u.class_id = cl.id) AS student_count " +
+                     "(SELECT COUNT(*) FROM class_enrollments ce WHERE ce.class_id = cl.id) AS student_count " +
                      "FROM classes cl " +
                      "LEFT JOIN courses co ON cl.course_id = co.id " +
                      "WHERE (co.is_active IS NULL OR co.is_active = TRUE) " +
@@ -251,11 +266,11 @@ public class AcademicRepository {
         List<CreditClass> list = new ArrayList<>();
         String sql = "SELECT cl.id, cl.class_code, cl.name, cl.course_id, cl.teacher_id, cl.created_at, " +
                      "co.name AS course_name, co.language AS course_lang, " +
-                     "(SELECT COUNT(*) FROM users u WHERE u.class_id = cl.id) AS student_count " +
+                     "(SELECT COUNT(*) FROM class_enrollments ce2 WHERE ce2.class_id = cl.id) AS student_count " +
                      "FROM classes cl " +
                      "LEFT JOIN courses co ON cl.course_id = co.id " +
-                     "JOIN users u ON u.class_id = cl.id " +
-                     "WHERE u.id = ? AND (co.is_active IS NULL OR co.is_active = TRUE) " +
+                     "JOIN class_enrollments ce ON ce.class_id = cl.id " +
+                     "WHERE ce.student_id = ? AND (co.is_active IS NULL OR co.is_active = TRUE) " +
                      "ORDER BY cl.id";
         try (Connection conn = DatabaseConfig.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -276,10 +291,6 @@ public class AcademicRepository {
                     list.add(cc);
                 }
             }
-        }
-        // Nếu sinh viên chưa được gán lớp nào, trả về toàn bộ danh sách lớp của các môn đang mở để sinh viên có thể chọn học
-        if (list.isEmpty()) {
-            return findActiveClasses();
         }
         return list;
     }
@@ -352,12 +363,17 @@ public class AcademicRepository {
 
     public List<User.UserDTO> findStudentsByClass(int classId) throws SQLException {
         List<User.UserDTO> list = new ArrayList<>();
-        String sql = "SELECT u.id, u.username, u.full_name, u.role, u.class_id, cl.name AS class_name, u.created_at " +
-                     "FROM users u " +
-                     "LEFT JOIN classes cl ON u.class_id = cl.id " +
-                     "WHERE u.role = 'STUDENT' " +
-                     (classId > 0 ? "AND u.class_id = ? " : "") +
-                     "ORDER BY u.id DESC";
+        String sql = classId > 0
+                ? "SELECT u.id, u.username, u.full_name, u.role, ce.class_id, cl.name AS class_name, u.created_at " +
+                  "FROM class_enrollments ce JOIN users u ON u.id = ce.student_id " +
+                  "JOIN classes cl ON cl.id = ce.class_id " +
+                  "WHERE UPPER(TRIM(u.role::text)) = 'STUDENT' AND ce.class_id = ? ORDER BY u.id DESC"
+                : "SELECT u.id, u.username, u.full_name, u.role, MIN(ce.class_id) AS class_id, " +
+                  "COALESCE(STRING_AGG(cl.name, ', ' ORDER BY cl.name), '') AS class_name, u.created_at " +
+                  "FROM users u LEFT JOIN class_enrollments ce ON ce.student_id = u.id " +
+                  "LEFT JOIN classes cl ON cl.id = ce.class_id " +
+                  "WHERE UPPER(TRIM(u.role::text)) = 'STUDENT' " +
+                  "GROUP BY u.id, u.username, u.full_name, u.role, u.created_at ORDER BY u.id DESC";
         try (Connection conn = DatabaseConfig.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             if (classId > 0) {
@@ -384,7 +400,8 @@ public class AcademicRepository {
     }
 
     public void assignStudentToClass(int studentId, int classId) throws SQLException {
-        String sql = "UPDATE users SET class_id = ? WHERE id = ?";
+        String sql = "INSERT INTO class_enrollments (class_id, student_id) VALUES (?, ?) " +
+                "ON CONFLICT (class_id, student_id) DO NOTHING";
         try (Connection conn = DatabaseConfig.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, classId);
@@ -396,19 +413,13 @@ public class AcademicRepository {
     public void updateStudent(int studentId, String fullName, Integer classId, String newPassword) throws SQLException {
         boolean hasNewPassword = (newPassword != null && !newPassword.isBlank());
         String sql = hasNewPassword
-                ? "UPDATE users SET full_name = ?, class_id = ?, password_hash = ? WHERE id = ? AND role = 'STUDENT'"
-                : "UPDATE users SET full_name = ?, class_id = ? WHERE id = ? AND role = 'STUDENT'";
+                ? "UPDATE users SET full_name = ?, password_hash = ? WHERE id = ? AND role = 'STUDENT'"
+                : "UPDATE users SET full_name = ? WHERE id = ? AND role = 'STUDENT'";
 
         try (Connection conn = DatabaseConfig.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, fullName);
-            if (classId != null && classId > 0) {
-                stmt.setInt(2, classId);
-            } else {
-                stmt.setNull(2, Types.INTEGER);
-            }
-
             if (hasNewPassword) {
                 byte[] saltBytes = new byte[16];
                 new java.security.SecureRandom().nextBytes(saltBytes);
@@ -419,18 +430,47 @@ public class AcademicRepository {
                     byte[] hashBytes = digest.digest(newPassword.getBytes(java.nio.charset.StandardCharsets.UTF_8));
                     String passwordHash = java.util.Base64.getEncoder().encodeToString(hashBytes);
                     String storedHash = salt + ":" + passwordHash;
-                    stmt.setString(3, storedHash);
-                    stmt.setInt(4, studentId);
+                    stmt.setString(2, storedHash);
+                    stmt.setInt(3, studentId);
                 } catch (java.security.NoSuchAlgorithmException e) {
                     throw new SQLException("SHA-256 algorithm not available", e);
                 }
             } else {
-                stmt.setInt(3, studentId);
+                stmt.setInt(2, studentId);
             }
 
             int affected = stmt.executeUpdate();
             if (affected == 0) {
                 throw new SQLException("Không tìm thấy sinh viên id=" + studentId + " hoặc không có quyền sửa.");
+            }
+        }
+        if (classId != null && classId > 0) assignStudentToClass(studentId, classId);
+    }
+
+    public void removeStudentFromClass(int studentId, int classId) throws SQLException {
+        try (Connection conn = DatabaseConfig.getConnection()) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement remove = conn.prepareStatement(
+                    "DELETE FROM class_enrollments WHERE student_id = ? AND class_id = ?")) {
+                remove.setInt(1, studentId);
+                remove.setInt(2, classId);
+                if (remove.executeUpdate() == 0) {
+                    throw new SQLException("Sinh viên không thuộc lớp tín chỉ này.");
+                }
+                try (PreparedStatement legacy = conn.prepareStatement(
+                        "UPDATE users SET class_id = (SELECT MIN(class_id) FROM class_enrollments WHERE student_id = ?) " +
+                        "WHERE id = ? AND class_id = ?")) {
+                    legacy.setInt(1, studentId);
+                    legacy.setInt(2, studentId);
+                    legacy.setInt(3, classId);
+                    legacy.executeUpdate();
+                }
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
             }
         }
     }
@@ -483,15 +523,7 @@ public class AcademicRepository {
             String passwordHash = java.util.Base64.getEncoder().encodeToString(hashBytes);
             String storedHash = salt + ":" + passwordHash;
 
-            if (exists) {
-                try (PreparedStatement upd = conn.prepareStatement(
-                        "UPDATE users SET password_hash = ?, role = 'TEACHER' WHERE username = ?")) {
-                    upd.setString(1, storedHash);
-                    upd.setString(2, username);
-                    upd.executeUpdate();
-                    logger.info("Updated password hash for admin user '{}'", username);
-                }
-            } else {
+            if (!exists) {
                 try (PreparedStatement ins = conn.prepareStatement(
                         "INSERT INTO users (username, password_hash, full_name, role) VALUES (?, ?, ?, ?)")) {
                     ins.setString(1, username);
@@ -501,6 +533,15 @@ public class AcademicRepository {
                     ins.executeUpdate();
                     logger.info("Auto-seeded admin account: username='{}', role='TEACHER'", username);
                 }
+            } else {
+                // Never overwrite an existing password: doing so would undo a user's password change
+                // every time the server starts.
+                try (PreparedStatement updateRole = conn.prepareStatement(
+                        "UPDATE users SET role = 'TEACHER' WHERE username = ? AND role <> 'TEACHER'")) {
+                    updateRole.setString(1, username);
+                    updateRole.executeUpdate();
+                }
+                logger.debug("Default admin user '{}' already exists; preserving credentials", username);
             }
         } catch (Exception ex) {
             logger.warn("Could not ensure admin user {}: {}", username, ex.getMessage());

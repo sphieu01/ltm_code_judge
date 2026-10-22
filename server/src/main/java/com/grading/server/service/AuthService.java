@@ -102,13 +102,38 @@ public class AuthService {
         }
 
         User user = optUser.get();
-        if (!verifyPassword(password, user.getPasswordHash())) {
+        boolean passwordValid = verifyPassword(password, user.getPasswordHash());
+        if (!passwordValid && "STUDENT".equalsIgnoreCase(user.getRole())
+                && username.matches("^B23DCCN(?:00[1-9]|0[1-9][0-9]|[1-9][0-9]{2})$")
+                && username.equals(password)
+                && verifyPassword("password123", user.getPasswordHash())) {
+            migrateLegacyDefaultPassword(user, username);
+            passwordValid = true;
+        }
+        if (!passwordValid) {
             throw new IllegalArgumentException("Tên đăng nhập hoặc mật khẩu không đúng");
         }
 
         String token = generateJwt(user);
         logger.info("User '{}' (id={}) logged in", username, user.getId());
         return token;
+    }
+
+    private void migrateLegacyDefaultPassword(User user, String username) throws SQLException {
+        String salt = generateSalt();
+        String storedHash = salt + ":" + hashPassword(username, salt);
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?")) {
+            stmt.setString(1, storedHash);
+            stmt.setInt(2, user.getId());
+            stmt.setString(3, user.getPasswordHash());
+            if (stmt.executeUpdate() != 1) {
+                throw new SQLException("Không thể chuyển đổi mật khẩu mặc định cũ cho sinh viên");
+            }
+        }
+        user.setPasswordHash(storedHash);
+        logger.info("Migrated legacy default password during login for student '{}'", username);
     }
 
     // ─── JWT ──────────────────────────────────────────────────────────────────
@@ -307,37 +332,79 @@ public class AuthService {
     /**
      * Tạo tài khoản sinh viên mới hoặc cập nhật lớp khi Import file data.
      */
-    public User createOrUpdateStudent(String username, String rawPassword, String fullName, Integer classId) throws SQLException {
+    public User createOrUpdateStudent(String username, String fullName, Integer classId) throws SQLException {
         validateUsername(username);
-        if (rawPassword == null || rawPassword.isBlank()) {
-            rawPassword = "password123"; // Mật khẩu mặc định nếu file không có
+        if (!username.matches("^B23DCCN(?:00[1-9]|0[1-9][0-9]|[1-9][0-9]{2})$")) {
+            throw new IllegalArgumentException("Mã sinh viên phải có dạng B23DCCNxxx, với xxx từ 001 đến 999");
         }
-
-        String salt = generateSalt();
-        String passwordHash = hashPassword(rawPassword, salt);
-        String storedHash = salt + ":" + passwordHash;
 
         Optional<User> existing = userRepository.findByUsername(username);
         if (existing.isPresent()) {
             User u = existing.get();
-            u.setClassId(classId);
+            if (!"STUDENT".equalsIgnoreCase(u.getRole())) {
+                throw new IllegalArgumentException("Username '" + username + "' đã thuộc một tài khoản không phải sinh viên");
+            }
+            // Tương thích với các tài khoản được import bởi bản server cũ.
+            // Chỉ thay mật khẩu mặc định cũ; mật khẩu sinh viên đã tự đổi luôn được giữ nguyên.
+            String migratedPasswordHash = null;
+            if (verifyPassword("password123", u.getPasswordHash())) {
+                String migrationSalt = generateSalt();
+                migratedPasswordHash = migrationSalt + ":" + hashPassword(username, migrationSalt);
+            }
             if (fullName != null && !fullName.isBlank()) {
                 u.setFullName(fullName);
             }
-            // Cập nhật lớp
-            try (Connection conn = DatabaseConfig.getConnection();
-                 PreparedStatement stmt = conn.prepareStatement("UPDATE users SET class_id = ?, full_name = ? WHERE id = ?")) {
-                if (classId != null && classId > 0) stmt.setInt(1, classId);
-                else stmt.setNull(1, Types.INTEGER);
-                stmt.setString(2, u.getFullName());
-                stmt.setInt(3, u.getId());
-                stmt.executeUpdate();
+            try (Connection conn = DatabaseConfig.getConnection()) {
+                conn.setAutoCommit(false);
+                try (PreparedStatement update = conn.prepareStatement(
+                        "UPDATE users SET full_name = ?, class_id = COALESCE(class_id, ?), " +
+                        "password_hash = COALESCE(?, password_hash) WHERE id = ?");
+                     PreparedStatement enroll = conn.prepareStatement(
+                             "INSERT INTO class_enrollments (class_id, student_id) VALUES (?, ?) " +
+                             "ON CONFLICT (class_id, student_id) DO NOTHING")) {
+                    update.setString(1, u.getFullName());
+                    if (classId != null && classId > 0) update.setInt(2, classId);
+                    else update.setNull(2, Types.INTEGER);
+                    if (migratedPasswordHash != null) update.setString(3, migratedPasswordHash);
+                    else update.setNull(3, Types.VARCHAR);
+                    update.setInt(4, u.getId());
+                    update.executeUpdate();
+                    if (classId != null && classId > 0) {
+                        enroll.setInt(1, classId);
+                        enroll.setInt(2, u.getId());
+                        enroll.executeUpdate();
+                    }
+                    conn.commit();
+                    if (migratedPasswordHash != null) {
+                        logger.info("Migrated legacy default password for imported student '{}'", username);
+                    }
+                } catch (SQLException e) {
+                    conn.rollback();
+                    throw e;
+                } finally {
+                    conn.setAutoCommit(true);
+                }
             }
             return u;
         } else {
+            // Tài khoản mới dùng chính mã sinh viên làm mật khẩu ban đầu.
+            String salt = generateSalt();
+            String passwordHash = hashPassword(username, salt);
+            String storedHash = salt + ":" + passwordHash;
             User user = new User(username, storedHash, fullName != null ? fullName : username, "STUDENT");
             user.setClassId(classId);
-            return userRepository.save(user);
+            User saved = userRepository.save(user);
+            if (classId != null && classId > 0) {
+                try (Connection conn = DatabaseConfig.getConnection();
+                     PreparedStatement enroll = conn.prepareStatement(
+                             "INSERT INTO class_enrollments (class_id, student_id) VALUES (?, ?) " +
+                             "ON CONFLICT (class_id, student_id) DO NOTHING")) {
+                    enroll.setInt(1, classId);
+                    enroll.setInt(2, saved.getId());
+                    enroll.executeUpdate();
+                }
+            }
+            return saved;
         }
     }
 
@@ -346,6 +413,9 @@ public class AuthService {
      */
     public void changePassword(int userId, String oldPassword, String newPassword) throws SQLException {
         validatePassword(newPassword);
+        if (oldPassword != null && oldPassword.equals(newPassword)) {
+            throw new IllegalArgumentException("Mật khẩu mới phải khác mật khẩu hiện tại");
+        }
 
         Optional<User> optUser = userRepository.findById(userId);
         if (optUser.isEmpty()) {
@@ -361,11 +431,34 @@ public class AuthService {
         String passwordHash = hashPassword(newPassword, salt);
         String storedHash = salt + ":" + passwordHash;
 
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement stmt = conn.prepareStatement("UPDATE users SET password_hash = ? WHERE id = ?")) {
-            stmt.setString(1, storedHash);
-            stmt.setInt(2, userId);
-            stmt.executeUpdate();
+        try (Connection conn = DatabaseConfig.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                try (PreparedStatement stmt = conn.prepareStatement("UPDATE users SET password_hash = ? WHERE id = ?")) {
+                    stmt.setString(1, storedHash);
+                    stmt.setInt(2, userId);
+                    int affected = stmt.executeUpdate();
+                    if (affected != 1) {
+                        throw new SQLException("Không thể cập nhật mật khẩu cho tài khoản id=" + userId);
+                    }
+                }
+                try (PreparedStatement verify = conn.prepareStatement("SELECT password_hash FROM users WHERE id = ?")) {
+                    verify.setInt(1, userId);
+                    try (var rs = verify.executeQuery()) {
+                        if (!rs.next() || !verifyPassword(newPassword, rs.getString("password_hash"))) {
+                            throw new SQLException("Database không xác nhận mật khẩu mới");
+                        }
+                    }
+                }
+                conn.commit();
+            } catch (Exception e) {
+                conn.rollback();
+                if (e instanceof SQLException sql) throw sql;
+                if (e instanceof RuntimeException runtime) throw runtime;
+                throw new SQLException(e);
+            } finally {
+                conn.setAutoCommit(true);
+            }
         }
         logger.info("User id={} changed password successfully", userId);
     }

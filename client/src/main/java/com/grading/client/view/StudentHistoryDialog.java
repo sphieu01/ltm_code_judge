@@ -37,6 +37,7 @@ public class StudentHistoryDialog extends Dialog<Void> {
         setTitle("Lịch Sử Nộp Bài Trong Quá Khứ");
 
         DialogPane pane = getDialogPane();
+        ThemeManager.getInstance().applyCurrentZoom(pane);
         pane.getStyleClass().add("card");
         String cssPath = (ThemeManager.getInstance().isDark()) ? "/css/dark.css" : "/css/light.css";
         var res = getClass().getResource(cssPath);
@@ -70,26 +71,26 @@ public class StudentHistoryDialog extends Dialog<Void> {
         table.setPlaceholder(new Label("Chưa có lượt nộp bài nào trong quá khứ"));
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
-        TableColumn<Submission, Integer> colId = new TableColumn<>("#ID");
-        colId.setCellValueFactory(new PropertyValueFactory<>("id"));
-        colId.setPrefWidth(65);
-        colId.setStyle("-fx-alignment: CENTER;");
-
         TableColumn<Submission, String> colTitle = new TableColumn<>("Bài tập");
         colTitle.setCellValueFactory(c -> {
             String t = c.getValue().getProblemTitle();
             return new SimpleStringProperty(t != null && !t.isBlank() ? t : "Bài #" + c.getValue().getProblemId());
         });
-        colTitle.setPrefWidth(260);
+        colTitle.setMinWidth(260);
+        colTitle.setPrefWidth(350);
 
         TableColumn<Submission, String> colLang = new TableColumn<>("Ngôn ngữ");
         colLang.setCellValueFactory(new PropertyValueFactory<>("language"));
-        colLang.setPrefWidth(95);
+        colLang.setMinWidth(95);
+        colLang.setPrefWidth(110);
+        colLang.setMaxWidth(135);
         colLang.setStyle("-fx-alignment: CENTER;");
 
         TableColumn<Submission, String> colVerdict = new TableColumn<>("Kết quả");
         colVerdict.setCellValueFactory(new PropertyValueFactory<>("verdict"));
-        colVerdict.setPrefWidth(105);
+        colVerdict.setMinWidth(110);
+        colVerdict.setPrefWidth(125);
+        colVerdict.setMaxWidth(150);
         colVerdict.setStyle("-fx-alignment: CENTER;");
         colVerdict.setCellFactory(col -> new TableCell<Submission, String>() {
             @Override
@@ -120,21 +121,27 @@ public class StudentHistoryDialog extends Dialog<Void> {
 
         TableColumn<Submission, String> colPass = new TableColumn<>("Test đạt");
         colPass.setCellValueFactory(c -> new SimpleStringProperty(formatTestResult(c.getValue())));
-        colPass.setPrefWidth(90);
+        colPass.setMinWidth(90);
+        colPass.setPrefWidth(105);
+        colPass.setMaxWidth(120);
         colPass.setStyle("-fx-alignment: CENTER;");
 
         TableColumn<Submission, String> colTime = new TableColumn<>("Thời gian");
         colTime.setCellValueFactory(c -> new SimpleStringProperty(formatExecutionTime(c.getValue().getExecTimeMs())));
-        colTime.setPrefWidth(105);
+        colTime.setMinWidth(105);
+        colTime.setPrefWidth(120);
+        colTime.setMaxWidth(140);
         colTime.setStyle("-fx-alignment: CENTER;");
 
         TableColumn<Submission, String> colDate = new TableColumn<>("Thời điểm nộp");
         colDate.setCellValueFactory(c -> new SimpleStringProperty(formatSubmittedAt(c.getValue().getSubmittedAt())));
-        colDate.setPrefWidth(180);
+        colDate.setMinWidth(165);
+        colDate.setPrefWidth(190);
 
-        table.getColumns().addAll(colId, colTitle, colLang, colVerdict, colPass, colTime, colDate);
+        table.getColumns().addAll(colTitle, colLang, colVerdict, colPass, colTime, colDate);
         table.setItems(submissions);
-        VBox.setVgrow(table, Priority.ALWAYS);
+        TableViewSupport.fitHeightToRows(table, 9);
+        VBox.setVgrow(table, Priority.NEVER);
 
         table.setRowFactory(view -> {
             TableRow<Submission> row = new TableRow<>();

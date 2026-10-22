@@ -35,6 +35,7 @@ public class ProblemController {
         registerPushNotifications();
         initProctoring();
         loadSubmissionHistory();
+        startAssessmentGuard();
     }
 
     private void initHandlers() {
@@ -185,6 +186,38 @@ public class ProblemController {
     private javafx.beans.value.ChangeListener<Boolean> currentFocusListener;
     private javafx.stage.Window trackedWindow;
     private javafx.animation.Timeline periodicAiChecker;
+    private javafx.animation.Timeline assessmentChecker;
+
+    private void startAssessmentGuard() {
+        assessmentChecker = new javafx.animation.Timeline(new javafx.animation.KeyFrame(
+                javafx.util.Duration.seconds(5), event -> {
+                    SocketClient socketClient = sessionManager.getSocketClient();
+                    Problem current = view.getCurrentProblem();
+                    if (socketClient == null || !socketClient.isConnected() || current == null) return;
+                    socketClient.getActiveAssessment(null, response -> Platform.runLater(() -> {
+                        if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null
+                                || !response.getData().isJsonObject()) return;
+                        JsonObject active = response.getData().getAsJsonObject();
+                        boolean allowed = false;
+                        if (active.has("problemIds") && active.get("problemIds").isJsonArray()) {
+                            for (JsonElement id : active.getAsJsonArray("problemIds")) {
+                                if (id.getAsInt() == current.getId()) { allowed = true; break; }
+                            }
+                        }
+                        if (!allowed) {
+                            assessmentChecker.stop();
+                            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                                    javafx.scene.control.Alert.AlertType.INFORMATION,
+                                    "Bài kiểm tra đã bắt đầu. Giao diện sẽ chuyển sang danh sách bài giáo viên giao.");
+                            alert.setHeaderText(active.has("title") ? active.get("title").getAsString() : "Bài kiểm tra đang diễn ra");
+                            alert.showAndWait();
+                            view.navigateBackToDashboard();
+                        }
+                    }));
+                }));
+        assessmentChecker.setCycleCount(javafx.animation.Animation.INDEFINITE);
+        assessmentChecker.play();
+    }
 
     private void initProctoring() {
         view.sceneProperty().addListener((obsScene, oldScene, newScene) -> {
@@ -282,6 +315,9 @@ public class ProblemController {
     public void cleanup() {
         if (periodicAiChecker != null) {
             periodicAiChecker.stop();
+        }
+        if (assessmentChecker != null) {
+            assessmentChecker.stop();
         }
         if (trackedWindow != null && currentFocusListener != null) {
             trackedWindow.focusedProperty().removeListener(currentFocusListener);

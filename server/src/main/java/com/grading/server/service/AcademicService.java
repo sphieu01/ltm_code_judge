@@ -9,6 +9,8 @@ import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.util.List;
+import java.time.LocalDateTime;
+import com.google.gson.JsonObject;
 
 /**
  * Service xử lý logic nghiệp vụ cho Môn học (Courses),
@@ -19,9 +21,11 @@ public class AcademicService {
     private static final Logger logger = LoggerFactory.getLogger(AcademicService.class);
 
     private final AcademicRepository academicRepository;
+    private final com.grading.server.repository.AssessmentRepository assessmentRepository;
 
     public AcademicService(AcademicRepository academicRepository) {
         this.academicRepository = academicRepository;
+        this.assessmentRepository = new com.grading.server.repository.AssessmentRepository();
     }
 
     public List<Course> getAllCourses() throws SQLException {
@@ -104,5 +108,30 @@ public class AcademicService {
 
     public void deleteStudent(int studentId) throws SQLException {
         academicRepository.deleteStudent(studentId);
+    }
+
+    public void removeStudentFromClass(int studentId, int classId) throws SQLException {
+        if (classId <= 0) throw new IllegalArgumentException("Lớp tín chỉ không hợp lệ");
+        academicRepository.removeStudentFromClass(studentId, classId);
+    }
+
+    public int createAssessment(int classId, String title, LocalDateTime opensAt, LocalDateTime closesAt,
+                                int durationMinutes, int teacherId, List<Integer> problemIds) throws SQLException {
+        if (classId <= 0) throw new IllegalArgumentException("Lớp tín chỉ không hợp lệ.");
+        if (title == null || title.isBlank()) throw new IllegalArgumentException("Tên bài kiểm tra không được để trống.");
+        if (opensAt == null || closesAt == null || !closesAt.isAfter(opensAt))
+            throw new IllegalArgumentException("Thời gian kết thúc phải sau thời gian bắt đầu.");
+        if (durationMinutes <= 0) throw new IllegalArgumentException("Thời lượng phải lớn hơn 0 phút.");
+        if (problemIds == null || problemIds.isEmpty()) throw new IllegalArgumentException("Hãy chọn ít nhất một bài tập.");
+        return assessmentRepository.create(classId, title.trim(), opensAt, closesAt,
+                durationMinutes, teacherId, problemIds.stream().distinct().toList());
+    }
+
+    public JsonObject getActiveAssessment(int studentId, Integer classId) throws SQLException {
+        return assessmentRepository.findActiveForStudent(studentId, classId);
+    }
+
+    public boolean isProblemAllowedForStudent(int studentId, int problemId) throws SQLException {
+        return assessmentRepository.isProblemAllowedForStudent(studentId, problemId);
     }
 }

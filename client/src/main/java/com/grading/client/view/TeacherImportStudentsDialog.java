@@ -28,12 +28,10 @@ public class TeacherImportStudentsDialog extends Dialog<TeacherImportStudentsDia
 
     public static class StudentPreviewRow {
         public final String username;
-        public final String password;
         public final String fullName;
 
-        public StudentPreviewRow(String username, String password, String fullName) {
+        public StudentPreviewRow(String username, String fullName) {
             this.username = username;
-            this.password = password;
             this.fullName = fullName;
         }
     }
@@ -59,14 +57,16 @@ public class TeacherImportStudentsDialog extends Dialog<TeacherImportStudentsDia
         setTitle("Nạp Dữ Liệu Cấp Tài Khoản Sinh Viên Theo Lớp");
 
         DialogPane pane = getDialogPane();
+        ThemeManager.getInstance().applyCurrentZoom(pane);
         pane.getStyleClass().add("card");
         String cssPath = (ThemeManager.getInstance().isDark()) ? "/css/dark.css" : "/css/light.css";
         var res = getClass().getResource(cssPath);
         if (res != null) {
             pane.getStylesheets().setAll(res.toExternalForm());
         }
-        pane.setPrefWidth(680);
-        pane.setPrefHeight(520);
+        pane.setPrefWidth(720);
+        pane.setPrefHeight(600);
+        setResizable(true);
 
         VBox form = new VBox(12);
         form.setPadding(new Insets(16));
@@ -89,7 +89,7 @@ public class TeacherImportStudentsDialog extends Dialog<TeacherImportStudentsDia
 
         Label dropTitle = new Label("Nhấp vào đây để chọn file dữ liệu (.csv, .txt)");
         dropTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: -text-bright;");
-        Label dropFormat = new Label("Định dạng mỗi dòng: username,password,Họ và tên (hoặc username,Họ và tên)");
+        Label dropFormat = new Label("Mỗi dòng: B23DCCNxxx,Họ và tên (xxx từ 001–999; mật khẩu ban đầu là mã sinh viên)");
         dropFormat.setStyle("-fx-font-size: 11.5px; -fx-text-fill: -text-secondary;");
 
         fileStatusLabel = new Label("Chưa chọn file");
@@ -105,52 +105,64 @@ public class TeacherImportStudentsDialog extends Dialog<TeacherImportStudentsDia
         previewTable = new TableView<>();
         previewTable.getStyleClass().add("table-view");
         previewTable.setPlaceholder(new Label("Chưa nạp dữ liệu. Hãy chọn file CSV hoặc TXT ở trên."));
-        previewTable.setPrefHeight(200);
+        previewTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
-        TableColumn<StudentPreviewRow, String> colUser = new TableColumn<>("Username (*)");
+        TableColumn<StudentPreviewRow, String> colUser = new TableColumn<>("Mã sinh viên (*)");
         colUser.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().username));
-        colUser.setPrefWidth(160);
-
-        TableColumn<StudentPreviewRow, String> colPass = new TableColumn<>("Password");
-        colPass.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().password));
-        colPass.setPrefWidth(140);
+        colUser.setMinWidth(210);
+        colUser.setPrefWidth(260);
 
         TableColumn<StudentPreviewRow, String> colName = new TableColumn<>("Họ và tên");
         colName.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().fullName));
-        colName.setPrefWidth(260);
+        colName.setMinWidth(300);
+        colName.setPrefWidth(390);
 
-        previewTable.getColumns().addAll(colUser, colPass, colName);
+        previewTable.getColumns().addAll(colUser, colName);
         previewTable.setItems(previewList);
+        TableViewSupport.fitHeightToRows(previewTable, 5);
 
         form.getChildren().addAll(classLabel, targetClassCombo, dropzone, previewTitle, previewTable);
-        pane.setContent(form);
 
-        ButtonType saveBtnType = new ButtonType("Cấp tài khoản & Lưu", ButtonBar.ButtonData.OK_DONE);
-        ButtonType cancelBtnType = new ButtonType("Hủy", ButtonBar.ButtonData.CANCEL_CLOSE);
-        pane.getButtonTypes().addAll(saveBtnType, cancelBtnType);
-
-        Button saveBtn = (Button) pane.lookupButton(saveBtnType);
-        saveBtn.getStyleClass().addAll("button", "btn-primary");
-        Button cancelBtn = (Button) pane.lookupButton(cancelBtnType);
+        Button cancelBtn = new Button("Hủy");
         cancelBtn.getStyleClass().addAll("button", "btn-secondary");
+        cancelBtn.setCancelButton(true);
+        cancelBtn.setOnAction(event -> close());
 
-        setResultConverter(btn -> {
-            if (btn == saveBtnType) {
-                CreditClass selectedClass = targetClassCombo.getSelectionModel().getSelectedItem();
-                if (selectedClass == null || previewList.isEmpty()) return null;
-
-                JsonArray array = new JsonArray();
-                for (StudentPreviewRow row : previewList) {
-                    JsonObject obj = new JsonObject();
-                    obj.addProperty("username", row.username);
-                    obj.addProperty("password", row.password);
-                    obj.addProperty("fullName", row.fullName);
-                    array.add(obj);
-                }
-                return new ImportPayload(selectedClass.getId(), array);
+        Button saveBtn = new Button("Xác nhận & lưu");
+        saveBtn.getStyleClass().addAll("button", "btn-primary");
+        saveBtn.setDefaultButton(true);
+        saveBtn.setDisable(true);
+        Runnable updateSaveState = () -> saveBtn.setDisable(
+                targetClassCombo.getSelectionModel().getSelectedItem() == null || previewList.isEmpty());
+        previewList.addListener((javafx.collections.ListChangeListener<StudentPreviewRow>) change -> updateSaveState.run());
+        targetClassCombo.getSelectionModel().selectedItemProperty().addListener(
+                (obs, oldValue, newValue) -> updateSaveState.run());
+        saveBtn.setOnAction(event -> {
+            CreditClass selectedClass = targetClassCombo.getSelectionModel().getSelectedItem();
+            if (selectedClass == null || previewList.isEmpty()) return;
+            JsonArray array = new JsonArray();
+            for (StudentPreviewRow row : previewList) {
+                JsonObject obj = new JsonObject();
+                obj.addProperty("username", row.username);
+                obj.addProperty("fullName", row.fullName);
+                array.add(obj);
             }
-            return null;
+            setResult(new ImportPayload(selectedClass.getId(), array));
+            close();
         });
+
+        HBox actionBar = new HBox(10, cancelBtn, saveBtn);
+        actionBar.setAlignment(Pos.CENTER_RIGHT);
+        actionBar.setPadding(new Insets(12, 16, 12, 16));
+
+        ScrollPane scroll = new ScrollPane(form);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
+        BorderPane content = new BorderPane();
+        content.setCenter(scroll);
+        content.setBottom(actionBar);
+        pane.setContent(content);
     }
 
     private void chooseFile(Stage owner) {
@@ -180,18 +192,11 @@ public class TeacherImportStudentsDialog extends Dialog<TeacherImportStudentsDia
                 List<String> parts = parseDelimitedLine(line);
                 if (!parts.isEmpty()) {
                     String username = parts.get(0).trim();
-                    String password = "password123";
-                    String fullName = username;
+                    if (parts.size() != 2) continue;
+                    String fullName = parts.get(1).trim();
 
-                    if (parts.size() >= 3) {
-                        password = parts.get(1).trim();
-                        fullName = parts.get(2).trim();
-                    } else if (parts.size() == 2) {
-                        fullName = parts.get(1).trim();
-                    }
-
-                    if (username.matches("[A-Za-z0-9_.-]{3,50}") && !fullName.isBlank() && password.length() >= 6) {
-                        previewList.add(new StudentPreviewRow(username, password, fullName));
+                    if (username.matches("^B23DCCN(?:00[1-9]|0[1-9][0-9]|[1-9][0-9]{2})$") && !fullName.isBlank()) {
+                        previewList.add(new StudentPreviewRow(username, fullName));
                     }
                 }
             }

@@ -29,6 +29,7 @@ public class TeacherCourseDialog extends Dialog<Course> {
         setTitle(existing == null ? "Thêm Môn Học Mới" : "Sửa Môn Học");
 
         DialogPane pane = getDialogPane();
+        ThemeManager.getInstance().applyCurrentZoom(pane);
         pane.getStyleClass().add("card");
         String cssPath = (ThemeManager.getInstance().isDark()) ? "/css/dark.css" : "/css/light.css";
         var res = getClass().getResource(cssPath);

@@ -12,6 +12,7 @@ import com.grading.client.network.SocketClient;
 import com.grading.client.protocol.Response;
 import com.grading.client.view.*;
 import javafx.application.Platform;
+import javafx.scene.Cursor;
 import javafx.scene.control.Alert;
 import javafx.stage.Stage;
 
@@ -346,12 +347,15 @@ public class AdminController {
             if (client != null && client.isConnected()) {
                 client.importStudents(payload.classId, payload.studentsArray, response -> {
                     Platform.runLater(() -> {
-                        loadStudents(payload.classId);
-                        loadClasses(); // Cập nhật lại sĩ số lớp
+                        boolean success = "SUCCESS".equalsIgnoreCase(response.getStatus());
+                        if (success) {
+                            loadStudents(payload.classId);
+                            loadClasses(); // Cập nhật lại sĩ số lớp
+                        }
 
-                        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                        Alert alert = new Alert(success ? Alert.AlertType.INFORMATION : Alert.AlertType.ERROR);
                         alert.setTitle("Thông báo");
-                        alert.setHeaderText(null);
+                        alert.setHeaderText(success ? "Import thành công" : "Import thất bại");
                         alert.setContentText(response.getMessage() != null ? response.getMessage() : "Đã hoàn thành cấp tài khoản sinh viên.");
                         alert.showAndWait();
                     });
@@ -507,26 +511,58 @@ public class AdminController {
     private void handleEditProblem(Problem problem) {
         if (problem == null) return;
         SocketClient client = sessionManager.getSocketClient();
-        if (client == null || !client.isConnected()) return;
+        if (client == null || !client.isConnected()) {
+            showError("Không thể sửa bài tập", "Mất kết nối với máy chủ.");
+            return;
+        }
+        view.setCursor(Cursor.WAIT);
         client.getProblemDetail(problem.getId(), response -> Platform.runLater(() -> {
-            if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null || !response.getData().isJsonObject()) {
-                showError("Không thể tải bài tập", response.getMessage());
-                return;
+            view.setCursor(Cursor.DEFAULT);
+            try {
+                if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null || !response.getData().isJsonObject()) {
+                    showError("Không thể tải bài tập", response.getMessage());
+                    return;
+                }
+                JsonObject data = response.getData().getAsJsonObject();
+                Problem detail = problemFromJson(data, problem);
+                TeacherProblemDialog dialog = new TeacherProblemDialog(stage, cachedClasses,
+                        view.getProblemFilterClassCombo().getSelectionModel().getSelectedItem());
+                dialog.loadForEditing(detail, data.has("testCases") && data.get("testCases").isJsonArray()
+                        ? data.getAsJsonArray("testCases") : new JsonArray());
+                dialog.showAndWait().ifPresent(updated -> {
+                    JsonObject payload = buildProblemPayload(updated, dialog);
+                    payload.addProperty("id", problem.getId());
+                    client.updateProblem(payload, updateResponse -> Platform.runLater(() -> {
+                        if ("SUCCESS".equalsIgnoreCase(updateResponse.getStatus())) {
+                            loadProblems(updated.getClassId());
+                            Alert notice = new Alert(Alert.AlertType.INFORMATION,
+                                    "Đã cập nhật bài tập thành công.");
+                            notice.initOwner(stage);
+                            notice.setHeaderText(null);
+                            notice.showAndWait();
+                        } else showError("Không thể cập nhật bài tập", updateResponse.getMessage());
+                    }));
+                });
+            } catch (Exception ex) {
+                showError("Không thể mở cửa sổ sửa bài tập", ex.getMessage());
             }
-            JsonObject data = response.getData().getAsJsonObject();
-            TeacherProblemDialog dialog = new TeacherProblemDialog(stage, cachedClasses,
-                    view.getProblemFilterClassCombo().getSelectionModel().getSelectedItem());
-            dialog.loadForEditing(problem, data.has("testCases") && data.get("testCases").isJsonArray()
-                    ? data.getAsJsonArray("testCases") : new JsonArray());
-            dialog.showAndWait().ifPresent(updated -> {
-                JsonObject payload = buildProblemPayload(updated, dialog);
-                payload.addProperty("id", problem.getId());
-                client.updateProblem(payload, updateResponse -> Platform.runLater(() -> {
-                    if ("SUCCESS".equalsIgnoreCase(updateResponse.getStatus())) loadProblems(updated.getClassId());
-                    else showError("Không thể cập nhật bài tập", updateResponse.getMessage());
-                }));
-            });
         }));
+    }
+
+    private Problem problemFromJson(JsonObject data, Problem fallback) {
+        Problem detail = new Problem();
+        detail.setId(data.has("id") ? data.get("id").getAsInt() : fallback.getId());
+        detail.setTitle(data.has("title") ? data.get("title").getAsString() : fallback.getTitle());
+        detail.setDescription(data.has("description") && !data.get("description").isJsonNull()
+                ? data.get("description").getAsString() : fallback.getDescription());
+        detail.setDifficulty(data.has("difficulty") ? data.get("difficulty").getAsString() : fallback.getDifficulty());
+        detail.setTimeLimitMs(data.has("timeLimitMs") ? data.get("timeLimitMs").getAsInt() : fallback.getTimeLimitMs());
+        detail.setMemoryLimitKb(data.has("memoryLimitKb") ? data.get("memoryLimitKb").getAsInt() : fallback.getMemoryLimitKb());
+        if (data.has("classId") && !data.get("classId").isJsonNull()) detail.setClassId(data.get("classId").getAsInt());
+        else detail.setClassId(fallback.getClassId());
+        detail.setClassName(data.has("className") && !data.get("className").isJsonNull()
+                ? data.get("className").getAsString() : fallback.getClassName());
+        return detail;
     }
 
     private void handleViewClass(CreditClass creditClass) {

@@ -31,6 +31,7 @@ public class TeacherClassDialog extends Dialog<CreditClass> {
         setTitle(isEdit ? "Chỉnh Sửa Lớp Tín Chỉ" : "Thêm Lớp Tín Chỉ Mới");
 
         DialogPane pane = getDialogPane();
+        ThemeManager.getInstance().applyCurrentZoom(pane);
         pane.getStyleClass().add("card");
         String cssPath = (ThemeManager.getInstance().isDark()) ? "/css/dark.css" : "/css/light.css";
         var res = getClass().getResource(cssPath);

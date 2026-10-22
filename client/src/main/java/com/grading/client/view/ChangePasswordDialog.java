@@ -28,6 +28,7 @@ public class ChangePasswordDialog extends Dialog<Boolean> {
         setTitle("Đổi Mật Khẩu");
 
         DialogPane pane = getDialogPane();
+        ThemeManager.getInstance().applyCurrentZoom(pane);
         pane.getStyleClass().add("card");
         String cssPath = (ThemeManager.getInstance().isDark()) ? "/css/dark.css" : "/css/light.css";
         var res = getClass().getResource(cssPath);
@@ -103,6 +104,12 @@ public class ChangePasswordDialog extends Dialog<Boolean> {
 
             if (!newPass.equals(confirmPass)) {
                 errorLabel.setText("Xác nhận mật khẩu mới không khớp.");
+                event.consume();
+                return;
+            }
+
+            if (oldPass.equals(newPass)) {
+                errorLabel.setText("Mật khẩu mới phải khác mật khẩu hiện tại.");
                 event.consume();
                 return;
             }

@@ -85,6 +85,31 @@ public class ProfilePopup extends Popup {
 
         Separator sep2 = new Separator();
 
+        Label zoomTitle = new Label("Thu phóng giao diện");
+        zoomTitle.getStyleClass().add("meta-item");
+        Button zoomOutBtn = new Button("−");
+        Button zoomInBtn = new Button("+");
+        Button zoomResetBtn = new Button();
+        for (Button button : java.util.List.of(zoomOutBtn, zoomInBtn, zoomResetBtn)) {
+            button.getStyleClass().addAll("button", "btn-secondary");
+            button.setStyle("-fx-font-size: 12px; -fx-padding: 4px 10px;");
+        }
+        zoomOutBtn.setMinWidth(42);
+        zoomInBtn.setMinWidth(42);
+        zoomResetBtn.setMinWidth(82);
+        HBox zoomBox = new HBox(8, zoomOutBtn, zoomResetBtn, zoomInBtn);
+        zoomBox.setAlignment(Pos.CENTER);
+        Runnable refreshZoom = () -> {
+            ThemeManager manager = ThemeManager.getInstance();
+            zoomResetBtn.setText(manager.getZoomPercent() + "%");
+            zoomOutBtn.setDisable(!manager.canZoomOut());
+            zoomInBtn.setDisable(!manager.canZoomIn());
+        };
+        zoomOutBtn.setOnAction(e -> { ThemeManager.getInstance().zoomOut(); refreshZoom.run(); });
+        zoomInBtn.setOnAction(e -> { ThemeManager.getInstance().zoomIn(); refreshZoom.run(); });
+        zoomResetBtn.setOnAction(e -> { ThemeManager.getInstance().resetZoom(); refreshZoom.run(); });
+        refreshZoom.run();
+
         // Nút Đổi mật khẩu
         Button changePassBtn = new Button("🔒 Đổi mật khẩu");
         changePassBtn.setMaxWidth(Double.MAX_VALUE);
@@ -110,7 +135,8 @@ public class ProfilePopup extends Popup {
             }
         });
 
-        container.getChildren().addAll(userHeaderBox, sep1, infoGrid, sep2, changePassBtn, logoutBtn);
+        container.getChildren().addAll(userHeaderBox, sep1, infoGrid, sep2,
+                zoomTitle, zoomBox, changePassBtn, logoutBtn);
         return container;
     }
 

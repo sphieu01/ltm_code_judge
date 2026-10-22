@@ -417,6 +417,25 @@ public class SocketClient {
         sendRequest(MessageType.GET_CLASS_STUDENT_STATS, data, callback);
     }
 
+    public void createAssessment(int classId, String title, String opensAt, String closesAt,
+                                 int durationMinutes, com.google.gson.JsonArray problemIds,
+                                 Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("classId", classId);
+        data.addProperty("title", title);
+        data.addProperty("opensAt", opensAt);
+        data.addProperty("closesAt", closesAt);
+        data.addProperty("durationMinutes", durationMinutes);
+        data.add("problemIds", problemIds);
+        sendRequest(MessageType.CREATE_ASSESSMENT, data, callback);
+    }
+
+    public void getActiveAssessment(Integer classId, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        if (classId != null && classId > 0) data.addProperty("classId", classId);
+        sendRequest(MessageType.GET_ACTIVE_ASSESSMENT, data, callback);
+    }
+
     public void importStudents(int classId, com.google.gson.JsonArray studentsArray, Consumer<Response> callback) {
         JsonObject data = new JsonObject();
         data.addProperty("classId", classId);
@@ -440,8 +459,13 @@ public class SocketClient {
     }
 
     public void deleteStudent(int studentId, Consumer<Response> callback) {
+        deleteStudent(studentId, null, callback);
+    }
+
+    public void deleteStudent(int studentId, Integer classId, Consumer<Response> callback) {
         JsonObject data = new JsonObject();
         data.addProperty("studentId", studentId);
+        if (classId != null && classId > 0) data.addProperty("classId", classId);
         sendRequest(MessageType.DELETE_STUDENT, data, callback);
     }
 

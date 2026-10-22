@@ -29,6 +29,7 @@ public class EditStudentDialog extends Dialog<EditStudentDialog.EditStudentPaylo
         setTitle("Chỉnh Sửa Thông Tin Sinh Viên");
 
         DialogPane pane = getDialogPane();
+        ThemeManager.getInstance().applyCurrentZoom(pane);
         pane.getStyleClass().add("card");
         String cssPath = (ThemeManager.getInstance().isDark()) ? "/css/dark.css" : "/css/light.css";
         var res = getClass().getResource(cssPath);

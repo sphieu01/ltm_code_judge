@@ -222,17 +222,19 @@ public class ProblemView extends BorderPane {
         historyTable.getStyleClass().add("table-view");
         historyTable.setPlaceholder(new Label("Chưa có lượt nộp bài nào."));
         historyTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        historyTable.setPrefHeight(210);
 
-        TableColumn<SubmissionHistoryRow, String> problemCol = new TableColumn<>("Bài tập");
-        problemCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().title()));
         TableColumn<SubmissionHistoryRow, String> timeCol = new TableColumn<>("Thời gian nộp");
         timeCol.setCellValueFactory(
                 data -> new javafx.beans.property.SimpleStringProperty(data.getValue().timestamp()));
+        timeCol.setMinWidth(165);
+        timeCol.setPrefWidth(210);
         TableColumn<SubmissionHistoryRow, String> verdictCol = new TableColumn<>("Kết quả");
         verdictCol.setCellValueFactory(
                 data -> new javafx.beans.property.SimpleStringProperty(verdictToBadge(data.getValue().verdict())));
         verdictCol.setStyle("-fx-alignment: CENTER;");
+        verdictCol.setMinWidth(105);
+        verdictCol.setPrefWidth(125);
+        verdictCol.setMaxWidth(150);
         verdictCol.setCellFactory(column -> new TableCell<SubmissionHistoryRow, String>() {
             @Override
             protected void updateItem(String item, boolean empty) {
@@ -250,10 +252,14 @@ public class ProblemView extends BorderPane {
         });
         TableColumn<SubmissionHistoryRow, Void> viewCodeCol = new TableColumn<>("Thao tác");
         viewCodeCol.setStyle("-fx-alignment: CENTER;");
+        viewCodeCol.setMinWidth(125);
+        viewCodeCol.setPrefWidth(145);
+        viewCodeCol.setMaxWidth(165);
         viewCodeCol.setCellFactory(column -> new TableCell<SubmissionHistoryRow, Void>() {
             private final Button viewButton = new Button("Mở mã nguồn");
             {
                 viewButton.getStyleClass().addAll("button", "btn-secondary");
+                viewButton.setStyle("-fx-font-size: 12px; -fx-padding: 4px 11px;");
                 viewButton.setOnAction(event -> {
                     SubmissionHistoryRow row = getTableView().getItems().get(getIndex());
                     showSubmittedCode(row);
@@ -266,7 +272,8 @@ public class ProblemView extends BorderPane {
                 setGraphic(empty ? null : viewButton);
             }
         });
-        historyTable.getColumns().addAll(problemCol, timeCol, verdictCol, viewCodeCol);
+        historyTable.getColumns().addAll(timeCol, verdictCol, viewCodeCol);
+        TableViewSupport.fitHeightToRows(historyTable, 4);
         section.getChildren().addAll(title, historyTable);
         return section;
     }
@@ -874,6 +881,10 @@ public class ProblemView extends BorderPane {
 
     public void setOnBackToDashboard(Runnable handler) {
         this.onBackToDashboardHandler = handler;
+    }
+
+    public void navigateBackToDashboard() {
+        if (onBackToDashboardHandler != null) onBackToDashboardHandler.run();
     }
 
     // =========================================================================

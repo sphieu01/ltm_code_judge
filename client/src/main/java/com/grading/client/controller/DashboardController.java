@@ -11,6 +11,9 @@ import com.grading.client.network.SocketClient;
 import com.grading.client.protocol.Response;
 import com.grading.client.view.DashboardView;
 import javafx.application.Platform;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.util.Duration;
 import javafx.stage.Stage;
 
 import java.util.ArrayList;
@@ -29,6 +32,9 @@ public class DashboardController {
 
     private Consumer<Problem> onSelectProblem;
     private Runnable onLogout;
+    private Timeline assessmentPoller;
+    private Integer activeAssessmentId;
+    private boolean assessmentStateKnown;
 
     public DashboardController(DashboardView view, Stage stage) {
         this.view = view;
@@ -37,6 +43,7 @@ public class DashboardController {
 
         initEvents();
         loadStudentClassesAndProblems();
+        startAssessmentPolling();
     }
 
     private void initEvents() {
@@ -82,12 +89,55 @@ public class DashboardController {
 
                     // Tải bài tập của lớp đang chọn
                     CreditClass selected = view.getSelectedClass();
-                    loadProblems(selected != null ? selected.getId() : null);
+                    checkActiveAssessment(selected != null ? selected.getId() : null);
                 });
             });
         } else {
             loadProblems(null);
         }
+    }
+
+    private void startAssessmentPolling() {
+        assessmentPoller = new Timeline(new KeyFrame(Duration.seconds(5), event -> {
+            CreditClass selected = view.getSelectedClass();
+            checkActiveAssessment(selected != null ? selected.getId() : null);
+        }));
+        assessmentPoller.setCycleCount(Timeline.INDEFINITE);
+        assessmentPoller.play();
+        view.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (oldScene != null && newScene == null && assessmentPoller != null) assessmentPoller.stop();
+        });
+    }
+
+    private void checkActiveAssessment(Integer selectedClassId) {
+        SocketClient socketClient = sessionManager.getSocketClient();
+        if (socketClient == null || !socketClient.isConnected()) return;
+        socketClient.getActiveAssessment(null, response -> Platform.runLater(() -> {
+            if (!"SUCCESS".equalsIgnoreCase(response.getStatus())) return;
+            JsonObject assessment = response.getData() != null && response.getData().isJsonObject()
+                    ? response.getData().getAsJsonObject() : null;
+            if (assessment != null) {
+                int id = assessment.get("id").getAsInt();
+                view.setAssessmentMode(true,
+                        assessment.has("title") ? assessment.get("title").getAsString() : "Bài kiểm tra",
+                        assessment.has("classCode") ? assessment.get("classCode").getAsString() : null,
+                        assessment.has("closesAt") ? assessment.get("closesAt").getAsString() : null,
+                        assessment.has("durationMinutes") ? assessment.get("durationMinutes").getAsInt() : 0);
+                if (!assessmentStateKnown || activeAssessmentId == null || activeAssessmentId != id) {
+                    activeAssessmentId = id;
+                    assessmentStateKnown = true;
+                    loadProblems(assessment.get("classId").getAsInt());
+                }
+            } else {
+                boolean wasInAssessment = activeAssessmentId != null;
+                activeAssessmentId = null;
+                view.setAssessmentMode(false, null, null, null, 0);
+                if (!assessmentStateKnown || wasInAssessment) {
+                    assessmentStateKnown = true;
+                    loadProblems(selectedClassId);
+                }
+            }
+        }));
     }
 
     /**
@@ -161,10 +211,10 @@ public class DashboardController {
                 }
                 view.setProblems(list);
             } catch (Exception ex) {
-                view.setProblems(createDefaultProblems());
+                view.setProblems(activeAssessmentId != null ? List.of() : createDefaultProblems());
             }
         } else {
-            view.setProblems(createDefaultProblems());
+            view.setProblems(activeAssessmentId != null ? List.of() : createDefaultProblems());
         }
     }
 

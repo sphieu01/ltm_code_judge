@@ -105,6 +105,7 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         setTitle("Thêm bài tập mới — Dành cho Giáo viên");
 
         DialogPane pane = getDialogPane();
+        ThemeManager.getInstance().applyCurrentZoom(pane);
         pane.getStyleClass().add("card");
         String cssPath = (ThemeManager.getInstance().isDark()) ? "/css/dark.css" : "/css/light.css";
         var res = getClass().getResource(cssPath);

@@ -3,7 +3,6 @@ package com.grading.client.view;
 import com.grading.client.model.CreditClass;
 import com.grading.client.model.Problem;
 import com.grading.client.model.User;
-import javafx.beans.binding.Bindings;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
@@ -39,6 +38,8 @@ public class DashboardView extends BorderPane {
     private Button themeToggleBtn;
     private Button avatarBtn;
     private ProfilePopup profilePopup;
+    private Label assessmentBanner;
+    private boolean assessmentMode;
 
     // Table
     private TableView<Problem> problemTable;
@@ -121,11 +122,19 @@ public class DashboardView extends BorderPane {
         VBox centerBox = new VBox(10);
         centerBox.setPadding(new Insets(12, 16, 12, 16));
 
+        assessmentBanner = new Label();
+        assessmentBanner.setWrapText(true);
+        assessmentBanner.setMaxWidth(Double.MAX_VALUE);
+        assessmentBanner.setStyle("-fx-padding: 12 16; -fx-font-size: 14px; -fx-font-weight: bold; " +
+                "-fx-background-color: rgba(239, 68, 68, 0.14); -fx-border-color: #ef4444; -fx-border-radius: 6; -fx-background-radius: 6;");
+        assessmentBanner.setVisible(false);
+        assessmentBanner.setManaged(false);
+
         problemTable = buildProblemTable();
         // Bảng chỉ cao vừa đủ các hàng có dữ liệu và tự nở khi danh sách tăng.
         VBox.setVgrow(problemTable, Priority.NEVER);
 
-        centerBox.getChildren().add(problemTable);
+        centerBox.getChildren().addAll(assessmentBanner, problemTable);
         setCenter(centerBox);
 
         // 3. Bottom Status Bar
@@ -157,7 +166,7 @@ public class DashboardView extends BorderPane {
 
         // Event hooks
         classFilterCombo.setOnAction(e -> {
-            if (onSelectClassHandler != null) {
+            if (!assessmentMode && onSelectClassHandler != null) {
                 onSelectClassHandler.accept(classFilterCombo.getSelectionModel().getSelectedItem());
             }
         });
@@ -272,7 +281,7 @@ public class DashboardView extends BorderPane {
             private final Button btn = new Button("Làm bài");
             {
                 btn.getStyleClass().addAll("button", "btn-primary");
-                btn.setStyle("-fx-font-size: 11.5px; -fx-padding: 3 12 3 12;");
+                btn.setStyle("-fx-font-size: 12px; -fx-padding: 4 13 4 13;");
                 btn.setOnAction(e -> {
                     Problem p = getTableView().getItems().get(getIndex());
                     if (onSelectProblemHandler != null && p != null) {
@@ -335,8 +344,7 @@ public class DashboardView extends BorderPane {
         difficultyFilterCombo.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> updateFilter.run());
 
         problemTable.setItems(filteredProblems);
-        problemTable.prefHeightProperty().bind(Bindings.size(filteredProblems).multiply(48).add(34));
-        problemTable.maxHeightProperty().bind(Bindings.size(filteredProblems).multiply(48).add(34));
+        TableViewSupport.fitHeightToRows(problemTable, 12);
     }
 
     public void setUser(User user) {
@@ -364,6 +372,37 @@ public class DashboardView extends BorderPane {
         problemList.setAll(list == null ? List.of() : list.stream()
                 .filter(problem -> problem != null && problem.getTitle() != null && !problem.getTitle().isBlank())
                 .toList());
+    }
+
+    public void setAssessmentMode(boolean active, String title, String classCode,
+                                  String closesAt, int durationMinutes) {
+        assessmentMode = active;
+        for (Control control : List.of(classFilterCombo, difficultyFilterCombo, searchField, historyBtn)) {
+            control.setVisible(!active);
+            control.setManaged(!active);
+        }
+        assessmentBanner.setVisible(active);
+        assessmentBanner.setManaged(active);
+        if (active) {
+            brandLabel.setText("Bài kiểm tra đang diễn ra");
+            assessmentBanner.setText((title == null ? "Bài kiểm tra" : title)
+                    + (classCode == null ? "" : " — " + classCode)
+                    + "\nThời lượng: " + durationMinutes + " phút · Kết thúc: " + formatAssessmentTime(closesAt)
+                    + "\nChỉ các bài do giáo viên giao được hiển thị trong thời gian này.");
+        } else {
+            brandLabel.setText("Auto Grader");
+            assessmentBanner.setText("");
+        }
+    }
+
+    private String formatAssessmentTime(String value) {
+        if (value == null || value.isBlank()) return "—";
+        try {
+            return java.time.LocalDateTime.parse(value)
+                    .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy"));
+        } catch (Exception ignored) {
+            return value;
+        }
     }
 
     public void addProblem(Problem p) {

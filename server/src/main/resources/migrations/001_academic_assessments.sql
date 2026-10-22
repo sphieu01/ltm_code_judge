@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS class_enrollments (
     PRIMARY KEY (class_id, student_id)
 );
 
--- Preserve the legacy single-class membership before the application stops using it.
+-- Preserve the legacy single-class membership. The application now reads
+-- memberships from this table and keeps users.class_id only for compatibility.
 INSERT INTO class_enrollments (class_id, student_id)
 SELECT class_id, id FROM users
 WHERE role = 'STUDENT' AND class_id IS NOT NULL

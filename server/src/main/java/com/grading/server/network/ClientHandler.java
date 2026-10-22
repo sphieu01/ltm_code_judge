@@ -166,6 +166,8 @@ public class ClientHandler implements Runnable {
                     case GET_MY_CLASSES     -> handleGetMyClasses(request);
                     case TOGGLE_COURSE_ACTIVE -> handleToggleCourseActive(request);
                     case TOGGLE_PROBLEM_ACTIVE -> handleToggleProblemActive(request);
+                    case CREATE_ASSESSMENT -> handleCreateAssessment(request);
+                    case GET_ACTIVE_ASSESSMENT -> handleGetActiveAssessment(request);
                     case CHANGE_PASSWORD    -> handleChangePassword(request);
                     case PROCTOR_EVENT      -> handleProctorEvent(request);
                     case GET_PROCTOR_LOGS   -> handleGetProctorLogs(request);
@@ -286,9 +288,18 @@ public class ClientHandler implements Runnable {
                         ? problemService.getProblemsByClass(classId)
                         : problemService.getAllProblems();
             } else {
-                problems = (classId > 0)
-                        ? problemService.getProblemsByClassForStudent(classId)
-                        : problemService.getAllProblemsForStudent();
+                JsonObject activeAssessment = academicService.getActiveAssessment(authenticatedUserId, null);
+                if (activeAssessment != null) {
+                    int assessmentClassId = activeAssessment.get("classId").getAsInt();
+                    java.util.Set<Integer> allowed = new java.util.HashSet<>();
+                    for (var id : activeAssessment.getAsJsonArray("problemIds")) allowed.add(id.getAsInt());
+                    problems = problemService.getProblemsByClassForStudent(assessmentClassId).stream()
+                            .filter(problem -> allowed.contains(problem.getId())).toList();
+                } else {
+                    problems = (classId > 0)
+                            ? problemService.getProblemsByClassForStudent(classId)
+                            : problemService.getAllProblemsForStudent();
+                }
             }
 
             Message response = Message.success(
@@ -757,11 +768,10 @@ public class ClientHandler implements Runnable {
                 try {
                     JsonObject stuObj = el.getAsJsonObject();
                     String username = stuObj.has("username") ? stuObj.get("username").getAsString().trim() : "";
-                    String rawPassword = stuObj.has("password") ? stuObj.get("password").getAsString() : "password123";
                     String fullName = stuObj.has("fullName") ? stuObj.get("fullName").getAsString().trim() : username;
                     if (fullName.isBlank()) throw new IllegalArgumentException("Họ tên không được để trống");
 
-                    authService.createOrUpdateStudent(username, rawPassword, fullName, classId);
+                    authService.createOrUpdateStudent(username, fullName, classId);
                     successCount++;
                 } catch (Exception ex) {
                     errorCount++;
@@ -827,13 +837,20 @@ public class ClientHandler implements Runnable {
         try {
             JsonObject data = request.getData().getAsJsonObject();
             int studentId = data.get("studentId").getAsInt();
-
-            academicService.deleteStudent(studentId);
+            Integer classId = data.has("classId") && !data.get("classId").isJsonNull()
+                    ? data.get("classId").getAsInt() : null;
+            if (classId != null && classId > 0) {
+                academicService.removeStudentFromClass(studentId, classId);
+            } else {
+                academicService.deleteStudent(studentId);
+            }
 
             send(Message.success(
                     MessageType.DELETE_STUDENT_RESPONSE,
                     request.getRequestId(),
-                    "Đã xóa sinh viên thành công",
+                    classId != null && classId > 0
+                            ? "Đã gỡ sinh viên khỏi lớp tín chỉ"
+                            : "Đã xóa tài khoản sinh viên thành công",
                     null
             ));
         } catch (Exception e) {
@@ -846,6 +863,11 @@ public class ClientHandler implements Runnable {
         try {
             JsonObject data = request.getData().getAsJsonObject();
             int problemId = data.get("problemId").getAsInt();
+
+            if (!"TEACHER".equalsIgnoreCase(authenticatedRole)
+                    && !academicService.isProblemAllowedForStudent(authenticatedUserId, problemId)) {
+                throw new IllegalArgumentException("Trong thời gian kiểm tra, bạn chỉ được mở các bài do giáo viên giao.");
+            }
 
             boolean includeHiddenTests = "TEACHER".equalsIgnoreCase(authenticatedRole);
             Problem problem = problemService.getProblemDetail(problemId, includeHiddenTests);
@@ -872,6 +894,10 @@ public class ClientHandler implements Runnable {
         try {
             JsonObject data = request.getData().getAsJsonObject();
             int problemId = data.get("problemId").getAsInt();
+            if (!"TEACHER".equalsIgnoreCase(authenticatedRole)
+                    && !academicService.isProblemAllowedForStudent(authenticatedUserId, problemId)) {
+                throw new IllegalArgumentException("Trong thời gian kiểm tra, bạn chỉ được nộp các bài do giáo viên giao.");
+            }
             String sourceCode = data.get("sourceCode").getAsString();
             String language = data.get("language").getAsString();
 
@@ -961,6 +987,52 @@ public class ClientHandler implements Runnable {
     }
 
     // ─── Proctoring / Anti-Cheat Handlers ─────────────────────────────────────
+
+    private void handleCreateAssessment(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền tạo bài kiểm tra.");
+            return;
+        }
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            List<Integer> problemIds = new java.util.ArrayList<>();
+            if (data.has("problemIds") && data.get("problemIds").isJsonArray()) {
+                for (var id : data.getAsJsonArray("problemIds")) problemIds.add(id.getAsInt());
+            }
+            int id = academicService.createAssessment(
+                    data.get("classId").getAsInt(),
+                    data.has("title") ? data.get("title").getAsString() : "",
+                    java.time.LocalDateTime.parse(data.get("opensAt").getAsString()),
+                    java.time.LocalDateTime.parse(data.get("closesAt").getAsString()),
+                    data.get("durationMinutes").getAsInt(), authenticatedUserId, problemIds);
+            JsonObject result = new JsonObject();
+            result.addProperty("assessmentId", id);
+            send(Message.success(MessageType.CREATE_ASSESSMENT_RESPONSE, request.getRequestId(),
+                    "Đã lưu và công bố cấu hình bài kiểm tra.", result));
+        } catch (Exception e) {
+            logger.error("CreateAssessment error", e);
+            sendError(request.getRequestId(), e.getMessage() != null ? e.getMessage() : "Không thể tạo bài kiểm tra.");
+        }
+    }
+
+    private void handleGetActiveAssessment(Message request) {
+        if (!"STUDENT".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chức năng này chỉ dành cho sinh viên.");
+            return;
+        }
+        try {
+            Integer classId = null;
+            if (request.getData() != null && request.getData().isJsonObject()) {
+                JsonObject data = request.getData().getAsJsonObject();
+                if (data.has("classId") && !data.get("classId").isJsonNull()) classId = data.get("classId").getAsInt();
+            }
+            JsonObject active = academicService.getActiveAssessment(authenticatedUserId, classId);
+            send(Message.success(MessageType.GET_ACTIVE_ASSESSMENT_RESPONSE, request.getRequestId(), "OK", active));
+        } catch (Exception e) {
+            logger.error("GetActiveAssessment error", e);
+            sendError(request.getRequestId(), "Không thể kiểm tra lịch bài kiểm tra.");
+        }
+    }
 
     private void handleProctorEvent(Message request) {
         try {
@@ -1055,8 +1127,9 @@ public class ClientHandler implements Runnable {
         try {
             int classId = request.getData().getAsJsonObject().get("classId").getAsInt();
             String sql = "SELECT u.id AS student_id, COUNT(DISTINCT s.problem_id) AS solved_count " +
-                    "FROM users u LEFT JOIN submissions s ON s.user_id = u.id AND s.verdict = 'AC' " +
-                    "WHERE u.role = 'STUDENT' AND u.class_id = ? GROUP BY u.id";
+                    "FROM class_enrollments ce JOIN users u ON u.id = ce.student_id " +
+                    "LEFT JOIN submissions s ON s.user_id = u.id AND s.verdict = 'AC' " +
+                    "WHERE u.role = 'STUDENT' AND ce.class_id = ? GROUP BY u.id";
             JsonArray rows = new JsonArray();
             try (Connection conn = com.grading.server.config.DatabaseConfig.getConnection();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {

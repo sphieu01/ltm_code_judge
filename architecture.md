@@ -44,10 +44,13 @@ graph TB
             Submit["SubmissionService"]
         end
         
-        subgraph "Judging Engine"
+        subgraph "Judging Engine (Dual-Layer Security)"
             Queue["BlockingQueue<br/>(Submission Queue)"]
             Workers["Judge Workers<br/>(Thread Pool)"]
-            Sandbox["SandboxRunner<br/>(ProcessBuilder)"]
+            Scanner["SecurityScanner<br/>(Tầng 1: Static AST/Regex)"]
+            Sandbox["SandboxRunner<br/>(Tầng 2: Dual-Mode Dispatcher)"]
+            DockerBox["DockerSandboxRunner<br/>(Container Isolation)"]
+            LocalBox["LocalProcessSandbox<br/>(ProcessBuilder Fallback)"]
             Comparator["OutputComparator"]
         end
         
@@ -63,8 +66,12 @@ graph TB
     ClientHandler --> Submit
     Submit --> Queue
     Queue --> Workers
-    Workers --> Sandbox
-    Sandbox --> Comparator
+    Workers --> Scanner
+    Scanner -->|Safe Code| Sandbox
+    Sandbox -->|Docker Active| DockerBox
+    Sandbox -->|Fallback| LocalBox
+    DockerBox --> Comparator
+    LocalBox --> Comparator
     Comparator --> DB
     Auth --> DB
     Problem --> DB
@@ -75,7 +82,7 @@ graph TB
 
 | Component | Trách nhiệm |
 |-----------|-------------|
-| **JavaFX Client** | Giao diện, gửi code, xem kết quả |
+| **JavaFX Client** | Giao diện, chọn ngôn ngữ (C, C++, Java, Python), gửi code, xem kết quả real-time |
 | **SocketServer** | Lắng nghe TCP connections, tạo thread xử lý |
 | **ClientHandler** | Đọc/ghi message JSON qua socket, routing đến service |
 | **AuthService** | Đăng nhập, đăng ký, xác thực JWT |
@@ -83,9 +90,11 @@ graph TB
 | **SubmissionService** | Nhận bài nộp, đẩy vào queue |
 | **BlockingQueue** | Hàng đợi submission chờ chấm |
 | **Judge Workers** | Pool các thread chấm bài song song |
-| **SandboxRunner** | Compile & chạy code với giới hạn time/memory |
+| **SecurityScanner** | **Tầng 1 Bảo Mật**: Quét tĩnh AST/Regex chặn shell, network, syscall nguy hiểm |
+| **SandboxRunner** | Điều phối Dual-Mode: Docker Container hoặc Fallback sang Local Process Sandbox |
+| **DockerSandboxRunner** | **Tầng 2 Bảo Mật**: Container độc lập cô lập tài nguyên (`--network none`, `--memory 256m`) |
 | **OutputComparator** | So sánh output thực tế vs expected |
-| **PostgreSQL** | Lưu users, problems, test_cases, submissions |
+| **PostgreSQL** | Lưu users, problems, test_cases, submissions (hỗ trợ `SECURITY_VIOLATION`) |
 
 ---
 
@@ -270,6 +279,65 @@ graph LR
 3. **Queue overflow**: Giới hạn queue size, reject khi đầy
 4. **Client disconnect khi đang chấm**: Worker vẫn chấm xong, lưu DB, client kết nối lại xem kết quả
 
+### 4.4. Kiến Trúc Bảo Mật 2 Tầng & Đa Ngôn Ngữ (Production Sandbox Engine)
+
+Hệ thống hỗ trợ 4 ngôn ngữ lập trình chuẩn: **C (`gcc`), C++ (`g++`), Python (`python3`), Java (`javac`/`java`)** với thiết kế phòng thủ chiều sâu (Defense-in-Depth):
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Student as Student (Client)
+    participant Server as SocketServer / ClientHandler
+    participant Queue as JudgeQueue
+    participant Worker as JudgeWorker
+    participant Scanner as SecurityScanner (Tầng 1)
+    participant Sandbox as SandboxRunner (Tầng 2)
+    participant Docker as Docker / Local Process
+    participant DB as PostgreSQL DB
+
+    Student->>Server: Gửi SUBMIT_REQUEST (code, lang, problemId)
+    Server->>DB: INSERT Submission (PENDING)
+    Server->>Queue: Push submission vào Queue
+    Server-->>Student: Phản hồi PENDING (submissionId)
+    
+    Worker->>Queue: Poll submission
+    Worker->>DB: Cập nhật status = JUDGING
+    
+    Note over Worker,Scanner: TẦNG 1: QUÉT TĨNH BẢO MẬT (0ms overhead)
+    Worker->>Scanner: SecurityScanner.scan(code, lang)
+    alt Phát hiện mã độc (system, socket, windows.h, Runtime.exec...)
+        Scanner-->>Worker: VIOLATION (Lý do chi tiết)
+        Worker->>DB: Lưu Verdict = SECURITY_VIOLATION, Score = 0
+        Worker-->>Student: Push thông báo: SECURITY_VIOLATION
+    else Mã nguồn an toàn
+        Scanner-->>Worker: SAFE
+        Note over Worker,Sandbox: TẦNG 2: DUAL-MODE EXECUTION SANDBOX
+        Worker->>Sandbox: SandboxRunner.compile & run(testcases)
+        alt Docker Engine & Image sẵn sàng
+            Sandbox->>Docker: Docker Container (--network none, --memory 256m, --cpus 1.0, read-only)
+            Docker-->>Sandbox: Output & Execution Metrics
+        else Docker Offline / Chưa build image
+            Note over Sandbox: LOG CẢNH BÁO: FALLBACK TO LOCAL PROCESS SANDBOX
+            Sandbox->>Docker: Host OS ProcessBuilder (temp/judge, timeout controls)
+            Docker-->>Sandbox: Output & Execution Metrics
+        end
+        Sandbox-->>Worker: Kết quả từng test case (AC/WA/TLE/RE)
+        Worker->>DB: Lưu kết quả cuối cùng (Score, Passed/Total, Time, Memory)
+        Worker-->>Student: Push JUDGE_NOTIFICATION (AC/WA/TLE/RE/CE)
+    end
+```
+
+#### Bảng so sánh 2 Tầng Bảo Mật:
+
+| Đặc tính | Tầng 1: SecurityScanner (Static) | Tầng 2: Docker Sandbox (Dynamic) | Tầng 2 Fallback: Local Process |
+|---|---|---|---|
+| **Thời điểm kích hoạt** | Trước khi biên dịch (0 ms overhead) | Trong quá trình biên dịch & chạy | Khi Docker không khả dụng |
+| **Cơ chế thực thi** | Phân tích từ khóa/AST Regex | Cô lập nhân Linux Container | ProcessBuilder trên Host OS |
+| **Mạng (Network)** | Chặn cú pháp Socket, HTTP, curl | `--network none` (Cắt 100% mạng) | Được bảo vệ bởi Tầng 1 |
+| **Tài nguyên (RAM/CPU)** | Không tiêu tốn tài nguyên | `--memory 256m`, `--cpus 1.0` | Giới hạn Timeout tiến trình |
+| **Filesystem** | Chặn đọc file hệ điều hành | Read-Only Mount (`/app:ro`) | Thư mục riêng `./temp/judge/<id>` |
+| **Logging** | Ghi log lý do vi phạm | Ghi log container id & mode | Ghi log cảnh báo `⚠️ [LOCAL_SANDBOX]` to rõ |
+
 ---
 
 ## 5. Error Handling
@@ -280,6 +348,7 @@ graph LR
 | **Invalid token** | Trả `UNAUTHORIZED`, yêu cầu login lại |
 | **Client disconnect** | Server dọn dẹp thread, log sự kiện |
 | **Server unavailable** | Client hiện dialog "Không kết nối được", cho retry |
+| **Security Attack** | `SecurityScanner` chặn đứng, verdict `SECURITY_VIOLATION`, 0 điểm |
 | **Timeout (chấm bài)** | `Process.waitFor(timeout)` → kill process, trả TLE |
 | **Compile Error** | Trả CE + compiler output cho client |
 | **Runtime Error** | Bắt exit code != 0, trả RE |
@@ -298,7 +367,7 @@ CREATE DATABASE code_grading;
 -- Custom ENUM types
 CREATE TYPE user_role AS ENUM ('STUDENT', 'TEACHER');
 CREATE TYPE difficulty_level AS ENUM ('EASY', 'MEDIUM', 'HARD');
-CREATE TYPE verdict_type AS ENUM ('PENDING', 'JUDGING', 'AC', 'WA', 'TLE', 'RE', 'CE');
+CREATE TYPE verdict_type AS ENUM ('PENDING', 'JUDGING', 'AC', 'WA', 'TLE', 'RE', 'CE', 'SECURITY_VIOLATION');
 
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,

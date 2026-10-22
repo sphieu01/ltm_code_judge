@@ -1,0 +1,42 @@
+# -- Logs --
+logs/
+*.log
+
+# -- Java / Maven --
+target/
+**/target/
+*.class
+*.jar
+*.war
+*.ear
+*.bat
+!run-server.bat
+!run-client.bat
+!server/run-server.bat
+!client/run-client.bat
+!server/docker/build-image.bat
+
+# -- Temporary Judge Dirs --
+temp/
+**/temp/
+
+# -- IDE --
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+*.swp
+*.swo
+
+# -- OS --
+.DS_Store
+Thumbs.db
+
+# -- Personal notes --
+TOREAD.md
+**/TOREAD.md
+
+test_data/
+AGENTS.md

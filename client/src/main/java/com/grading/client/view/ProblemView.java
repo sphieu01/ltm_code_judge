@@ -840,27 +840,50 @@ public class ProblemView extends BorderPane {
         if (proctorBadge == null)
             return;
         if (violationCount <= 0) {
-            proctorBadge.setText("🛡️ Giám sát: Bình thường (Cho phép IDE)");
+            proctorBadge.setText("Giám sát: Bình thường");
             proctorBadge.setStyle(
                     "-fx-background-color: rgba(34, 197, 94, 0.15); -fx-text-fill: #16a34a; -fx-padding: 4 12; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 12px; -fx-border-color: rgba(34, 197, 94, 0.3); -fx-border-radius: 12px;");
         } else {
-            String shortDetail = (detail != null && !detail.isBlank()) ? detail : "ChatGPT/Gemini";
-            if (shortDetail.length() > 28) {
-                shortDetail = shortDetail.substring(0, 25) + "...";
-            }
-            proctorBadge.setText("🚨 Phát hiện AI: " + shortDetail + " (" + violationCount + " lần)");
+            proctorBadge.setText("🚨 Phát hiện AI (" + violationCount + " lần)");
             proctorBadge.setStyle(
                     "-fx-background-color: rgba(239, 68, 68, 0.2); -fx-text-fill: #dc2626; -fx-padding: 4 12; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 12px; -fx-border-color: #ef4444; -fx-border-radius: 12px;");
         }
     }
 
+    private Alert activeProctorAlert = null;
+
     public void showProctorWarningToast(String message, String severity) {
+        String msg = (message != null && !message.isBlank()) ? message : "Nghiêm cấm mở công cụ AI trong quá trình làm bài.";
+        if (activeProctorAlert != null && activeProctorAlert.isShowing()) {
+            activeProctorAlert.setContentText(msg);
+            if (activeProctorAlert.getDialogPane() != null && activeProctorAlert.getDialogPane().getScene() != null) {
+                javafx.stage.Window win = activeProctorAlert.getDialogPane().getScene().getWindow();
+                if (win instanceof javafx.stage.Stage stage) {
+                    stage.toFront();
+                    stage.requestFocus();
+                }
+            }
+            return;
+        }
         Alert alert = new Alert(
                 "CRITICAL".equalsIgnoreCase(severity) ? Alert.AlertType.ERROR : Alert.AlertType.WARNING);
         alert.setTitle("Cảnh Báo Giám Sát Chống Gian Lận");
-        alert.setHeaderText("Phát hiện mở công cụ AI (ChatGPT / Gemini)!");
-        alert.setContentText(message != null ? message : "Nghiêm cấm mở ChatGPT/Gemini trong quá trình làm bài.");
+        alert.setHeaderText("Phát hiện mở công cụ AI!");
+        alert.setContentText(msg);
+        activeProctorAlert = alert;
+        alert.setOnHidden(e -> {
+            if (activeProctorAlert == alert) {
+                activeProctorAlert = null;
+            }
+        });
         alert.show();
+    }
+
+    public void dismissProctorAlert() {
+        if (activeProctorAlert != null && activeProctorAlert.isShowing()) {
+            activeProctorAlert.close();
+            activeProctorAlert = null;
+        }
     }
 
     public void showAiWarningAlert(String warningMessage) {
@@ -884,7 +907,8 @@ public class ProblemView extends BorderPane {
     }
 
     public void navigateBackToDashboard() {
-        if (onBackToDashboardHandler != null) onBackToDashboardHandler.run();
+        if (onBackToDashboardHandler != null)
+            onBackToDashboardHandler.run();
     }
 
     // =========================================================================

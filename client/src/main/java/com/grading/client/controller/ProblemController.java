@@ -71,7 +71,7 @@ public class ProblemController {
         String aiCodeSign = AiToolDetector.detectAiPastedCode(code);
         if (aiCodeSign != null) {
             reportAiViolation("AI_CODE_PASTED", aiCodeSign);
-            v.showAiWarningAlert("Hệ thống phát hiện mã nguồn có chứa cú pháp/câu giải thích từ AI (" + aiCodeSign + ").\nVi phạm này đã được gửi trực tiếp đến Giám thị coi thi.");
+            v.showAiWarningAlert("Hệ thống phát hiện mã nguồn có dấu hiệu do AI sinh ra.\nVi phạm này đã được gửi trực tiếp đến Giám thị coi thi.");
         }
 
         int problemId = (problem != null) ? problem.getId() : 1;
@@ -182,7 +182,9 @@ public class ProblemController {
     // PROCTORING: PHÁT HIỆN SỬ DỤNG CHATGPT / GEMINI (CHO PHÉP DÙNG IDE NGOÀI)
     // =========================================================================
 
+    private static final long AI_VIOLATION_COOLDOWN_MS = 45_000L; // 45 giây cooldown giữa các lần tăng count và popup cảnh báo
     private long lastAiDetectionTime = 0;
+    private final java.util.concurrent.atomic.AtomicBoolean isScanning = new java.util.concurrent.atomic.AtomicBoolean(false);
     private javafx.beans.value.ChangeListener<Boolean> currentFocusListener;
     private javafx.stage.Window trackedWindow;
     private javafx.animation.Timeline periodicAiChecker;
@@ -270,13 +272,18 @@ public class ProblemController {
         }
 
         long now = System.currentTimeMillis();
-        if (now - lastAiDetectionTime < 3000) {
-            return; // Debounce 3 giây tránh gửi trùng lặp
+        if (now - lastAiDetectionTime < AI_VIOLATION_COOLDOWN_MS) {
+            return; // Chưa đủ 45 giây kể từ lần cảnh báo/tăng count gần nhất
+        }
+
+        if (!isScanning.compareAndSet(false, true)) {
+            return; // Đang có lượt quét trước đó chưa kết thúc
         }
 
         // Quét bất đồng bộ tiêu đề trình duyệt và tiến trình AI
-        AiToolDetector.detectRunningAiToolAsync().thenAccept(detectedAi -> {
-            if (detectedAi != null) {
+        AiToolDetector.detectRunningAiToolAsync().whenComplete((detectedAi, ex) -> {
+            isScanning.set(false);
+            if (ex == null && detectedAi != null) {
                 // PHÁT HIỆN ĐANG MỞ CHATGPT / GEMINI / AI TOOL
                 lastAiDetectionTime = System.currentTimeMillis();
                 Platform.runLater(() -> reportAiViolation("AI_TOOL_DETECTED", detectedAi));
@@ -322,6 +329,7 @@ public class ProblemController {
         if (trackedWindow != null && currentFocusListener != null) {
             trackedWindow.focusedProperty().removeListener(currentFocusListener);
         }
+        view.dismissProctorAlert();
     }
 
     /**

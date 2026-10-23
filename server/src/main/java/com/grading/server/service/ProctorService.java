@@ -15,10 +15,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  * ProctorService — Quản lý và xử lý dữ liệu giám sát phòng thi chống gian lận.
  *
  * Chức năng:
- * - Tiếp nhận các sự kiện vi phạm từ Client (mất focus Alt+Tab, paste mã nguồn...)
+ * - Tiếp nhận các sự kiện vi phạm từ Client (mất focus Alt+Tab, paste mã
+ * nguồn...)
  * - Đếm số lần vi phạm trên từng sinh viên và từng bài thi
  * - Phân loại mức độ vi phạm (INFO, WARNING, CRITICAL)
- * - Lưu trữ lịch sử nhật ký (In-Memory Thread-Safe) để cung cấp cho Giám thị / Giáo viên
+ * - Lưu trữ lịch sử nhật ký (In-Memory Thread-Safe) để cung cấp cho Giám thị /
+ * Giáo viên
  */
 public class ProctorService {
 
@@ -36,15 +38,15 @@ public class ProctorService {
             int violationCount,
             String severity,
             String warningMessage,
-            ProctorLog log
-    ) {}
+            ProctorLog log) {
+    }
 
     /**
      * Ghi nhận một sự kiện giám sát từ client (kèm thông tin chi tiết vi phạm).
      */
     public ProctorResult recordEvent(int userId, String username, String fullName,
-                                     int problemId, String problemTitle,
-                                     String eventType, String detail, String clientIp) {
+            int problemId, String problemTitle,
+            String eventType, String detail, String clientIp) {
         String key = userId + ":" + problemId;
         int count = violationCounters.computeIfAbsent(key, k -> new AtomicInteger(0)).incrementAndGet();
 
@@ -54,7 +56,7 @@ public class ProctorService {
         if ("AI_TOOL_DETECTED".equalsIgnoreCase(eventType)) {
             severity = "CRITICAL";
             String toolInfo = (detail != null && !detail.isBlank()) ? detail : "ChatGPT / Gemini";
-            warningMessage = "CẢNH BÁO GIAN LẬN: Phát hiện mở công cụ AI (" + toolInfo + ")! Hành vi đã được gửi cho Giám thị.";
+            warningMessage = "CẢNH BÁO GIAN LẬN: Phát hiện mở công cụ AI! Hành vi đã được gửi cho Giám thị.";
         } else if ("AI_CODE_PASTED".equalsIgnoreCase(eventType)) {
             severity = "CRITICAL";
             String detailInfo = (detail != null && !detail.isBlank()) ? detail : "Cú pháp do AI sinh ra";
@@ -68,7 +70,8 @@ public class ProctorService {
                 warningMessage = "Cảnh báo: Bạn đã vi phạm lần thứ 2! Nghiêm cấm mọi hành vi gian lận.";
             } else {
                 severity = "CRITICAL";
-                warningMessage = "CẢNH BÁO VI PHẠM: Bạn đã vi phạm lần thứ " + count + "! Dữ liệu đã gửi trực tiếp cho Giám thị.";
+                warningMessage = "CẢNH BÁO VI PHẠM: Bạn đã vi phạm lần thứ " + count
+                        + "! Dữ liệu đã gửi trực tiếp cho Giám thị.";
             }
         }
 
@@ -84,8 +87,7 @@ public class ProctorService {
                 count,
                 severity,
                 clientIp,
-                System.currentTimeMillis()
-        );
+                System.currentTimeMillis());
 
         // Lưu log (giới hạn tối đa 1000 logs gần nhất)
         if (logList.size() >= 1000) {
@@ -100,8 +102,8 @@ public class ProctorService {
     }
 
     public ProctorResult recordEvent(int userId, String username, String fullName,
-                                     int problemId, String problemTitle,
-                                     String eventType, String clientIp) {
+            int problemId, String problemTitle,
+            String eventType, String clientIp) {
         return recordEvent(userId, username, fullName, problemId, problemTitle, eventType, null, clientIp);
     }
 

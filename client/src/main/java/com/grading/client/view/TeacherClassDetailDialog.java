@@ -352,8 +352,13 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         alertTable = new TableView<>(alerts);
         alertTable.getStyleClass().add("table-view");
         alertTable.setPlaceholder(new Label("Chưa có cảnh báo nào trong lớp."));
-        alertTable.getColumns().addAll(column("Thời điểm", AlertRow::time), column("Sinh viên", AlertRow::student),
-                column("Sự kiện", AlertRow::event), column("Mức độ", AlertRow::severity), column("Bài tập", AlertRow::problem));
+        alertTable.getColumns().addAll(
+                column("Thời điểm", AlertRow::time),
+                column("Sinh viên", AlertRow::student),
+                column("Sự kiện", AlertRow::event),
+                column("Công cụ / Chi tiết", AlertRow::tool),
+                column("Mức độ", AlertRow::severity),
+                column("Bài tập", AlertRow::problem));
         alertTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         VBox.setVgrow(alertTable, Priority.ALWAYS);
         box.getChildren().addAll(bar, alertTable);
@@ -366,10 +371,11 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         col.setCellValueFactory(data -> new SimpleStringProperty(value.apply(data.getValue())));
         switch (name) {
             case "Thời điểm" -> { col.setMinWidth(155); col.setPrefWidth(175); col.setMaxWidth(200); }
-            case "Sinh viên" -> { col.setMinWidth(180); col.setPrefWidth(240); }
-            case "Sự kiện" -> { col.setMinWidth(180); col.setPrefWidth(250); }
-            case "Mức độ" -> { col.setMinWidth(90); col.setPrefWidth(105); col.setMaxWidth(125); col.setStyle("-fx-alignment: CENTER;"); }
-            case "Bài tập" -> { col.setMinWidth(210); col.setPrefWidth(300); }
+            case "Sinh viên" -> { col.setMinWidth(160); col.setPrefWidth(210); }
+            case "Sự kiện" -> { col.setMinWidth(130); col.setPrefWidth(160); }
+            case "Công cụ / Chi tiết" -> { col.setMinWidth(200); col.setPrefWidth(260); }
+            case "Mức độ" -> { col.setMinWidth(80); col.setPrefWidth(95); col.setMaxWidth(115); col.setStyle("-fx-alignment: CENTER;"); }
+            case "Bài tập" -> { col.setMinWidth(160); col.setPrefWidth(210); }
             default -> col.setPrefWidth(160);
         }
         return col;
@@ -463,7 +469,13 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
             for (JsonElement e : response.getData().getAsJsonArray()) {
                 JsonObject o = e.getAsJsonObject(); int userId = o.has("userId") ? o.get("userId").getAsInt() : -1;
                 if (!studentIds.contains(userId)) continue;
-                list.add(new AlertRow(value(o, "formattedTime"), value(o, "fullName"), value(o, "eventType"), value(o, "severity"), value(o, "problemTitle")));
+                list.add(new AlertRow(
+                        value(o, "formattedTime"),
+                        value(o, "fullName"),
+                        value(o, "eventType"),
+                        value(o, "detail"),
+                        value(o, "severity"),
+                        value(o, "problemTitle")));
             }
             alerts.setAll(list);
         }));
@@ -487,5 +499,5 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
                 })));
     }
 
-    private record AlertRow(String time, String student, String event, String severity, String problem) {}
+    private record AlertRow(String time, String student, String event, String tool, String severity, String problem) {}
 }

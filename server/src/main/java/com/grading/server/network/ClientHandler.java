@@ -1096,11 +1096,13 @@ public class ClientHandler implements Runnable {
 
             String teacherMsg;
             if ("AI_TOOL_DETECTED".equalsIgnoreCase(eventType)) {
+                String toolName = (detail != null && !detail.isBlank()) ? detail : "Công cụ AI";
                 teacherMsg = String.format("🚨 GIAN LẬN AI: Sinh viên %s (%s) đang mở [%s] (Bài: %s)",
-                        fullName, username, detail != null ? detail : "ChatGPT/Gemini", problemTitle);
+                        fullName, username, toolName, problemTitle);
             } else if ("AI_CODE_PASTED".equalsIgnoreCase(eventType)) {
+                String sign = (detail != null && !detail.isBlank()) ? detail : "Cú pháp AI";
                 teacherMsg = String.format("🚨 GIAN LẬN AI: Sinh viên %s (%s) dán mã nguồn có dấu hiệu AI [%s] (Bài: %s)",
-                        fullName, username, detail != null ? detail : "", problemTitle);
+                        fullName, username, sign, problemTitle);
             } else {
                 teacherMsg = String.format("⚠️ Sinh viên %s (%s) vi phạm giám sát lần %d (Bài: %s)",
                         fullName, username, result.violationCount(), problemTitle);

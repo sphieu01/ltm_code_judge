@@ -131,8 +131,7 @@ public class DashboardView extends BorderPane {
         assessmentBanner.setManaged(false);
 
         problemTable = buildProblemTable();
-        // Bảng chỉ cao vừa đủ các hàng có dữ liệu và tự nở khi danh sách tăng.
-        VBox.setVgrow(problemTable, Priority.NEVER);
+        VBox.setVgrow(problemTable, Priority.ALWAYS);
 
         centerBox.getChildren().addAll(assessmentBanner, problemTable);
         setCenter(centerBox);

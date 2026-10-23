@@ -14,9 +14,11 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.*;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 
 import java.time.LocalDate;
@@ -60,7 +62,31 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         DialogPane pane = getDialogPane();
         ThemeManager.getInstance().applyCurrentZoom(pane);
         pane.getStyleClass().add("card");
-        pane.setPrefSize(1180, 780);
+        String cssPath = (ThemeManager.getInstance().isDark()) ? "/css/dark.css" : "/css/light.css";
+        var res = getClass().getResource(cssPath);
+        if (res != null) {
+            pane.getStylesheets().setAll(res.toExternalForm());
+        }
+
+        setResizable(true);
+
+        Rectangle2D visualBounds = Screen.getPrimary().getVisualBounds();
+        pane.setPrefSize(visualBounds.getWidth(), visualBounds.getHeight());
+
+        setOnShowing(event -> {
+            Stage stage = (Stage) getDialogPane().getScene().getWindow();
+            stage.setX(visualBounds.getMinX());
+            stage.setY(visualBounds.getMinY());
+            stage.setWidth(visualBounds.getWidth());
+            stage.setHeight(visualBounds.getHeight());
+            stage.setMaximized(true);
+        });
+
+        setOnShown(event -> {
+            Stage stage = (Stage) getDialogPane().getScene().getWindow();
+            stage.setMaximized(true);
+            Platform.runLater(() -> stage.setMaximized(true));
+        });
 
         VBox root = new VBox(14);
         root.setPadding(new Insets(16));
@@ -88,6 +114,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         updateAssessmentButton.run();
         VBox.setVgrow(tabs, Priority.ALWAYS);
         root.getChildren().addAll(heading, subtitle, tabs);
+        VBox.setVgrow(root, Priority.ALWAYS);
         pane.setContent(root);
     }
 
@@ -142,9 +169,9 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         });
         studentTable.getColumns().addAll(username, name, solved, actions);
         studentTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        TableViewSupport.fitHeightToRows(studentTable, 10);
-        VBox.setVgrow(studentTable, Priority.NEVER);
+        VBox.setVgrow(studentTable, Priority.ALWAYS);
         box.getChildren().addAll(importBtn, studentTable);
+        VBox.setVgrow(box, Priority.ALWAYS);
         studentsTab = new Tab("Sinh viên (" + creditClass.getStudentCount() + ")", box);
         return studentsTab;
     }
@@ -237,8 +264,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
             });
             return row;
         });
-        TableViewSupport.fitHeightToRows(problemTable, 8);
-        VBox.setVgrow(problemTable, Priority.NEVER);
+        VBox.setVgrow(problemTable, Priority.ALWAYS);
 
         createAssessmentButton.addEventFilter(javafx.event.ActionEvent.ACTION, e -> {
             e.consume();
@@ -279,6 +305,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
                     }));
         });
         box.getChildren().addAll(config, validation, problemTable);
+        VBox.setVgrow(box, Priority.ALWAYS);
         return new Tab("Kiểm tra", box);
     }
 
@@ -328,9 +355,9 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         alertTable.getColumns().addAll(column("Thời điểm", AlertRow::time), column("Sinh viên", AlertRow::student),
                 column("Sự kiện", AlertRow::event), column("Mức độ", AlertRow::severity), column("Bài tập", AlertRow::problem));
         alertTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        TableViewSupport.fitHeightToRows(alertTable, 10);
-        VBox.setVgrow(alertTable, Priority.NEVER);
+        VBox.setVgrow(alertTable, Priority.ALWAYS);
         box.getChildren().addAll(bar, alertTable);
+        VBox.setVgrow(box, Priority.ALWAYS);
         return new Tab("Cảnh báo", box);
     }
 

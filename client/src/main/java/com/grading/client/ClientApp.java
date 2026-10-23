@@ -10,7 +10,10 @@ import com.grading.client.view.DashboardView;
 import com.grading.client.view.LoginView;
 import com.grading.client.view.ProblemView;
 import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 
 import java.net.URL;
@@ -44,18 +47,30 @@ public class ClientApp extends Application {
         primaryStage.setMinWidth(900);
         primaryStage.setMinHeight(600);
 
+        // Mặc định mở full màn hình nhưng chừa lại Taskbar (Visual Bounds)
+        Rectangle2D visualBounds = Screen.getPrimary().getVisualBounds();
+        primaryStage.setX(visualBounds.getMinX());
+        primaryStage.setY(visualBounds.getMinY());
+        primaryStage.setWidth(visualBounds.getWidth());
+        primaryStage.setHeight(visualBounds.getHeight());
+        primaryStage.setMaximized(true);
+
         primaryStage.setOnCloseRequest(event -> {
             try {
                 SessionManager.getInstance().clear();
             } catch (Exception ignored) {
             }
-            javafx.application.Platform.exit();
+            Platform.exit();
             System.exit(0);
         });
 
         // Khởi động tại màn hình Đăng nhập
         showLoginView();
         primaryStage.show();
+
+        // Đảm bảo cửa sổ được maximize tối đa (vẫn chừa taskbar) sau khi hiển thị
+        primaryStage.setMaximized(true);
+        Platform.runLater(() -> primaryStage.setMaximized(true));
     }
 
     @Override
@@ -178,23 +193,17 @@ public class ClientApp extends Application {
 
 
     private void switchScene(javafx.scene.Parent root, double width, double height) {
+        Rectangle2D visualBounds = Screen.getPrimary().getVisualBounds();
         if (mainScene == null) {
-            mainScene = new Scene(root, width, height);
+            mainScene = new Scene(root, visualBounds.getWidth(), visualBounds.getHeight());
             com.grading.client.view.ThemeManager.getInstance().registerScene(mainScene);
             primaryStage.setScene(mainScene);
         } else {
             mainScene.setRoot(root);
-            if (!primaryStage.isMaximized()) {
-                if (primaryStage.getWidth() < width) {
-                    primaryStage.setWidth(width);
-                }
-                if (primaryStage.getHeight() < height) {
-                    primaryStage.setHeight(height);
-                }
-                primaryStage.centerOnScreen();
-            }
             com.grading.client.view.ThemeManager.getInstance().applyTheme(mainScene);
         }
+        // Giữ các giao diện mặc định luôn full màn hình (chừa taskbar)
+        primaryStage.setMaximized(true);
     }
 
     private void populateProblemDetails(ProblemView view, Problem problem) {

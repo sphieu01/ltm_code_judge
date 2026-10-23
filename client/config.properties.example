@@ -1,0 +1,10 @@
+# ============================================================
+# Auto Grader Client - Cau hinh ket noi Server
+# ============================================================
+# Neu chay voi Server deploy qua Ngrok:
+server.host=0.tcp.ap.ngrok.io
+server.port=21513
+
+# Neu chay voi Server local cua ban tren may:
+# server.host=localhost
+# server.port=9999

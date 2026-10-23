@@ -48,3 +48,7 @@ test_data/
 AGENTS.md
 local/
 .env
+config.properties
+client.properties
+**/config.properties
+**/client.properties

@@ -26,10 +26,15 @@ public class ClientConfig {
     public static synchronized void loadConfig() {
         Properties props = new Properties();
 
-        // 1. Tìm file config trong thư mục hiện tại
         File configFile = new File("config.properties");
         if (!configFile.exists()) {
             configFile = new File("client.properties");
+        }
+        if (!configFile.exists()) {
+            configFile = new File("client/config.properties");
+        }
+        if (!configFile.exists()) {
+            configFile = new File("client/client.properties");
         }
 
         if (configFile.exists() && configFile.isFile()) {

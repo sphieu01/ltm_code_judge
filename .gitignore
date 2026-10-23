@@ -9,12 +9,18 @@ target/
 *.jar
 *.war
 *.ear
+dependency-reduced-pom.xml
 *.bat
 !run-server.bat
 !run-client.bat
+!package-client.bat
+!start-tunnel.bat
 !server/run-server.bat
 !client/run-client.bat
 !server/docker/build-image.bat
+
+# -- Release --
+release/
 
 # -- Temporary Judge Dirs --
 temp/
@@ -41,3 +47,4 @@ TOREAD.md
 test_data/
 AGENTS.md
 local/
+.env

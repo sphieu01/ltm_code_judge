@@ -57,9 +57,9 @@ public class LoginView extends BorderPane {
         Label subtitleLabel = new Label("Hệ Thống Chấm Code Trực Tuyến & Quản Lý Lớp Tín Chỉ");
         subtitleLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: -text-secondary;");
 
-        // Backend server mặc định
-        hostField = new TextField("localhost");
-        portField = new TextField("9999");
+        // Backend server lấy từ ClientConfig (env, properties, hoặc default)
+        hostField = new TextField(com.grading.client.config.ClientConfig.getHost());
+        portField = new TextField(String.valueOf(com.grading.client.config.ClientConfig.getPort()));
 
         // Username
         VBox userBox = new VBox(4);

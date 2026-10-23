@@ -1,0 +1,23 @@
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: ltm-code-judge-server:latest
+    container_name: ltm-server
+    restart: unless-stopped
+    ports:
+      - "9999:9999"
+    environment:
+      - DB_URL=jdbc:postgresql://ep-dry-rice-b32otp6l-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
+      - DB_USER=neondb_owner
+      - DB_PASSWORD=npg_GAm7Pd6hCFMt
+      - SERVER_PORT=9999
+      - CONNECTION_POOL_SIZE=20
+      - JUDGE_WORKER_COUNT=4
+      - JWT_SECRET=MyVerySecretKeyForCodeGradingSystem2024!ThisIsLong
+    volumes:
+      - server_temp:/app/temp
+
+volumes:
+  server_temp:

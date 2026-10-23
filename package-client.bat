@@ -52,7 +52,7 @@ IF NOT EXIST "release\client-dist\config.properties" (
         echo # Auto Grader Client - Cau hinh ket noi Server
         echo # ============================================================
         echo server.host=0.tcp.ap.ngrok.io
-        echo server.port=23480
+        echo server.port=21513
     ) > "release\client-dist\config.properties"
 )
 

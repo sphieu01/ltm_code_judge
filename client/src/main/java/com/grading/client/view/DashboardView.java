@@ -283,27 +283,35 @@ public class DashboardView extends BorderPane {
         // 4. Cột Trạng thái làm bài
         TableColumn<Problem, String> statusCol = new TableColumn<>("Trạng thái");
         statusCol.setCellValueFactory(new PropertyValueFactory<>("status"));
-        statusCol.setMinWidth(120);
-        statusCol.setPrefWidth(140);
-        statusCol.setMaxWidth(160);
+        statusCol.setMinWidth(170);
+        statusCol.setPrefWidth(190);
+        statusCol.setMaxWidth(225);
         statusCol.setStyle("-fx-alignment: CENTER;");
         statusCol.setCellFactory(col -> new TableCell<Problem, String>() {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || item == null || item.isEmpty()) {
+                if (empty || item == null || item.isEmpty() || "—".equals(item)) {
                     setGraphic(null);
                     setText("—");
                     setStyle("-fx-text-fill: -text-secondary; -fx-alignment: CENTER;");
                 } else {
-                    Label pill = new Label(item);
+                    String display = com.grading.client.model.Submission.formatVerdict(item);
+                    Label pill = new Label(display);
                     pill.getStyleClass().add("badge-role");
-                    if ("AC".equalsIgnoreCase(item)) {
-                        pill.setStyle("-fx-text-fill: -status-ac; -fx-border-color: -status-ac; -fx-background-color: rgba(46, 204, 113, 0.15);");
-                    } else if ("WA".equalsIgnoreCase(item)) {
-                        pill.setStyle("-fx-text-fill: -status-wa; -fx-border-color: -status-wa; -fx-background-color: rgba(231, 76, 60, 0.15);");
+                    pill.setMinWidth(Region.USE_PREF_SIZE);
+                    pill.setStyle("-fx-padding: 3 10 3 10; -fx-font-size: 11.5px; -fx-font-weight: bold; -fx-alignment: CENTER;");
+                    String u = item.toUpperCase();
+                    if (u.equals("AC") || u.equals("ACCEPTED") || u.equals("PASSED")) {
+                        pill.setStyle(pill.getStyle() + "-fx-text-fill: -status-ac; -fx-border-color: -status-ac; -fx-background-color: rgba(46, 204, 113, 0.15);");
+                    } else if (u.contains("WRONG") || u.equals("WA") || u.equals("FAILED")) {
+                        pill.setStyle(pill.getStyle() + "-fx-text-fill: -status-wa; -fx-border-color: -status-wa; -fx-background-color: rgba(231, 76, 60, 0.15);");
+                    } else if (u.contains("TLE") || u.contains("TIME_LIMIT")) {
+                        pill.setStyle(pill.getStyle() + "-fx-text-fill: -status-tle; -fx-border-color: -status-tle; -fx-background-color: rgba(230, 126, 34, 0.15);");
+                    } else if (u.contains("CE") || u.contains("COMPILE")) {
+                        pill.setStyle(pill.getStyle() + "-fx-text-fill: -status-ce; -fx-border-color: -status-ce; -fx-background-color: rgba(155, 89, 182, 0.15);");
                     } else {
-                        pill.setStyle("-fx-text-fill: -status-tle; -fx-border-color: -status-tle; -fx-background-color: rgba(230, 126, 34, 0.15);");
+                        pill.setStyle(pill.getStyle() + "-fx-text-fill: -status-running; -fx-border-color: -status-running; -fx-background-color: rgba(52, 152, 219, 0.15);");
                     }
                     setGraphic(pill);
                     setText(null);

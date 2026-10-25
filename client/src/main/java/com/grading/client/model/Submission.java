@@ -88,4 +88,49 @@ public class Submission {
     public boolean isJudged() {
         return verdict != null && !verdict.equals("PENDING") && !verdict.equals("JUDGING");
     }
+
+    /**
+     * Chuẩn hóa hiển thị kết quả chấm (AC => Accepted, TLE => Time Limit Exceeded, v.v.)
+     */
+    public static String formatVerdict(String v) {
+        if (v == null || v.isBlank() || v.equals("--") || v.equals("—")) {
+            return "—";
+        }
+        String u = v.trim().toUpperCase();
+        if (u.equals("AC") || u.equals("ACCEPTED") || u.equals("PASSED")) {
+            return "Accepted";
+        }
+        if (u.equals("WA") || u.equals("WRONG_ANSWER") || u.equals("FAILED") || u.contains("WRONG")) {
+            return "Wrong Answer";
+        }
+        if (u.equals("TLE") || u.equals("TIME_LIMIT_EXCEEDED") || u.contains("TIME_LIMIT")) {
+            return "Time Limit Exceeded";
+        }
+        if (u.equals("MLE") || u.equals("MEMORY_LIMIT_EXCEEDED") || u.contains("MEMORY_LIMIT")) {
+            return "Memory Limit Exceeded";
+        }
+        if (u.equals("CE") || u.equals("COMPILE_ERROR") || u.equals("COMPILATION_ERROR") || u.contains("COMPILE")) {
+            return "Compile Error";
+        }
+        if (u.equals("RE") || u.equals("RTE") || u.equals("RUNTIME_ERROR") || u.contains("RUNTIME")) {
+            return "Runtime Error";
+        }
+        if (u.equals("OLE") || u.equals("OUTPUT_LIMIT_EXCEEDED")) {
+            return "Output Limit Exceeded";
+        }
+        if (u.equals("PE") || u.equals("PRESENTATION_ERROR")) {
+            return "Presentation Error";
+        }
+        if (u.equals("PENDING")) {
+            return "Pending";
+        }
+        if (u.equals("JUDGING") || u.equals("RUNNING")) {
+            return "Judging";
+        }
+        return v;
+    }
+
+    public String getFormattedVerdict() {
+        return formatVerdict(this.verdict);
+    }
 }

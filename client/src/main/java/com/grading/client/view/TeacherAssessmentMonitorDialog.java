@@ -12,9 +12,11 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.control.*;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
@@ -36,7 +38,25 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
         setTitle("Theo dõi bài kiểm tra — " + title);
         setResizable(true);
         build();
-        setOnShown(e -> startPolling());
+
+        Rectangle2D visualBounds = Screen.getPrimary().getVisualBounds();
+        getDialogPane().setPrefSize(visualBounds.getWidth(), visualBounds.getHeight());
+
+        setOnShowing(event -> {
+            Stage stage = (Stage) getDialogPane().getScene().getWindow();
+            stage.setX(visualBounds.getMinX());
+            stage.setY(visualBounds.getMinY());
+            stage.setWidth(visualBounds.getWidth());
+            stage.setHeight(visualBounds.getHeight());
+            stage.setMaximized(true);
+        });
+
+        setOnShown(e -> {
+            Stage stage = (Stage) getDialogPane().getScene().getWindow();
+            stage.setMaximized(true);
+            Platform.runLater(() -> stage.setMaximized(true));
+            startPolling();
+        });
         setOnHidden(e -> stopPolling());
     }
 
@@ -65,11 +85,11 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
         TableView<SubmissionRow> submissionTable = new TableView<>(submissions);
         submissionTable.setPlaceholder(new Label("Chưa có lượt nộp bài."));
         submissionTable.getColumns().addAll(
-                col("Thời điểm", SubmissionRow::time, 165),
-                col("Sinh viên", SubmissionRow::student, 190),
-                col("Bài", SubmissionRow::problem, 190),
-                col("Ngôn ngữ", SubmissionRow::language, 100),
-                col("Kết quả", SubmissionRow::verdict, 100),
+                col("Thời điểm", SubmissionRow::time, 160),
+                col("Sinh viên", SubmissionRow::student, 180),
+                col("Bài", SubmissionRow::problem, 180),
+                col("Ngôn ngữ", SubmissionRow::language, 95),
+                col("Kết quả", SubmissionRow::verdict, 180),
                 col("Điểm", SubmissionRow::score, 75),
                 col("Test", SubmissionRow::tests, 85));
         submissionTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
@@ -103,11 +123,13 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
                 tab("Tiến độ sinh viên", progressTable),
                 tab("Lịch sử nộp bài", submissionBox),
                 tab("Cảnh báo gian lận", alertTable));
+        VBox.setVgrow(progressTable, Priority.ALWAYS);
+        VBox.setVgrow(alertTable, Priority.ALWAYS);
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         VBox.setVgrow(tabs, Priority.ALWAYS);
         VBox root = new VBox(10, summary, tabs);
         root.setPadding(new Insets(14));
-        root.setPrefSize(1080, 680);
+        VBox.setVgrow(root, Priority.ALWAYS);
         pane.setContent(root);
     }
 
@@ -176,7 +198,8 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
             JsonObject o = element.getAsJsonObject();
             submissions.add(new SubmissionRow(format(value(o, "submittedAt")),
                     value(o, "fullName") + " (" + value(o, "username") + ")",
-                    value(o, "problemTitle"), value(o, "language"), value(o, "verdict"),
+                    value(o, "problemTitle"), value(o, "language"),
+                    com.grading.client.model.Submission.formatVerdict(value(o, "verdict")),
                     String.valueOf(number(o, "score")), number(o, "passedTests") + "/" + number(o, "totalTests"),
                     value(o, "sourceCode")));
         }

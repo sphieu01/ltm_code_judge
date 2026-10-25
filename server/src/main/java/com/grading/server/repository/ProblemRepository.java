@@ -411,10 +411,51 @@ public class ProblemRepository {
     }
 
     public void deleteProblem(int problemId) throws SQLException {
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement stmt = conn.prepareStatement("DELETE FROM problems WHERE id = ?")) {
-            stmt.setInt(1, problemId);
-            if (stmt.executeUpdate() == 0) throw new SQLException("Không tìm thấy bài tập id=" + problemId);
+        try (Connection conn = DatabaseConfig.getConnection()) {
+            boolean autoCommit = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+            try {
+                // 1. Xóa toàn bộ lượt nộp bài của sinh viên cho bài tập này
+                try (PreparedStatement stmtSub = conn.prepareStatement("DELETE FROM submissions WHERE problem_id = ?")) {
+                    stmtSub.setInt(1, problemId);
+                    stmtSub.executeUpdate();
+                }
+
+                // 2. Xóa liên kết bài tập trong các lớp tín chỉ
+                try (PreparedStatement stmtCp = conn.prepareStatement("DELETE FROM class_problems WHERE problem_id = ?")) {
+                    stmtCp.setInt(1, problemId);
+                    stmtCp.executeUpdate();
+                }
+
+                // 3. Xóa liên kết trong kỳ thi / bài kiểm tra (nếu có)
+                try (PreparedStatement stmtAp = conn.prepareStatement("DELETE FROM assessment_problems WHERE problem_id = ?")) {
+                    stmtAp.setInt(1, problemId);
+                    stmtAp.executeUpdate();
+                }
+
+                // 4. Xóa các test cases của bài tập
+                try (PreparedStatement stmtTc = conn.prepareStatement("DELETE FROM test_cases WHERE problem_id = ?")) {
+                    stmtTc.setInt(1, problemId);
+                    stmtTc.executeUpdate();
+                }
+
+                // 5. Xóa bài tập
+                try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM problems WHERE id = ?")) {
+                    stmt.setInt(1, problemId);
+                    if (stmt.executeUpdate() == 0) {
+                        throw new SQLException("Không tìm thấy bài tập id=" + problemId);
+                    }
+                }
+
+                conn.commit();
+                logger.info("Cascade deleted problem id={} and its submissions/test_cases/links", problemId);
+            } catch (SQLException e) {
+                conn.rollback();
+                logger.error("Failed to cascade delete problem id={}", problemId, e);
+                throw e;
+            } finally {
+                conn.setAutoCommit(autoCommit);
+            }
         }
     }
 

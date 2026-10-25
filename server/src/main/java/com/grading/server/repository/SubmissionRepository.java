@@ -26,6 +26,13 @@ public class SubmissionRepository {
             stmt.executeUpdate("CREATE INDEX IF NOT EXISTS idx_submissions_assessment " +
                     "ON submissions(assessment_id, user_id, problem_id, submitted_at)");
             stmt.executeUpdate("UPDATE submissions SET score = 0 WHERE total_tests = 0 AND score <> 0");
+            try {
+                stmt.executeUpdate("ALTER TABLE submissions DROP CONSTRAINT IF EXISTS submissions_problem_id_fkey");
+                stmt.executeUpdate("ALTER TABLE submissions ADD CONSTRAINT submissions_problem_id_fkey " +
+                        "FOREIGN KEY (problem_id) REFERENCES problems(id) ON DELETE CASCADE");
+            } catch (SQLException ex) {
+                logger.warn("Could not alter submissions foreign key to ON DELETE CASCADE: {}", ex.getMessage());
+            }
         } catch (SQLException e) {
             logger.warn("Could not normalize legacy submission scores: {}", e.getMessage());
         }

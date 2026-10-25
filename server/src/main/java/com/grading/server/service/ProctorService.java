@@ -54,6 +54,10 @@ public class ProctorService {
     public ProctorResult recordEvent(int userId, String username, String fullName,
             int problemId, Integer assessmentId, String problemTitle,
             String eventType, String detail, String clientIp) {
+        if ("FOCUS_LOSS".equalsIgnoreCase(eventType)) {
+            return new ProctorResult(0, "INFO", "OK", null);
+        }
+
         String key = userId + ":" + problemId;
         int count = violationCounters.computeIfAbsent(key, k -> new AtomicInteger(0)).incrementAndGet();
 

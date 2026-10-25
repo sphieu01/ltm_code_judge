@@ -843,10 +843,12 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
             for (JsonElement e : response.getData().getAsJsonArray()) {
                 JsonObject o = e.getAsJsonObject(); int userId = o.has("userId") ? o.get("userId").getAsInt() : -1;
                 if (!studentIds.contains(userId)) continue;
+                String event = value(o, "eventType");
+                if ("FOCUS_LOSS".equalsIgnoreCase(event)) continue;
                 list.add(new AlertRow(
                         value(o, "formattedTime"),
                         value(o, "fullName"),
-                        value(o, "eventType"),
+                        event,
                         value(o, "detail"),
                         value(o, "severity"),
                         value(o, "problemTitle")));

@@ -136,13 +136,30 @@ public class AcademicRepository {
             try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM classes")) {
                 if (rs.next() && rs.getInt(1) == 0) {
                     stmt.executeUpdate(
-                            "INSERT INTO classes (class_code, name, course_id, teacher_id) VALUES " +
-                            "('CPP_01', 'Lớp C++ Nhóm 1 - Sáng T2', (SELECT id FROM courses WHERE code='INT2204' LIMIT 1), (SELECT id FROM users WHERE role='TEACHER' LIMIT 1))," +
-                            "('JAVA_01', 'Lớp Java Nhóm 2 - Chiều T4', (SELECT id FROM courses WHERE code='INT2205' LIMIT 1), (SELECT id FROM users WHERE role='TEACHER' LIMIT 1))," +
-                            "('PY_01', 'Lớp Python Nhóm 1 - Sáng T6', (SELECT id FROM courses WHERE code='INT2206' LIMIT 1), (SELECT id FROM users WHERE role='TEACHER' LIMIT 1))"
+                            "INSERT INTO classes (class_code, name, course_id, teacher_id, allowed_languages) VALUES " +
+                            "('CPP_01', 'Lớp C++ Nhóm 1 - Sáng T2', (SELECT id FROM courses WHERE code='INT2204' LIMIT 1), (SELECT id FROM users WHERE role='TEACHER' LIMIT 1), 'cpp,c')," +
+                            "('JAVA_01', 'Lớp Java Nhóm 2 - Chiều T4', (SELECT id FROM courses WHERE code='INT2205' LIMIT 1), (SELECT id FROM users WHERE role='TEACHER' LIMIT 1), 'java')," +
+                            "('PY_01', 'Lớp Python Nhóm 1 - Sáng T6', (SELECT id FROM courses WHERE code='INT2206' LIMIT 1), (SELECT id FROM users WHERE role='TEACHER' LIMIT 1), 'python')"
                     );
                     logger.info("Inserted default classes into database.");
                 }
+            }
+
+            // 7. Đồng bộ chuẩn hóa allowed_languages cho các lớp dựa trên môn học liên kết
+            try {
+                stmt.executeUpdate(
+                        "UPDATE classes cl SET allowed_languages = " +
+                        "  CASE " +
+                        "    WHEN LOWER(co.language) = 'java' OR LOWER(co.name) LIKE '%java%' OR LOWER(co.name) LIKE '%oop%' OR LOWER(co.name) LIKE '%hướng đối tượng%' THEN 'java' " +
+                        "    WHEN LOWER(co.language) = 'python' OR LOWER(co.name) LIKE '%python%' THEN 'python' " +
+                        "    WHEN LOWER(co.language) IN ('cpp', 'c') OR LOWER(co.name) LIKE '%c++%' OR LOWER(co.name) LIKE '%c/c++%' THEN 'cpp,c' " +
+                        "    ELSE 'c,cpp,java,python' " +
+                        "  END " +
+                        "FROM courses co WHERE cl.course_id = co.id " +
+                        "AND (cl.allowed_languages IS NULL OR cl.allowed_languages = '' OR cl.allowed_languages = 'c,cpp,java,python')"
+                );
+            } catch (SQLException e) {
+                logger.warn("Notice updating class allowed_languages: {}", e.getMessage());
             }
 
             logger.info("Academic schema verified successfully.");
@@ -335,6 +352,9 @@ public class AcademicRepository {
     }
 
     public CreditClass createClass(CreditClass creditClass) throws SQLException {
+        if (creditClass.getAllowedLanguages() == null || creditClass.getAllowedLanguages().isBlank()) {
+            creditClass.setAllowedLanguages(creditClass.getEffectiveAllowedLanguages());
+        }
         String sql = "INSERT INTO classes (class_code, name, course_id, teacher_id, allowed_languages) VALUES (?, ?, ?, ?, ?) RETURNING id, created_at";
         try (Connection conn = DatabaseConfig.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -380,13 +400,11 @@ public class AcademicRepository {
     public List<Problem> findProblemsByClassId(int classId) throws SQLException {
         List<Problem> list = new ArrayList<>();
         String sql = "SELECT DISTINCT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
-                     "p.created_by, COALESCE(p.class_id, ?) AS class_id, " +
-                     "COALESCE(cl.name, target_cl.name) AS class_name, p.is_active, p.created_at, " +
+                     "p.created_by, cl.id AS class_id, cl.name AS class_name, p.is_active, p.created_at, " +
                      "p.problem_type, p.oop_spec " +
                      "FROM problems p " +
-                     "LEFT JOIN classes cl ON p.class_id = cl.id " +
+                     "LEFT JOIN classes cl ON cl.id = ? " +
                      "LEFT JOIN class_problems cp ON p.id = cp.problem_id " +
-                     "LEFT JOIN classes target_cl ON target_cl.id = ? " +
                      "WHERE (cp.class_id = ? OR p.class_id = ?) " +
                      "AND (p.is_active IS NULL OR p.is_active = TRUE) " +
                      "ORDER BY p.id";
@@ -395,7 +413,6 @@ public class AcademicRepository {
             stmt.setInt(1, classId);
             stmt.setInt(2, classId);
             stmt.setInt(3, classId);
-            stmt.setInt(4, classId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     Problem p = new Problem();

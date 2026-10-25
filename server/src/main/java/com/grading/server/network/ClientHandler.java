@@ -1021,19 +1021,48 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            // 2. Kiểm tra giới hạn ngôn ngữ của lớp tín chỉ nếu nộp trong lớp
+            // 2. Xác định bài thi (nếu đang trong giờ kiểm tra) và kiểm tra giới hạn ngôn ngữ
+            Integer assessmentId = null;
             Integer classId = data.has("classId") && !data.get("classId").isJsonNull()
                     ? data.get("classId").getAsInt() : null;
-            if ((classId == null || classId <= 0) && "STUDENT".equalsIgnoreCase(authenticatedRole)) {
-                List<CreditClass> studentClasses = academicService.getClassesByStudent(authenticatedUserId);
-                for (CreditClass cc : studentClasses) {
-                    var classProblems = academicService.getProblemsByClassId(cc.getId());
-                    if (classProblems.stream().anyMatch(p -> p.getId() == problemId)) {
-                        classId = cc.getId();
-                        break;
+
+            if ("STUDENT".equalsIgnoreCase(authenticatedRole)) {
+                try {
+                    JsonObject activeAssessment = academicService.getActiveAssessment(authenticatedUserId, null);
+                    if (activeAssessment != null && activeAssessment.has("problemIds")) {
+                        for (var pid : activeAssessment.getAsJsonArray("problemIds")) {
+                            if (pid.getAsInt() == problemId) {
+                                assessmentId = activeAssessment.get("id").getAsInt();
+                                classId = activeAssessment.get("classId").getAsInt();
+                                break;
+                            }
+                        }
+                    }
+                } catch (Exception ex) {
+                    logger.warn("Could not check active assessment for submission: {}", ex.getMessage());
+                }
+
+                if (assessmentId == null && (classId == null || classId <= 0)) {
+                    try {
+                        List<CreditClass> studentClasses = academicService.getClassesByStudent(authenticatedUserId);
+                        if (studentClasses != null) {
+                            for (CreditClass sc : studentClasses) {
+                                List<Problem> classProbs = academicService.getProblemsByClassId(sc.getId());
+                                if (classProbs != null && classProbs.stream().anyMatch(p -> p.getId() == problemId)) {
+                                    classId = sc.getId();
+                                    break;
+                                }
+                            }
+                            if ((classId == null || classId <= 0) && studentClasses.size() == 1) {
+                                classId = studentClasses.get(0).getId();
+                            }
+                        }
+                    } catch (Exception ex) {
+                        logger.warn("Could not determine student class for language check: {}", ex.getMessage());
                     }
                 }
             }
+
             if (classId != null && classId > 0) {
                 CreditClass creditClass = academicService.getClassById(classId);
                 if (creditClass != null && !creditClass.isLanguageAllowed(language)) {
@@ -1042,10 +1071,6 @@ public class ClientHandler implements Runnable {
             }
 
             boolean isZip = data.has("isZip") && data.get("isZip").getAsBoolean();
-
-            Integer assessmentId = "STUDENT".equalsIgnoreCase(authenticatedRole)
-                    ? academicService.getActiveAssessmentIdForProblem(authenticatedUserId, problemId)
-                    : null;
 
             Submission submission = submissionService.submit(
                     authenticatedUserId, problemId, assessmentId, sourceCode, language, isZip
@@ -1287,7 +1312,17 @@ public class ClientHandler implements Runnable {
                     : "Bài tập #" + problemId;
             String eventType = data.has("eventType") && !data.get("eventType").isJsonNull()
                     ? data.get("eventType").getAsString()
-                    : "FOCUS_LOSS";
+                    : "UNKNOWN";
+
+            if ("FOCUS_LOSS".equalsIgnoreCase(eventType)) {
+                // Đã loại bỏ giám sát mất focus: trả lời OK nhưng không ghi nhận vi phạm
+                JsonObject resData = new JsonObject();
+                resData.addProperty("violationCount", 0);
+                resData.addProperty("severity", "INFO");
+                resData.addProperty("warningMessage", "OK");
+                send(Message.success(MessageType.PROCTOR_EVENT_RESPONSE, request.getRequestId(), "OK", resData));
+                return;
+            }
 
             String username = authService.getUsernameFromToken(request.getToken());
             if (username == null || username.isBlank()) {

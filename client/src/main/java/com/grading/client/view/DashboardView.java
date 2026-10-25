@@ -21,8 +21,10 @@ import java.util.function.Consumer;
  * DashboardView — Màn hình Danh sách bài tập dành cho Sinh viên.
  *
  * Tính năng theo yêu cầu & DESIGN.md:
- * 1. Header có Avatar cá nhân: bấm vào mở ProfilePopup chứa thông tin sinh viên và nút Đăng xuất.
- * 2. ComboBox chọn Lớp tín chỉ (lớp học được giáo viên thêm vào) để làm bài riêng biệt theo lớp.
+ * 1. Header có Avatar cá nhân: bấm vào mở ProfilePopup chứa thông tin sinh viên
+ * và nút Đăng xuất.
+ * 2. ComboBox chọn Lớp tín chỉ (lớp học được giáo viên thêm vào) để làm bài
+ * riêng biệt theo lớp.
  * 3. Bộ lọc tìm kiếm và độ khó.
  */
 public class DashboardView extends BorderPane {
@@ -42,6 +44,7 @@ public class DashboardView extends BorderPane {
     private VBox assessmentOverview;
     private TableView<AssessmentSummary> assessmentTable;
     private Button completeAssessmentButton;
+    private Label assessmentCountdownBadge;
     private boolean assessmentMode;
     private boolean assessmentLobby;
 
@@ -58,8 +61,9 @@ public class DashboardView extends BorderPane {
     private Runnable onCompleteAssessmentHandler;
 
     public record AssessmentSummary(int id, String title, String classCode, String status,
-                                    String opensAt, String closesAt, int durationMinutes,
-                                    int submittedCount, int problemCount, boolean started) {}
+            String opensAt, String closesAt, int durationMinutes,
+            int submittedCount, int problemCount, boolean started) {
+    }
 
     public DashboardView() {
         buildLayout();
@@ -111,6 +115,13 @@ public class DashboardView extends BorderPane {
             themeToggleBtn.setText(ThemeManager.getInstance().getToggleIconText());
         });
 
+        // Đồng hồ đếm ngược lúc thi ở góc trên Dashboard
+        assessmentCountdownBadge = new Label("");
+        assessmentCountdownBadge.setStyle(
+                "-fx-background-color: rgba(14, 165, 233, 0.12); -fx-text-fill: #0284c7; -fx-padding: 4 14; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 13px; -fx-border-color: rgba(14, 165, 233, 0.35); -fx-border-radius: 12px;");
+        assessmentCountdownBadge.setVisible(false);
+        assessmentCountdownBadge.setManaged(false);
+
         // Avatar Button theo chuẩn DESIGN.md Component 5
         avatarBtn = new Button("SV");
         avatarBtn.getStyleClass().add("avatar-btn");
@@ -123,9 +134,9 @@ public class DashboardView extends BorderPane {
                 searchField,
                 historyBtn,
                 spacer,
+                assessmentCountdownBadge,
                 themeToggleBtn,
-                avatarBtn
-        );
+                avatarBtn);
         setTop(topBar);
 
         // 2. Center Content: Table View toàn diện
@@ -163,7 +174,8 @@ public class DashboardView extends BorderPane {
         completeAssessmentButton.getStyleClass().addAll("button", "btn-primary");
         completeAssessmentButton.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-padding: 9px 22px;");
         completeAssessmentButton.setOnAction(e -> {
-            if (onCompleteAssessmentHandler != null) onCompleteAssessmentHandler.run();
+            if (onCompleteAssessmentHandler != null)
+                onCompleteAssessmentHandler.run();
         });
         HBox completeBar = new HBox(completeAssessmentButton);
         completeBar.setAlignment(Pos.CENTER_RIGHT);
@@ -198,7 +210,7 @@ public class DashboardView extends BorderPane {
         Region bSpacer = new Region();
         HBox.setHgrow(bSpacer, Priority.ALWAYS);
 
-        Label hintLabel = new Label("Nhấp đúp chuột vào bài tập để mở trình soạn thảo code");
+        Label hintLabel = new Label("");
         hintLabel.getStyleClass().add("meta-item");
 
         bottomBar.getChildren().addAll(srvDot, srvText, sp, totalLabel, bSpacer, hintLabel);
@@ -283,27 +295,41 @@ public class DashboardView extends BorderPane {
         // 4. Cột Trạng thái làm bài
         TableColumn<Problem, String> statusCol = new TableColumn<>("Trạng thái");
         statusCol.setCellValueFactory(new PropertyValueFactory<>("status"));
-        statusCol.setMinWidth(120);
-        statusCol.setPrefWidth(140);
-        statusCol.setMaxWidth(160);
+        statusCol.setMinWidth(170);
+        statusCol.setPrefWidth(190);
+        statusCol.setMaxWidth(225);
         statusCol.setStyle("-fx-alignment: CENTER;");
         statusCol.setCellFactory(col -> new TableCell<Problem, String>() {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || item == null || item.isEmpty()) {
+                if (empty || item == null || item.isEmpty() || "—".equals(item)) {
                     setGraphic(null);
                     setText("—");
                     setStyle("-fx-text-fill: -text-secondary; -fx-alignment: CENTER;");
                 } else {
-                    Label pill = new Label(item);
+                    String display = com.grading.client.model.Submission.formatVerdict(item);
+                    Label pill = new Label(display);
                     pill.getStyleClass().add("badge-role");
-                    if ("AC".equalsIgnoreCase(item)) {
-                        pill.setStyle("-fx-text-fill: -status-ac; -fx-border-color: -status-ac; -fx-background-color: rgba(46, 204, 113, 0.15);");
-                    } else if ("WA".equalsIgnoreCase(item)) {
-                        pill.setStyle("-fx-text-fill: -status-wa; -fx-border-color: -status-wa; -fx-background-color: rgba(231, 76, 60, 0.15);");
+                    pill.setMinWidth(Region.USE_PREF_SIZE);
+                    pill.setStyle(
+                            "-fx-padding: 3 10 3 10; -fx-font-size: 11.5px; -fx-font-weight: bold; -fx-alignment: CENTER;");
+                    String u = item.toUpperCase();
+                    if (u.equals("AC") || u.equals("ACCEPTED") || u.equals("PASSED")) {
+                        pill.setStyle(pill.getStyle()
+                                + "-fx-text-fill: -status-ac; -fx-border-color: -status-ac; -fx-background-color: rgba(46, 204, 113, 0.15);");
+                    } else if (u.contains("WRONG") || u.equals("WA") || u.equals("FAILED")) {
+                        pill.setStyle(pill.getStyle()
+                                + "-fx-text-fill: -status-wa; -fx-border-color: -status-wa; -fx-background-color: rgba(231, 76, 60, 0.15);");
+                    } else if (u.contains("TLE") || u.contains("TIME_LIMIT")) {
+                        pill.setStyle(pill.getStyle()
+                                + "-fx-text-fill: -status-tle; -fx-border-color: -status-tle; -fx-background-color: rgba(230, 126, 34, 0.15);");
+                    } else if (u.contains("CE") || u.contains("COMPILE")) {
+                        pill.setStyle(pill.getStyle()
+                                + "-fx-text-fill: -status-ce; -fx-border-color: -status-ce; -fx-background-color: rgba(155, 89, 182, 0.15);");
                     } else {
-                        pill.setStyle("-fx-text-fill: -status-tle; -fx-border-color: -status-tle; -fx-background-color: rgba(230, 126, 34, 0.15);");
+                        pill.setStyle(pill.getStyle()
+                                + "-fx-text-fill: -status-running; -fx-border-color: -status-running; -fx-background-color: rgba(52, 152, 219, 0.15);");
                     }
                     setGraphic(pill);
                     setText(null);
@@ -373,7 +399,8 @@ public class DashboardView extends BorderPane {
                 formatAssessmentTime(d.getValue().opensAt()) + " → " + formatAssessmentTime(d.getValue().closesAt())));
         time.setPrefWidth(285);
         TableColumn<AssessmentSummary, String> status = new TableColumn<>("Trạng thái");
-        status.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(assessmentStatusText(d.getValue())));
+        status.setCellValueFactory(
+                d -> new javafx.beans.property.SimpleStringProperty(assessmentStatusText(d.getValue())));
         status.setPrefWidth(240);
         TableColumn<AssessmentSummary, Void> action = new TableColumn<>("Thao tác");
         action.setPrefWidth(155);
@@ -383,10 +410,13 @@ public class DashboardView extends BorderPane {
                 button.getStyleClass().addAll("button", "btn-primary");
                 button.setOnAction(e -> {
                     AssessmentSummary row = getTableView().getItems().get(getIndex());
-                    if (onOpenAssessmentHandler != null) onOpenAssessmentHandler.accept(row.id());
+                    if (onOpenAssessmentHandler != null)
+                        onOpenAssessmentHandler.accept(row.id());
                 });
             }
-            @Override protected void updateItem(Void item, boolean empty) {
+
+            @Override
+            protected void updateItem(Void item, boolean empty) {
                 super.updateItem(item, empty);
                 if (empty) {
                     setGraphic(null);
@@ -396,7 +426,7 @@ public class DashboardView extends BorderPane {
                 boolean active = "ACTIVE".equalsIgnoreCase(row.status());
                 button.setText(active ? (row.started() ? "Tiếp tục làm bài" : "Bắt đầu làm bài")
                         : "COMPLETED".equalsIgnoreCase(row.status()) ? "Đã hoàn thành"
-                        : "EXPIRED".equalsIgnoreCase(row.status()) ? "Đã kết thúc" : "Chưa đến giờ");
+                                : "EXPIRED".equalsIgnoreCase(row.status()) ? "Đã kết thúc" : "Chưa đến giờ");
                 button.setDisable(!active);
                 setGraphic(button);
                 setAlignment(Pos.CENTER);
@@ -457,19 +487,33 @@ public class DashboardView extends BorderPane {
         return classFilterCombo.getSelectionModel().getSelectedItem();
     }
 
+    public void selectClass(CreditClass cc) {
+        if (cc == null)
+            return;
+        for (CreditClass item : classFilterCombo.getItems()) {
+            if (item != null && item.getId() == cc.getId()) {
+                classFilterCombo.getSelectionModel().select(item);
+                return;
+            }
+        }
+    }
+
     public void setProblems(List<Problem> list) {
-        problemList.setAll(list == null ? List.of() : list.stream()
-                .filter(problem -> problem != null && problem.getTitle() != null && !problem.getTitle().isBlank())
-                .toList());
+        problemList.setAll(list == null ? List.of()
+                : list.stream()
+                        .filter(problem -> problem != null && problem.getTitle() != null
+                                && !problem.getTitle().isBlank())
+                        .toList());
     }
 
     public void setAssessmentMode(boolean active, String title, String classCode,
-                                  String closesAt, int durationMinutes) {
+            String closesAt, int durationMinutes) {
         assessmentMode = active;
         updateAssessmentLayout();
         assessmentBanner.setVisible(active);
         assessmentBanner.setManaged(active);
         completeAssessmentButton.setVisible(active);
+        setAssessmentCountdownVisible(active);
         if (active) {
             brandLabel.setText("Bài kiểm tra đang diễn ra");
             assessmentBanner.setText((title == null ? "Bài kiểm tra" : title)
@@ -479,6 +523,52 @@ public class DashboardView extends BorderPane {
         } else {
             brandLabel.setText("Auto Grader");
             assessmentBanner.setText("");
+        }
+    }
+
+    public void setAssessmentCountdownVisible(boolean visible) {
+        if (assessmentCountdownBadge != null) {
+            assessmentCountdownBadge.setVisible(visible);
+            assessmentCountdownBadge.setManaged(visible);
+        }
+    }
+
+    public void updateAssessmentCountdown(long remainingSeconds, String formattedTime) {
+        if (assessmentCountdownBadge == null)
+            return;
+        if (remainingSeconds <= 0) {
+            assessmentCountdownBadge.setText("Hết giờ!");
+            assessmentCountdownBadge.setStyle(
+                    "-fx-background-color: rgba(239, 68, 68, 0.2); " +
+                            "-fx-text-fill: #dc2626; " +
+                            "-fx-padding: 4 14; " +
+                            "-fx-background-radius: 12px; " +
+                            "-fx-font-weight: bold; " +
+                            "-fx-font-size: 13px; " +
+                            "-fx-border-color: #ef4444; " +
+                            "-fx-border-radius: 12px;");
+        } else if (remainingSeconds <= 300) {
+            assessmentCountdownBadge.setText(formattedTime);
+            assessmentCountdownBadge.setStyle(
+                    "-fx-background-color: rgba(239, 68, 68, 0.15); " +
+                            "-fx-text-fill: #dc2626; " +
+                            "-fx-padding: 4 14; " +
+                            "-fx-background-radius: 12px; " +
+                            "-fx-font-weight: bold; " +
+                            "-fx-font-size: 13px; " +
+                            "-fx-border-color: rgba(239, 68, 68, 0.4); " +
+                            "-fx-border-radius: 12px;");
+        } else {
+            assessmentCountdownBadge.setText(formattedTime);
+            assessmentCountdownBadge.setStyle(
+                    "-fx-background-color: rgba(14, 165, 233, 0.12); " +
+                            "-fx-text-fill: #0284c7; " +
+                            "-fx-padding: 4 14; " +
+                            "-fx-background-radius: 12px; " +
+                            "-fx-font-weight: bold; " +
+                            "-fx-font-size: 13px; " +
+                            "-fx-border-color: rgba(14, 165, 233, 0.35); " +
+                            "-fx-border-radius: 12px;");
         }
     }
 
@@ -497,7 +587,8 @@ public class DashboardView extends BorderPane {
         problemTable.setManaged(!assessmentLobby || assessmentMode);
         assessmentOverview.setVisible(!assessmentMode && !assessmentTable.getItems().isEmpty());
         assessmentOverview.setManaged(!assessmentMode && !assessmentTable.getItems().isEmpty());
-        if (assessmentLobby && !assessmentMode) brandLabel.setText("Bài kiểm tra đang chờ bạn");
+        if (assessmentLobby && !assessmentMode)
+            brandLabel.setText("Bài kiểm tra đang chờ bạn");
     }
 
     public void setAssessments(List<AssessmentSummary> assessments) {
@@ -513,13 +604,15 @@ public class DashboardView extends BorderPane {
         if ("COMPLETED".equalsIgnoreCase(assessment.status())) {
             return "Đã hoàn thành " + assessment.submittedCount() + "/" + assessment.problemCount() + " bài";
         }
-        if ("EXPIRED".equalsIgnoreCase(assessment.status())) return "Đã kết thúc";
+        if ("EXPIRED".equalsIgnoreCase(assessment.status()))
+            return "Đã kết thúc";
         return "Bắt đầu " + formatAssessmentTime(assessment.opensAt())
                 + " · Thời lượng " + assessment.durationMinutes() + " phút";
     }
 
     private String formatAssessmentTime(String value) {
-        if (value == null || value.isBlank()) return "—";
+        if (value == null || value.isBlank())
+            return "—";
         try {
             return java.time.LocalDateTime.parse(value)
                     .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy"));

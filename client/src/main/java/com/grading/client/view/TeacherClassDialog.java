@@ -78,11 +78,13 @@ public class TeacherClassDialog extends Dialog<CreditClass> {
 
         java.util.function.Consumer<Course> syncCourseLanguages = (c) -> {
             if (c == null) return;
-            String l = c.getLanguage() != null ? c.getLanguage().trim().toLowerCase() : "";
-            cbC.setSelected(l.equals("c") || l.equals("cpp"));
-            cbCpp.setSelected(l.equals("cpp"));
-            cbJava.setSelected(l.equals("java"));
-            cbPython.setSelected(l.equals("python"));
+            CreditClass courseDefaults = new CreditClass();
+            courseDefaults.setCourseLanguage(c.getLanguage());
+            courseDefaults.setCourseName(c.getName());
+            cbC.setSelected(courseDefaults.isLanguageAllowed("c"));
+            cbCpp.setSelected(courseDefaults.isLanguageAllowed("cpp"));
+            cbJava.setSelected(courseDefaults.isLanguageAllowed("java"));
+            cbPython.setSelected(courseDefaults.isLanguageAllowed("python"));
         };
 
         if (isEdit) {
@@ -91,11 +93,8 @@ public class TeacherClassDialog extends Dialog<CreditClass> {
             cbJava.setSelected(existingClass.isLanguageAllowed("java"));
             cbPython.setSelected(existingClass.isLanguageAllowed("python"));
         } else {
-            Course initialCourse = courseCombo.getSelectionModel().getSelectedItem();
-            syncCourseLanguages.accept(initialCourse);
-            courseCombo.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> {
-                syncCourseLanguages.accept(newV);
-            });
+            syncCourseLanguages.accept(courseCombo.getSelectionModel().getSelectedItem());
+            courseCombo.valueProperty().addListener((obs, oldVal, newVal) -> syncCourseLanguages.accept(newVal));
         }
 
         HBox langBox = new HBox(16, cbC, cbCpp, cbJava, cbPython);

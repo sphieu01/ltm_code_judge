@@ -655,7 +655,7 @@ public class SocketClient {
     // ======================== PROCTORING METHODS ========================
 
     /**
-     * Báo cáo sự kiện giám sát phòng thi lên server (VD: AI_TOOL_DETECTED, FOCUS_LOSS...).
+     * Báo cáo sự kiện giám sát phòng thi lên server (VD: AI_TOOL_DETECTED, AI_CODE_PASTED...).
      */
     public void sendProctorEvent(int problemId, String problemTitle, String eventType, String detail,
                                  Integer assessmentId, Consumer<Response> callback) {

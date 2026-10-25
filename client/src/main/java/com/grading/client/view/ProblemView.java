@@ -33,6 +33,7 @@ public class ProblemView extends BorderPane {
     // ======================== TOP TOOLBAR ========================
     private Button backButton;
     private Label proctorBadge;
+    private Label countdownTimerBadge;
     private Button themeToggleBtn;
     private boolean choosingFile = false;
 
@@ -153,6 +154,13 @@ public class ProblemView extends BorderPane {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
+        // Đồng hồ đếm ngược lúc thi ở góc trên (đơn giản, tinh tế)
+        countdownTimerBadge = new Label("");
+        countdownTimerBadge.setStyle(
+                "-fx-background-color: rgba(14, 165, 233, 0.12); -fx-text-fill: #0284c7; -fx-padding: 4 14; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 13px; -fx-border-color: rgba(14, 165, 233, 0.35); -fx-border-radius: 12px;");
+        countdownTimerBadge.setVisible(false);
+        countdownTimerBadge.setManaged(false);
+
         themeToggleBtn = new Button(ThemeManager.getInstance().getToggleIconText());
         themeToggleBtn.getStyleClass().addAll("button", "btn-theme");
         themeToggleBtn.setStyle("-fx-font-size: 14px; -fx-padding: 4 10 4 10;");
@@ -161,7 +169,7 @@ public class ProblemView extends BorderPane {
             themeToggleBtn.setText(ThemeManager.getInstance().getToggleIconText());
         });
 
-        toolbar.getChildren().addAll(backButton, proctorBadge, spacer, themeToggleBtn);
+        toolbar.getChildren().addAll(backButton, proctorBadge, spacer, countdownTimerBadge, themeToggleBtn);
         return toolbar;
     }
 
@@ -179,7 +187,8 @@ public class ProblemView extends BorderPane {
                 + "• Hệ thống sẽ kiểm tra nghiêm ngặt cấu trúc OOP (tính đóng gói private, kế thừa, phương thức) trước. "
                 + "Nếu cấu trúc đạt 100% mới tiến hành chấm bộ test case qua Main.java.");
         oopInfoBanner.setWrapText(true);
-        oopInfoBanner.setStyle("-fx-background-color: rgba(0, 122, 204, 0.12); -fx-text-fill: -accent; -fx-padding: 10 14; -fx-background-radius: 6px; -fx-border-color: -accent; -fx-border-radius: 6px; -fx-font-size: 13px; -fx-line-spacing: 3px; -fx-font-weight: bold;");
+        oopInfoBanner.setStyle(
+                "-fx-background-color: rgba(0, 122, 204, 0.12); -fx-text-fill: -accent; -fx-padding: 10 14; -fx-background-radius: 6px; -fx-border-color: -accent; -fx-border-radius: 6px; -fx-font-size: 13px; -fx-line-spacing: 3px; -fx-font-weight: bold;");
         oopInfoBanner.setVisible(false);
         oopInfoBanner.setManaged(false);
 
@@ -246,11 +255,12 @@ public class ProblemView extends BorderPane {
         timeCol.setPrefWidth(210);
         TableColumn<SubmissionHistoryRow, String> verdictCol = new TableColumn<>("Kết quả");
         verdictCol.setCellValueFactory(
-                data -> new javafx.beans.property.SimpleStringProperty(verdictToBadge(data.getValue().verdict())));
+                data -> new javafx.beans.property.SimpleStringProperty(
+                        com.grading.client.model.Submission.formatVerdict(data.getValue().verdict())));
         verdictCol.setStyle("-fx-alignment: CENTER;");
-        verdictCol.setMinWidth(105);
-        verdictCol.setPrefWidth(125);
-        verdictCol.setMaxWidth(150);
+        verdictCol.setMinWidth(170);
+        verdictCol.setPrefWidth(190);
+        verdictCol.setMaxWidth(225);
         verdictCol.setCellFactory(column -> new TableCell<SubmissionHistoryRow, String>() {
             @Override
             protected void updateItem(String item, boolean empty) {
@@ -261,6 +271,7 @@ public class ProblemView extends BorderPane {
                     return;
                 }
                 Label pill = new Label(item);
+                pill.setMinWidth(Region.USE_PREF_SIZE);
                 applyPillStyle(pill, item);
                 setGraphic(pill);
                 setText(null);
@@ -302,7 +313,8 @@ public class ProblemView extends BorderPane {
         appendSubmissionHistory(title, timestamp, verdict, sourceCode, false);
     }
 
-    public void appendSubmissionHistory(String title, String timestamp, String verdict, String sourceCode, boolean isZip) {
+    public void appendSubmissionHistory(String title, String timestamp, String verdict, String sourceCode,
+            boolean isZip) {
         historyRows.add(new SubmissionHistoryRow(title, formatTimestamp(timestamp), verdict, sourceCode, isZip));
     }
 
@@ -321,8 +333,7 @@ public class ProblemView extends BorderPane {
                 row.title(),
                 row.timestamp(),
                 row.sourceCode(),
-                row.isZip()
-        );
+                row.isZip());
         viewer.showAndWait();
     }
 
@@ -332,20 +343,7 @@ public class ProblemView extends BorderPane {
     }
 
     private String verdictToBadge(String v) {
-        if (v == null)
-            return "--";
-        String u = v.toUpperCase();
-        if (u.equals("ACCEPTED") || u.equals("PASSED"))
-            return "AC";
-        if (u.contains("WRONG") || u.equals("FAILED"))
-            return "WA";
-        if (u.contains("TLE") || u.contains("TIME_LIMIT"))
-            return "TLE";
-        if (u.contains("CE") || u.contains("COMPILE"))
-            return "CE";
-        if (u.contains("RUNTIME"))
-            return "RTE";
-        return u;
+        return com.grading.client.model.Submission.formatVerdict(v);
     }
 
     // =========================================================================
@@ -494,13 +492,40 @@ public class ProblemView extends BorderPane {
 
         if (currentProblem != null && currentProblem.isJavaOop()) {
             chooser.getExtensionFilters().addAll(
-                    new FileChooser.ExtensionFilter("Java OOP: Gói ZIP hoặc file Java (*.zip, *.java)", "*.zip", "*.java"),
+                    new FileChooser.ExtensionFilter("Java OOP: Gói ZIP hoặc file Java (*.zip, *.java)", "*.zip",
+                            "*.java"),
                     new FileChooser.ExtensionFilter("Gói nén ZIP (*.zip)", "*.zip"),
                     new FileChooser.ExtensionFilter("Java Files (*.java)", "*.java"),
                     new FileChooser.ExtensionFilter("Mọi file (*.*)", "*.*"));
+        } else if (languageComboBox != null && languageComboBox.isDisable()) {
+            String selected = languageComboBox.getValue();
+            if ("Java".equalsIgnoreCase(selected)) {
+                chooser.getExtensionFilters().addAll(
+                        new FileChooser.ExtensionFilter("Java: File .java hoặc gói .zip (*.java, *.zip)", "*.java",
+                                "*.zip"),
+                        new FileChooser.ExtensionFilter("Java Source (*.java)", "*.java"),
+                        new FileChooser.ExtensionFilter("Gói nén ZIP (*.zip)", "*.zip"),
+                        new FileChooser.ExtensionFilter("Mọi file (*.*)", "*.*"));
+            } else if ("Python 3".equalsIgnoreCase(selected)) {
+                chooser.getExtensionFilters().addAll(
+                        new FileChooser.ExtensionFilter("Python: File .py (*.py)", "*.py"),
+                        new FileChooser.ExtensionFilter("Mọi file (*.*)", "*.*"));
+            } else if ("C++".equalsIgnoreCase(selected) || "C".equalsIgnoreCase(selected)) {
+                chooser.getExtensionFilters().addAll(
+                        new FileChooser.ExtensionFilter("C/C++: File .cpp, .c (*.cpp, *.c, *.cc)", "*.cpp", "*.c",
+                                "*.cc"),
+                        new FileChooser.ExtensionFilter("Mọi file (*.*)", "*.*"));
+            } else {
+                chooser.getExtensionFilters().addAll(
+                        new FileChooser.ExtensionFilter("Tất cả mã nguồn (*.cpp, *.c, *.java, *.py, *.zip)", "*.cpp",
+                                "*.c", "*.java",
+                                "*.py", "*.zip", "*.txt"),
+                        new FileChooser.ExtensionFilter("Mọi file (*.*)", "*.*"));
+            }
         } else {
             chooser.getExtensionFilters().addAll(
-                    new FileChooser.ExtensionFilter("Tất cả mã nguồn (*.cpp, *.c, *.java, *.py, *.zip)", "*.cpp", "*.c", "*.java",
+                    new FileChooser.ExtensionFilter("Tất cả mã nguồn (*.cpp, *.c, *.java, *.py, *.zip)", "*.cpp", "*.c",
+                            "*.java",
                             "*.py", "*.zip", "*.txt"),
                     new FileChooser.ExtensionFilter("C / C++ Files (*.cpp, *.c)", "*.cpp", "*.c"),
                     new FileChooser.ExtensionFilter("Java Files (*.java)", "*.java"),
@@ -543,7 +568,8 @@ public class ProblemView extends BorderPane {
                 this.fileCodeContent = content;
                 this.activeSubmissionCode = content;
 
-                // Tự động nhận diện ngôn ngữ theo phần mở rộng file (chỉ khi chưa bị khóa theo lớp học)
+                // Tự động nhận diện ngôn ngữ theo phần mở rộng file (chỉ khi chưa bị khóa theo
+                // lớp học)
                 if (!languageComboBox.isDisable()) {
                     if (fileName.endsWith(".cpp") || fileName.endsWith(".cc") || fileName.endsWith(".cxx")) {
                         selectLanguageByName("C++");
@@ -556,7 +582,8 @@ public class ProblemView extends BorderPane {
                     }
                     selectedFileLabel.setText(String.format("📄 %s (%d KB)", file.getName(), sizeKb));
                 } else {
-                    selectedFileLabel.setText(String.format("📄 %s (%d KB) — [Chấm bằng: %s]", file.getName(), sizeKb, languageComboBox.getValue()));
+                    selectedFileLabel.setText(String.format("📄 %s (%d KB) — [Chấm bằng: %s]", file.getName(), sizeKb,
+                            languageComboBox.getValue()));
                 }
             }
 
@@ -665,6 +692,10 @@ public class ProblemView extends BorderPane {
             oopInfoBanner.setManaged(isOop);
         }
 
+        if (problem.getAllowedLanguages() != null && !problem.getAllowedLanguages().isBlank()) {
+            this.allowedLanguagesSetting = problem.getAllowedLanguages();
+        }
+
         updateLanguageOptions();
 
         clearSelectedFile();
@@ -696,10 +727,14 @@ public class ProblemView extends BorderPane {
             String[] tokens = allowedLanguagesSetting.split(",");
             for (String t : tokens) {
                 String trimmed = t.trim().toLowerCase();
-                if (trimmed.equals("c") && !filtered.contains("C")) filtered.add("C");
-                else if (trimmed.equals("cpp") && !filtered.contains("C++")) filtered.add("C++");
-                else if (trimmed.equals("java") && !filtered.contains("Java")) filtered.add("Java");
-                else if (trimmed.equals("python") && !filtered.contains("Python 3")) filtered.add("Python 3");
+                if (trimmed.equals("c") && !filtered.contains("C"))
+                    filtered.add("C");
+                else if (trimmed.equals("cpp") && !filtered.contains("C++"))
+                    filtered.add("C++");
+                else if (trimmed.equals("java") && !filtered.contains("Java"))
+                    filtered.add("Java");
+                else if (trimmed.equals("python") && !filtered.contains("Python 3"))
+                    filtered.add("Python 3");
             }
             if (!filtered.isEmpty()) {
                 languageComboBox.setItems(FXCollections.observableArrayList(filtered));
@@ -856,7 +891,8 @@ public class ProblemView extends BorderPane {
             Alert alert = new Alert(Alert.AlertType.ERROR);
             if (compileError.contains("[OOP_VIOLATION]")) {
                 alert.setTitle("Lỗi vi phạm cấu trúc OOP");
-                alert.setHeaderText("❌ KHÔNG ĐẠT CẤU TRÚC HƯỚNG ĐỐI TƯỢNG (CE)\n(Bài làm không được đưa vào chạy test case)");
+                alert.setHeaderText(
+                        "❌ KHÔNG ĐẠT CẤU TRÚC HƯỚNG ĐỐI TƯỢNG (CE)\n(Bài làm không được đưa vào chạy test case)");
             } else {
                 alert.setTitle("Lỗi biên dịch");
                 alert.setHeaderText("Biên dịch thất bại: " + verdict);
@@ -898,15 +934,17 @@ public class ProblemView extends BorderPane {
             return;
         pill.getStyleClass().removeAll("pill-ac", "pill-wa", "pill-tle", "pill-ce", "pill-running", "pill-neutral");
 
-        if (verdict == null) {
+        if (verdict == null || verdict.equals("—") || verdict.equals("--")) {
             pill.setText("Chưa nộp bài");
             pill.getStyleClass().add("pill-neutral");
             return;
         }
 
-        String v = verdict.toUpperCase();
-        pill.setText(v);
+        String formatted = com.grading.client.model.Submission.formatVerdict(verdict);
+        pill.setText(formatted);
+        pill.setMinWidth(Region.USE_PREF_SIZE);
 
+        String v = verdict.toUpperCase();
         if (v.equals("ACCEPTED") || v.equals("AC") || v.equals("PASSED")) {
             pill.getStyleClass().add("pill-ac");
         } else if (v.contains("WRONG") || v.equals("WA") || v.equals("FAILED")) {
@@ -975,7 +1013,8 @@ public class ProblemView extends BorderPane {
     private Alert activeProctorAlert = null;
 
     public void showProctorWarningToast(String message, String severity) {
-        String msg = (message != null && !message.isBlank()) ? message : "Nghiêm cấm mở công cụ AI trong quá trình làm bài.";
+        String msg = (message != null && !message.isBlank()) ? message
+                : "Nghiêm cấm mở công cụ AI trong quá trình làm bài.";
         if (activeProctorAlert != null && activeProctorAlert.isShowing()) {
             activeProctorAlert.setContentText(msg);
             if (activeProctorAlert.getDialogPane() != null && activeProctorAlert.getDialogPane().getScene() != null) {
@@ -1005,6 +1044,31 @@ public class ProblemView extends BorderPane {
         if (activeProctorAlert != null && activeProctorAlert.isShowing()) {
             activeProctorAlert.close();
             activeProctorAlert = null;
+        }
+    }
+
+    public void setCountdownTimerVisible(boolean visible) {
+        if (countdownTimerBadge != null) {
+            countdownTimerBadge.setVisible(visible);
+            countdownTimerBadge.setManaged(visible);
+        }
+    }
+
+    public void updateCountdownTimer(long remainingSeconds, String formattedTime) {
+        if (countdownTimerBadge == null)
+            return;
+        if (remainingSeconds <= 0) {
+            countdownTimerBadge.setText("Hết giờ!");
+            countdownTimerBadge.setStyle(
+                    "-fx-background-color: rgba(239, 68, 68, 0.2); -fx-text-fill: #dc2626; -fx-padding: 4 14; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 13px; -fx-border-color: #ef4444; -fx-border-radius: 12px;");
+        } else if (remainingSeconds <= 300) {
+            countdownTimerBadge.setText(formattedTime);
+            countdownTimerBadge.setStyle(
+                    "-fx-background-color: rgba(239, 68, 68, 0.15); -fx-text-fill: #dc2626; -fx-padding: 4 14; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 13px; -fx-border-color: rgba(239, 68, 68, 0.4); -fx-border-radius: 12px;");
+        } else {
+            countdownTimerBadge.setText(formattedTime);
+            countdownTimerBadge.setStyle(
+                    "-fx-background-color: rgba(14, 165, 233, 0.12); -fx-text-fill: #0284c7; -fx-padding: 4 14; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 13px; -fx-border-color: rgba(14, 165, 233, 0.35); -fx-border-radius: 12px;");
         }
     }
 
@@ -1049,6 +1113,7 @@ public class ProblemView extends BorderPane {
         }
     }
 
-    private record SubmissionHistoryRow(String title, String timestamp, String verdict, String sourceCode, boolean isZip) {
+    private record SubmissionHistoryRow(String title, String timestamp, String verdict, String sourceCode,
+            boolean isZip) {
     }
 }

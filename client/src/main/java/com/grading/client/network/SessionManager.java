@@ -55,9 +55,49 @@ public class SessionManager {
 
     public Integer getActiveAssessmentId() { return activeAssessmentId; }
 
+    private Long assessmentEndTimeEpochMs;
+
     public void setActiveAssessment(Integer assessmentId, boolean completed) {
         this.activeAssessmentId = assessmentId;
         this.assessmentCompleted = completed;
+        if (assessmentId == null || completed) {
+            this.assessmentEndTimeEpochMs = null;
+        }
+    }
+
+    public void setAssessmentClosesAt(String closesAt, Long remainingSeconds) {
+        if (remainingSeconds != null && remainingSeconds >= 0) {
+            this.assessmentEndTimeEpochMs = System.currentTimeMillis() + remainingSeconds * 1000L;
+        } else if (closesAt != null && !closesAt.isBlank()) {
+            try {
+                java.time.LocalDateTime ldt = java.time.LocalDateTime.parse(closesAt.replace(" ", "T"));
+                java.time.ZonedDateTime zdt = ldt.atZone(java.time.ZoneId.systemDefault());
+                this.assessmentEndTimeEpochMs = zdt.toInstant().toEpochMilli();
+            } catch (Exception ignored) {
+                this.assessmentEndTimeEpochMs = null;
+            }
+        } else {
+            this.assessmentEndTimeEpochMs = null;
+        }
+    }
+
+    public long getRemainingAssessmentSeconds() {
+        if (assessmentEndTimeEpochMs == null || !isAssessmentMode()) return 0;
+        long diff = (assessmentEndTimeEpochMs - System.currentTimeMillis()) / 1000L;
+        return Math.max(0, diff);
+    }
+
+    public String formatRemainingAssessmentTime() {
+        long sec = getRemainingAssessmentSeconds();
+        if (sec <= 0) return "00:00";
+        long h = sec / 3600;
+        long m = (sec % 3600) / 60;
+        long s = sec % 60;
+        if (h > 0) {
+            return String.format("%02d:%02d:%02d", h, m, s);
+        } else {
+            return String.format("%02d:%02d", m, s);
+        }
     }
 
     public boolean isAssessmentMode() {
@@ -71,26 +111,16 @@ public class SessionManager {
     public void recordSubmission(int problemId, String verdict) {
         if (verdict == null || verdict.trim().isEmpty()) return;
         String current = problemStatusMap.get(problemId);
-        if ("AC".equalsIgnoreCase(current) || "ACCEPTED".equalsIgnoreCase(current)) {
-            // Nếu đã từng AC thì giữ nguyên là AC
+        if ("Accepted".equalsIgnoreCase(current) || "AC".equalsIgnoreCase(current) || "ACCEPTED".equalsIgnoreCase(current)) {
+            // Nếu đã từng AC thì giữ nguyên là Accepted
             return;
         }
-        String badge = toBadge(verdict);
+        String badge = com.grading.client.model.Submission.formatVerdict(verdict);
         problemStatusMap.put(problemId, badge);
     }
 
     public String getProblemStatus(int problemId) {
         return problemStatusMap.getOrDefault(problemId, "");
-    }
-
-    private String toBadge(String v) {
-        String u = v.toUpperCase();
-        if (u.equals("ACCEPTED") || u.equals("AC") || u.equals("PASSED")) return "AC";
-        if (u.contains("WRONG") || u.equals("WA") || u.equals("FAILED")) return "WA";
-        if (u.contains("TLE") || u.contains("TIME_LIMIT")) return "TLE";
-        if (u.contains("CE") || u.contains("COMPILE")) return "CE";
-        if (u.contains("RUNTIME") || u.equals("RE")) return "RE";
-        return u;
     }
 
     /**
@@ -106,6 +136,7 @@ public class SessionManager {
         problemStatusMap.clear();
         activeAssessmentId = null;
         assessmentCompleted = false;
+        assessmentEndTimeEpochMs = null;
     }
 
     public String getToken() {

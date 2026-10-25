@@ -44,8 +44,8 @@ public class StudentHistoryDialog extends Dialog<Void> {
         if (res != null) {
             pane.getStylesheets().setAll(res.toExternalForm());
         }
-        pane.setPrefWidth(1000);
-        pane.setPrefHeight(510);
+        pane.setPrefWidth(1060);
+        pane.setPrefHeight(530);
 
         VBox contentBox = new VBox(12);
         contentBox.setPadding(new Insets(16));
@@ -77,38 +77,40 @@ public class StudentHistoryDialog extends Dialog<Void> {
             return new SimpleStringProperty(t != null && !t.isBlank() ? t : "Bài #" + c.getValue().getProblemId());
         });
         colTitle.setMinWidth(260);
-        colTitle.setPrefWidth(350);
+        colTitle.setPrefWidth(320);
 
         TableColumn<Submission, String> colLang = new TableColumn<>("Ngôn ngữ");
         colLang.setCellValueFactory(new PropertyValueFactory<>("language"));
         colLang.setMinWidth(95);
-        colLang.setPrefWidth(110);
-        colLang.setMaxWidth(135);
+        colLang.setPrefWidth(105);
+        colLang.setMaxWidth(130);
         colLang.setStyle("-fx-alignment: CENTER;");
 
         TableColumn<Submission, String> colVerdict = new TableColumn<>("Kết quả");
-        colVerdict.setCellValueFactory(new PropertyValueFactory<>("verdict"));
-        colVerdict.setMinWidth(110);
-        colVerdict.setPrefWidth(125);
-        colVerdict.setMaxWidth(150);
+        colVerdict.setCellValueFactory(c -> new SimpleStringProperty(com.grading.client.model.Submission.formatVerdict(c.getValue().getVerdict())));
+        colVerdict.setMinWidth(170);
+        colVerdict.setPrefWidth(190);
+        colVerdict.setMaxWidth(225);
         colVerdict.setStyle("-fx-alignment: CENTER;");
         colVerdict.setCellFactory(col -> new TableCell<Submission, String>() {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || item == null) {
+                if (empty || item == null || item.isBlank() || "—".equals(item)) {
                     setGraphic(null);
-                    setText(null);
+                    setText("—");
                 } else {
-                    Label pill = new Label(item);
+                    String formatted = com.grading.client.model.Submission.formatVerdict(item);
+                    Label pill = new Label(formatted);
+                    pill.setMinWidth(Region.USE_PREF_SIZE);
                     String u = item.toUpperCase();
                     if (u.equals("AC") || u.equals("ACCEPTED") || u.equals("PASSED")) {
                         pill.getStyleClass().add("pill-ac");
-                    } else if (u.equals("WA") || u.equals("WRONG_ANSWER")) {
+                    } else if (u.equals("WA") || u.equals("WRONG_ANSWER") || u.contains("WRONG")) {
                         pill.getStyleClass().add("pill-wa");
-                    } else if (u.equals("TLE") || u.equals("TIME_LIMIT_EXCEEDED")) {
+                    } else if (u.equals("TLE") || u.equals("TIME_LIMIT_EXCEEDED") || u.contains("TIME_LIMIT")) {
                         pill.getStyleClass().add("pill-tle");
-                    } else if (u.equals("CE") || u.equals("COMPILE_ERROR")) {
+                    } else if (u.equals("CE") || u.equals("COMPILE_ERROR") || u.contains("COMPILE")) {
                         pill.getStyleClass().add("pill-ce");
                     } else {
                         pill.getStyleClass().add("pill-running");

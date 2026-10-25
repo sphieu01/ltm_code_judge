@@ -33,6 +33,7 @@ public class DashboardController {
     private Consumer<Problem> onSelectProblem;
     private Runnable onLogout;
     private Timeline assessmentPoller;
+    private Timeline countdownTicker;
     private Integer activeAssessmentId;
     private boolean assessmentStateKnown;
     private final List<CreditClass> cachedClasses = new ArrayList<>();
@@ -51,12 +52,22 @@ public class DashboardController {
     private void initEvents() {
         view.setOnSelectProblem(problem -> {
             if (onSelectProblem != null) {
-                CreditClass sel = view.getSelectedClass();
-                if (sel != null) {
-                    sessionManager.setCurrentClass(sel);
-                    if (problem.getClassId() == null || problem.getClassId() <= 0) {
-                        problem.setClassId(sel.getId());
-                        problem.setClassName(sel.getName());
+                if (sessionManager.isAssessmentMode()) {
+                    CreditClass cur = sessionManager.getCurrentClass();
+                    if (cur != null) {
+                        if (problem.getClassId() == null || problem.getClassId() <= 0) {
+                            problem.setClassId(cur.getId());
+                            problem.setClassName(cur.getName());
+                        }
+                    }
+                } else {
+                    CreditClass sel = view.getSelectedClass();
+                    if (sel != null) {
+                        sessionManager.setCurrentClass(sel);
+                        if (problem.getClassId() == null || problem.getClassId() <= 0) {
+                            problem.setClassId(sel.getId());
+                            problem.setClassName(sel.getName());
+                        }
                     }
                 }
                 onSelectProblem.accept(problem);
@@ -136,8 +147,25 @@ public class DashboardController {
         }));
         assessmentPoller.setCycleCount(Timeline.INDEFINITE);
         assessmentPoller.play();
+
+        countdownTicker = new Timeline(new KeyFrame(Duration.seconds(1), event -> {
+            if (sessionManager.isAssessmentMode()) {
+                view.setAssessmentCountdownVisible(true);
+                long remaining = sessionManager.getRemainingAssessmentSeconds();
+                String formatted = sessionManager.formatRemainingAssessmentTime();
+                view.updateAssessmentCountdown(remaining, formatted);
+            } else {
+                view.setAssessmentCountdownVisible(false);
+            }
+        }));
+        countdownTicker.setCycleCount(Timeline.INDEFINITE);
+        countdownTicker.play();
+
         view.sceneProperty().addListener((obs, oldScene, newScene) -> {
-            if (oldScene != null && newScene == null && assessmentPoller != null) assessmentPoller.stop();
+            if (oldScene != null && newScene == null) {
+                if (assessmentPoller != null) assessmentPoller.stop();
+                if (countdownTicker != null) countdownTicker.stop();
+            }
         });
     }
 
@@ -182,6 +210,7 @@ public class DashboardController {
                 boolean wasInAssessment = activeAssessmentId != null;
                 activeAssessmentId = null;
                 sessionManager.setActiveAssessment(null, false);
+                view.setAssessmentCountdownVisible(false);
                 view.setAssessmentLobby(false);
                 view.setAssessmentMode(false, null, null, null, 0);
                 if (!assessmentStateKnown || wasInAssessment) {
@@ -217,9 +246,27 @@ public class DashboardController {
         activeAssessmentId = id;
         assessmentStateKnown = true;
         sessionManager.setActiveAssessment(id, false);
+        Long remainingSec = assessment.has("remainingSeconds") && !assessment.get("remainingSeconds").isJsonNull()
+                ? assessment.get("remainingSeconds").getAsLong() : null;
+        sessionManager.setAssessmentClosesAt(stringValue(assessment, "closesAt"), remainingSec);
         int classId = intValue(assessment, "classId");
+        CreditClass targetClass = null;
         if (classId > 0) {
-            cachedClasses.stream().filter(c -> c.getId() == classId).findFirst().ifPresent(sessionManager::setCurrentClass);
+            targetClass = cachedClasses.stream().filter(c -> c.getId() == classId).findFirst().orElse(null);
+        }
+        if (targetClass == null && classId > 0) {
+            targetClass = new CreditClass();
+            targetClass.setId(classId);
+            targetClass.setClassCode(stringValue(assessment, "classCode"));
+            targetClass.setName(stringValue(assessment, "className"));
+            String allowed = stringValue(assessment, "allowedLanguages");
+            if (allowed != null && !allowed.isBlank()) {
+                targetClass.setAllowedLanguages(allowed);
+            }
+        }
+        if (targetClass != null) {
+            sessionManager.setCurrentClass(targetClass);
+            view.selectClass(targetClass);
         }
         view.setAssessmentLobby(false);
         view.setAssessmentMode(true, stringValue(assessment, "title"), stringValue(assessment, "classCode"),
@@ -248,6 +295,7 @@ public class DashboardController {
                 sessionManager.setActiveAssessment(null, true);
                 activeAssessmentId = null;
                 assessmentStateKnown = false;
+                view.setAssessmentCountdownVisible(false);
                 view.setAssessmentLobby(false);
                 view.setAssessmentMode(false, null, null, null, 0);
                 refreshAssessments(view.getSelectedClass() == null ? null : view.getSelectedClass().getId());
@@ -264,6 +312,10 @@ public class DashboardController {
 
     private void setAssessmentProblems(JsonObject assessment) {
         List<Problem> list = new ArrayList<>();
+        int assessmentClassId = intValue(assessment, "classId");
+        String assessmentClassName = stringValue(assessment, "className");
+        String assessmentAllowedLanguages = stringValue(assessment, "allowedLanguages");
+
         if (assessment.has("problems") && assessment.get("problems").isJsonArray()) {
             for (JsonElement element : assessment.getAsJsonArray("problems")) {
                 if (!element.isJsonObject()) continue;
@@ -275,7 +327,19 @@ public class DashboardController {
                 p.setDescription(stringValue(obj, "description"));
                 p.setTimeLimitMs(intValue(obj, "timeLimitMs"));
                 p.setMemoryLimitKb(intValue(obj, "memoryLimitKb"));
-                if (obj.has("classId") && !obj.get("classId").isJsonNull()) p.setClassId(obj.get("classId").getAsInt());
+
+                int pClassId = obj.has("classId") && !obj.get("classId").isJsonNull() ? obj.get("classId").getAsInt() : assessmentClassId;
+                if (pClassId <= 0) pClassId = assessmentClassId;
+                p.setClassId(pClassId);
+
+                String pClassName = obj.has("className") && !obj.get("className").isJsonNull() ? obj.get("className").getAsString() : assessmentClassName;
+                p.setClassName(pClassName);
+
+                String pAllowed = obj.has("allowedLanguages") && !obj.get("allowedLanguages").isJsonNull() ? obj.get("allowedLanguages").getAsString() : assessmentAllowedLanguages;
+                if (pAllowed != null && !pAllowed.isBlank()) {
+                    p.setAllowedLanguages(pAllowed);
+                }
+
                 if (obj.has("problemType") && !obj.get("problemType").isJsonNull()) p.setProblemType(obj.get("problemType").getAsString());
                 if (obj.has("oopSpec") && !obj.get("oopSpec").isJsonNull()) p.setOopSpec(obj.get("oopSpec").getAsString());
                 p.setStatus(stringValue(obj, "verdict"));

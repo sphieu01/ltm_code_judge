@@ -58,17 +58,27 @@ public class CreditClass {
             return allowedLanguages.trim().toLowerCase();
         }
         String combined = ((name != null ? name : "") + " " + (courseName != null ? courseName : "")).toLowerCase();
-        if (combined.contains("java")) return "java";
-        if (combined.contains("python")) return "python";
-        if (combined.contains("c++") || combined.contains("cpp")) return "cpp";
-        if (combined.contains("ngôn ngữ c") || combined.contains("lập trình c")) return "c";
+        if (combined.contains("oop") || combined.contains("java") || combined.contains("hướng đối tượng")) {
+            return "java";
+        }
+        if (combined.contains("python") || combined.contains("py")) {
+            return "python";
+        }
+        if (combined.contains("c++") || combined.contains("cpp")) {
+            return "cpp";
+        }
+        if (combined.contains("ngôn ngữ c") || combined.contains("lập trình c")) {
+            return "c";
+        }
         return null;
     }
 
     public String getEffectiveAllowedLanguages() {
         String eff = getEffectiveLanguage();
         if (eff != null) {
-            if ("cpp".equalsIgnoreCase(eff)) return "cpp,c";
+            if ("cpp".equalsIgnoreCase(eff)) {
+                return "cpp,c";
+            }
             return eff;
         }
         return getAllowedLanguages();

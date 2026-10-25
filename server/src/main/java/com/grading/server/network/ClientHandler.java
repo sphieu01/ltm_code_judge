@@ -718,7 +718,15 @@ public class ClientHandler implements Runnable {
             int id = data.get("id").getAsInt();
             String classCode = data.get("classCode").getAsString();
             String name = data.get("name").getAsString();
-            int courseId = data.get("courseId").getAsInt();
+            int courseId = 0;
+            if (data.has("courseId") && !data.get("courseId").isJsonNull()) {
+                courseId = data.get("courseId").getAsInt();
+            } else {
+                var current = academicService.getClassById(id);
+                if (current != null) {
+                    courseId = current.getCourseId();
+                }
+            }
             String allowedLanguages = data.has("allowedLanguages") && !data.get("allowedLanguages").isJsonNull()
                     ? data.get("allowedLanguages").getAsString()
                     : "c,cpp,java,python";

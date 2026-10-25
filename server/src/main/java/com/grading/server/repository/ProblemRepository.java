@@ -121,6 +121,7 @@ public class ProblemRepository {
              PreparedStatement stmt = conn.prepareStatement(SQL_FIND_BY_CLASS)) {
 
             stmt.setInt(1, classId);
+            stmt.setInt(2, classId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     problems.add(mapProblemRow(rs));
@@ -157,6 +158,7 @@ public class ProblemRepository {
              PreparedStatement stmt = conn.prepareStatement(SQL_FIND_BY_CLASS_FOR_STUDENT)) {
 
             stmt.setInt(1, classId);
+            stmt.setInt(2, classId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     problems.add(mapProblemRow(rs));

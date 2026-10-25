@@ -194,17 +194,15 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
 
     private void showSource(SubmissionRow row) {
         if (row == null) return;
-        Dialog<Void> dialog = new Dialog<>();
-        dialog.initOwner(getOwner());
-        dialog.setTitle("Mã nguồn — " + row.student() + " — " + row.problem());
-        TextArea source = new TextArea(row.sourceCode());
-        source.setEditable(false);
-        source.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 13px;");
-        source.setPrefSize(850, 560);
-        dialog.getDialogPane().setContent(source);
-        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-        dialog.setResizable(true);
-        dialog.showAndWait();
+        Stage owner = (Stage) getDialogPane().getScene().getWindow();
+        SourceCodeViewerDialog viewer = new SourceCodeViewerDialog(
+                owner,
+                row.student() + " — " + row.problem(),
+                "",
+                row.sourceCode(),
+                false
+        );
+        viewer.showAndWait();
     }
 
     private String value(JsonObject object, String field) {

@@ -186,6 +186,9 @@ public class StudentHistoryDialog extends Dialog<Void> {
                         if (obj.has("sourceCode") && !obj.get("sourceCode").isJsonNull()) {
                             s.setSourceCode(obj.get("sourceCode").getAsString());
                         }
+                        if (obj.has("isZip") && !obj.get("isZip").isJsonNull()) {
+                            s.setZip(obj.get("isZip").getAsBoolean());
+                        }
                         if (obj.has("verdict")) s.setVerdict(obj.get("verdict").getAsString());
                         if (obj.has("score")) s.setScore(obj.get("score").getAsInt());
                         if (obj.has("passedTests")) s.setPassedTests(obj.get("passedTests").getAsInt());
@@ -223,20 +226,15 @@ public class StudentHistoryDialog extends Dialog<Void> {
     }
 
     private void showSourceCode(Submission submission) {
-        Dialog<Void> dialog = new Dialog<>();
-        dialog.setTitle("Mã nguồn đã nộp");
-        dialog.setHeaderText(submission.getProblemTitle() + " — " + submission.getSubmittedAt());
-        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-
-        TextArea sourceArea = new TextArea(submission.getSourceCode() == null || submission.getSourceCode().isBlank()
-                ? "Không có mã nguồn để hiển thị." : submission.getSourceCode());
-        sourceArea.setEditable(false);
-        sourceArea.setWrapText(false);
-        sourceArea.getStyleClass().add("code-editor");
-        sourceArea.setPrefSize(760, 450);
-
-        dialog.getDialogPane().setContent(sourceArea);
-        dialog.getDialogPane().setPrefSize(820, 550);
-        dialog.showAndWait();
+        if (submission == null) return;
+        Stage owner = (Stage) getDialogPane().getScene().getWindow();
+        SourceCodeViewerDialog viewer = new SourceCodeViewerDialog(
+                owner,
+                submission.getProblemTitle(),
+                formatSubmittedAt(submission.getSubmittedAt()),
+                submission.getSourceCode(),
+                submission.isZip()
+        );
+        viewer.showAndWait();
     }
 }

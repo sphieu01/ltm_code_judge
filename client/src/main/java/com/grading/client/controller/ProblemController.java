@@ -393,8 +393,9 @@ public class ProblemController {
                                 ? obj.get("verdict").getAsString() : "--";
                         String sourceCode = obj.has("sourceCode") && !obj.get("sourceCode").isJsonNull()
                                 ? obj.get("sourceCode").getAsString() : null;
+                        boolean isZip = obj.has("isZip") && !obj.get("isZip").isJsonNull() && obj.get("isZip").getAsBoolean();
 
-                        view.appendSubmissionHistory(title, time, verdict, sourceCode);
+                        view.appendSubmissionHistory(title, time, verdict, sourceCode, isZip);
                     }
                 }
             });

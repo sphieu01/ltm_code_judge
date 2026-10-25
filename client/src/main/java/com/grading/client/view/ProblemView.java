@@ -9,6 +9,7 @@ import javafx.scene.control.*;
 import javafx.scene.input.*;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
+import javafx.stage.Stage;
 import javafx.util.Duration;
 
 import java.io.File;
@@ -297,30 +298,31 @@ public class ProblemView extends BorderPane {
     }
 
     public void appendSubmissionHistory(String title, String timestamp, String verdict, String sourceCode) {
-        historyRows.add(new SubmissionHistoryRow(title, formatTimestamp(timestamp), verdict, sourceCode));
+        appendSubmissionHistory(title, timestamp, verdict, sourceCode, false);
+    }
+
+    public void appendSubmissionHistory(String title, String timestamp, String verdict, String sourceCode, boolean isZip) {
+        historyRows.add(new SubmissionHistoryRow(title, formatTimestamp(timestamp), verdict, sourceCode, isZip));
     }
 
     public void addSubmissionHistory(String title, String timestamp, String verdict, String sourceCode) {
-        historyRows.add(0, new SubmissionHistoryRow(title, formatTimestamp(timestamp), verdict, sourceCode));
+        addSubmissionHistory(title, timestamp, verdict, sourceCode, false);
+    }
+
+    public void addSubmissionHistory(String title, String timestamp, String verdict, String sourceCode, boolean isZip) {
+        historyRows.add(0, new SubmissionHistoryRow(title, formatTimestamp(timestamp), verdict, sourceCode, isZip));
     }
 
     private void showSubmittedCode(SubmissionHistoryRow row) {
-        Dialog<Void> dialog = new Dialog<>();
-        dialog.setTitle("Mã nguồn đã nộp");
-        dialog.setHeaderText(row.title() + " — " + row.timestamp());
-        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-
-        TextArea codeArea = new TextArea(row.sourceCode() == null || row.sourceCode().isBlank()
-                ? "Không có mã nguồn để hiển thị."
-                : row.sourceCode());
-        codeArea.setEditable(false);
-        codeArea.setWrapText(false);
-        codeArea.getStyleClass().add("code-editor");
-        codeArea.setPrefSize(700, 420);
-
-        dialog.getDialogPane().setContent(codeArea);
-        dialog.getDialogPane().setPrefSize(760, 520);
-        dialog.showAndWait();
+        Stage owner = getScene() != null ? (Stage) getScene().getWindow() : null;
+        SourceCodeViewerDialog viewer = new SourceCodeViewerDialog(
+                owner,
+                row.title(),
+                row.timestamp(),
+                row.sourceCode(),
+                row.isZip()
+        );
+        viewer.showAndWait();
     }
 
     private String formatTimestamp(String timestamp) {
@@ -1014,6 +1016,6 @@ public class ProblemView extends BorderPane {
         }
     }
 
-    private record SubmissionHistoryRow(String title, String timestamp, String verdict, String sourceCode) {
+    private record SubmissionHistoryRow(String title, String timestamp, String verdict, String sourceCode, boolean isZip) {
     }
 }

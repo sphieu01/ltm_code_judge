@@ -55,9 +55,49 @@ public class SessionManager {
 
     public Integer getActiveAssessmentId() { return activeAssessmentId; }
 
+    private Long assessmentEndTimeEpochMs;
+
     public void setActiveAssessment(Integer assessmentId, boolean completed) {
         this.activeAssessmentId = assessmentId;
         this.assessmentCompleted = completed;
+        if (assessmentId == null || completed) {
+            this.assessmentEndTimeEpochMs = null;
+        }
+    }
+
+    public void setAssessmentClosesAt(String closesAt, Long remainingSeconds) {
+        if (remainingSeconds != null && remainingSeconds >= 0) {
+            this.assessmentEndTimeEpochMs = System.currentTimeMillis() + remainingSeconds * 1000L;
+        } else if (closesAt != null && !closesAt.isBlank()) {
+            try {
+                java.time.LocalDateTime ldt = java.time.LocalDateTime.parse(closesAt.replace(" ", "T"));
+                java.time.ZonedDateTime zdt = ldt.atZone(java.time.ZoneId.systemDefault());
+                this.assessmentEndTimeEpochMs = zdt.toInstant().toEpochMilli();
+            } catch (Exception ignored) {
+                this.assessmentEndTimeEpochMs = null;
+            }
+        } else {
+            this.assessmentEndTimeEpochMs = null;
+        }
+    }
+
+    public long getRemainingAssessmentSeconds() {
+        if (assessmentEndTimeEpochMs == null || !isAssessmentMode()) return 0;
+        long diff = (assessmentEndTimeEpochMs - System.currentTimeMillis()) / 1000L;
+        return Math.max(0, diff);
+    }
+
+    public String formatRemainingAssessmentTime() {
+        long sec = getRemainingAssessmentSeconds();
+        if (sec <= 0) return "00:00";
+        long h = sec / 3600;
+        long m = (sec % 3600) / 60;
+        long s = sec % 60;
+        if (h > 0) {
+            return String.format("%02d:%02d:%02d", h, m, s);
+        } else {
+            return String.format("%02d:%02d", m, s);
+        }
     }
 
     public boolean isAssessmentMode() {
@@ -96,6 +136,7 @@ public class SessionManager {
         problemStatusMap.clear();
         activeAssessmentId = null;
         assessmentCompleted = false;
+        assessmentEndTimeEpochMs = null;
     }
 
     public String getToken() {

@@ -33,6 +33,7 @@ public class ProblemView extends BorderPane {
     // ======================== TOP TOOLBAR ========================
     private Button backButton;
     private Label proctorBadge;
+    private Label countdownTimerBadge;
     private Button themeToggleBtn;
     private boolean choosingFile = false;
 
@@ -153,6 +154,13 @@ public class ProblemView extends BorderPane {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
+        // Đồng hồ đếm ngược lúc thi ở góc trên (đơn giản, tinh tế)
+        countdownTimerBadge = new Label("");
+        countdownTimerBadge.setStyle(
+                "-fx-background-color: rgba(14, 165, 233, 0.12); -fx-text-fill: #0284c7; -fx-padding: 4 14; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 13px; -fx-border-color: rgba(14, 165, 233, 0.35); -fx-border-radius: 12px;");
+        countdownTimerBadge.setVisible(false);
+        countdownTimerBadge.setManaged(false);
+
         themeToggleBtn = new Button(ThemeManager.getInstance().getToggleIconText());
         themeToggleBtn.getStyleClass().addAll("button", "btn-theme");
         themeToggleBtn.setStyle("-fx-font-size: 14px; -fx-padding: 4 10 4 10;");
@@ -161,7 +169,7 @@ public class ProblemView extends BorderPane {
             themeToggleBtn.setText(ThemeManager.getInstance().getToggleIconText());
         });
 
-        toolbar.getChildren().addAll(backButton, proctorBadge, spacer, themeToggleBtn);
+        toolbar.getChildren().addAll(backButton, proctorBadge, spacer, countdownTimerBadge, themeToggleBtn);
         return toolbar;
     }
 
@@ -247,7 +255,8 @@ public class ProblemView extends BorderPane {
         timeCol.setPrefWidth(210);
         TableColumn<SubmissionHistoryRow, String> verdictCol = new TableColumn<>("Kết quả");
         verdictCol.setCellValueFactory(
-                data -> new javafx.beans.property.SimpleStringProperty(com.grading.client.model.Submission.formatVerdict(data.getValue().verdict())));
+                data -> new javafx.beans.property.SimpleStringProperty(
+                        com.grading.client.model.Submission.formatVerdict(data.getValue().verdict())));
         verdictCol.setStyle("-fx-alignment: CENTER;");
         verdictCol.setMinWidth(170);
         verdictCol.setPrefWidth(190);
@@ -1034,6 +1043,31 @@ public class ProblemView extends BorderPane {
         if (activeProctorAlert != null && activeProctorAlert.isShowing()) {
             activeProctorAlert.close();
             activeProctorAlert = null;
+        }
+    }
+
+    public void setCountdownTimerVisible(boolean visible) {
+        if (countdownTimerBadge != null) {
+            countdownTimerBadge.setVisible(visible);
+            countdownTimerBadge.setManaged(visible);
+        }
+    }
+
+    public void updateCountdownTimer(long remainingSeconds, String formattedTime) {
+        if (countdownTimerBadge == null)
+            return;
+        if (remainingSeconds <= 0) {
+            countdownTimerBadge.setText("Hết giờ!");
+            countdownTimerBadge.setStyle(
+                    "-fx-background-color: rgba(239, 68, 68, 0.2); -fx-text-fill: #dc2626; -fx-padding: 4 14; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 13px; -fx-border-color: #ef4444; -fx-border-radius: 12px;");
+        } else if (remainingSeconds <= 300) {
+            countdownTimerBadge.setText(formattedTime);
+            countdownTimerBadge.setStyle(
+                    "-fx-background-color: rgba(239, 68, 68, 0.15); -fx-text-fill: #dc2626; -fx-padding: 4 14; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 13px; -fx-border-color: rgba(239, 68, 68, 0.4); -fx-border-radius: 12px;");
+        } else {
+            countdownTimerBadge.setText(formattedTime);
+            countdownTimerBadge.setStyle(
+                    "-fx-background-color: rgba(14, 165, 233, 0.12); -fx-text-fill: #0284c7; -fx-padding: 4 14; -fx-background-radius: 12px; -fx-font-weight: bold; -fx-font-size: 13px; -fx-border-color: rgba(14, 165, 233, 0.35); -fx-border-radius: 12px;");
         }
     }
 

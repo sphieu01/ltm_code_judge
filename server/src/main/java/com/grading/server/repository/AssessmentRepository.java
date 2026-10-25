@@ -271,6 +271,7 @@ public class AssessmentRepository {
         int duration = rs.getInt("duration_minutes");
         LocalDateTime effectiveClose = opensAt.plusMinutes(duration);
         if (scheduledClose.isBefore(effectiveClose)) effectiveClose = scheduledClose;
+        long remainingSeconds = Math.max(0, java.time.Duration.between(now, effectiveClose).getSeconds());
 
         int problemCount = countProblems(conn, id);
         int submittedCount = studentId == null ? 0 : countSubmittedProblems(conn, id, studentId);
@@ -305,6 +306,7 @@ public class AssessmentRepository {
         result.addProperty("closesAt", effectiveClose.toString());
         result.addProperty("scheduledClosesAt", scheduledClose.toString());
         result.addProperty("durationMinutes", duration);
+        result.addProperty("remainingSeconds", remainingSeconds);
         result.addProperty("status", status);
         result.addProperty("problemCount", problemCount);
         result.addProperty("submittedCount", submittedCount);

@@ -33,6 +33,7 @@ public class DashboardController {
     private Consumer<Problem> onSelectProblem;
     private Runnable onLogout;
     private Timeline assessmentPoller;
+    private Timeline countdownTicker;
     private Integer activeAssessmentId;
     private boolean assessmentStateKnown;
     private final List<CreditClass> cachedClasses = new ArrayList<>();
@@ -146,8 +147,25 @@ public class DashboardController {
         }));
         assessmentPoller.setCycleCount(Timeline.INDEFINITE);
         assessmentPoller.play();
+
+        countdownTicker = new Timeline(new KeyFrame(Duration.seconds(1), event -> {
+            if (sessionManager.isAssessmentMode()) {
+                view.setAssessmentCountdownVisible(true);
+                long remaining = sessionManager.getRemainingAssessmentSeconds();
+                String formatted = sessionManager.formatRemainingAssessmentTime();
+                view.updateAssessmentCountdown(remaining, formatted);
+            } else {
+                view.setAssessmentCountdownVisible(false);
+            }
+        }));
+        countdownTicker.setCycleCount(Timeline.INDEFINITE);
+        countdownTicker.play();
+
         view.sceneProperty().addListener((obs, oldScene, newScene) -> {
-            if (oldScene != null && newScene == null && assessmentPoller != null) assessmentPoller.stop();
+            if (oldScene != null && newScene == null) {
+                if (assessmentPoller != null) assessmentPoller.stop();
+                if (countdownTicker != null) countdownTicker.stop();
+            }
         });
     }
 
@@ -192,6 +210,7 @@ public class DashboardController {
                 boolean wasInAssessment = activeAssessmentId != null;
                 activeAssessmentId = null;
                 sessionManager.setActiveAssessment(null, false);
+                view.setAssessmentCountdownVisible(false);
                 view.setAssessmentLobby(false);
                 view.setAssessmentMode(false, null, null, null, 0);
                 if (!assessmentStateKnown || wasInAssessment) {
@@ -227,6 +246,9 @@ public class DashboardController {
         activeAssessmentId = id;
         assessmentStateKnown = true;
         sessionManager.setActiveAssessment(id, false);
+        Long remainingSec = assessment.has("remainingSeconds") && !assessment.get("remainingSeconds").isJsonNull()
+                ? assessment.get("remainingSeconds").getAsLong() : null;
+        sessionManager.setAssessmentClosesAt(stringValue(assessment, "closesAt"), remainingSec);
         int classId = intValue(assessment, "classId");
         CreditClass targetClass = null;
         if (classId > 0) {
@@ -273,6 +295,7 @@ public class DashboardController {
                 sessionManager.setActiveAssessment(null, true);
                 activeAssessmentId = null;
                 assessmentStateKnown = false;
+                view.setAssessmentCountdownVisible(false);
                 view.setAssessmentLobby(false);
                 view.setAssessmentMode(false, null, null, null, 0);
                 refreshAssessments(view.getSelectedClass() == null ? null : view.getSelectedClass().getId());

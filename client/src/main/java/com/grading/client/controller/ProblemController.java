@@ -34,6 +34,7 @@ public class ProblemController {
         initHandlers();
         registerPushNotifications();
         initProctoring();
+        initCountdownTimer();
         loadSubmissionHistory();
         startAssessmentGuard();
     }
@@ -222,6 +223,39 @@ public class ProblemController {
     private javafx.stage.Window trackedWindow;
     private javafx.animation.Timeline periodicAiChecker;
     private javafx.animation.Timeline assessmentChecker;
+    private javafx.animation.Timeline countdownTimeline;
+
+    private void initCountdownTimer() {
+        boolean inAssessment = sessionManager.isAssessmentMode();
+        view.setCountdownTimerVisible(inAssessment);
+        if (inAssessment) {
+            updateCountdownTimerDisplay();
+        }
+
+        countdownTimeline = new javafx.animation.Timeline(new javafx.animation.KeyFrame(
+                javafx.util.Duration.seconds(1), e -> {
+                    if (sessionManager.isAssessmentMode()) {
+                        view.setCountdownTimerVisible(true);
+                        updateCountdownTimerDisplay();
+                    } else {
+                        view.setCountdownTimerVisible(false);
+                    }
+                }
+        ));
+        countdownTimeline.setCycleCount(javafx.animation.Animation.INDEFINITE);
+        countdownTimeline.play();
+    }
+
+    private void updateCountdownTimerDisplay() {
+        if (!sessionManager.isAssessmentMode()) {
+            view.setCountdownTimerVisible(false);
+            return;
+        }
+        view.setCountdownTimerVisible(true);
+        long remaining = sessionManager.getRemainingAssessmentSeconds();
+        String formatted = sessionManager.formatRemainingAssessmentTime();
+        view.updateCountdownTimer(remaining, formatted);
+    }
 
     private void startAssessmentGuard() {
         assessmentChecker = new javafx.animation.Timeline(new javafx.animation.KeyFrame(
@@ -241,6 +275,12 @@ public class ProblemController {
                         }
                         JsonObject active = response.getData().getAsJsonObject();
                         int assessmentId = active.has("id") ? active.get("id").getAsInt() : 0;
+                        Long remainingSec = active.has("remainingSeconds") && !active.get("remainingSeconds").isJsonNull()
+                                ? active.get("remainingSeconds").getAsLong() : null;
+                        sessionManager.setAssessmentClosesAt(
+                                active.has("closesAt") ? active.get("closesAt").getAsString() : null,
+                                remainingSec);
+                        updateCountdownTimerDisplay();
                         Integer currentAssessmentId = sessionManager.getActiveAssessmentId();
                         if (currentAssessmentId == null || currentAssessmentId != assessmentId) {
                             assessmentChecker.stop();
@@ -374,6 +414,9 @@ public class ProblemController {
     }
 
     public void cleanup() {
+        if (countdownTimeline != null) {
+            countdownTimeline.stop();
+        }
         if (periodicAiChecker != null) {
             periodicAiChecker.stop();
         }

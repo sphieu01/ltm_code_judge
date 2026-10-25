@@ -35,6 +35,7 @@ public class DashboardController {
     private Timeline assessmentPoller;
     private Integer activeAssessmentId;
     private boolean assessmentStateKnown;
+    private final List<CreditClass> cachedClasses = new ArrayList<>();
     private final java.util.Map<Integer, JsonObject> assessmentCache = new java.util.HashMap<>();
 
     public DashboardController(DashboardView view, Stage stage) {
@@ -51,15 +52,19 @@ public class DashboardController {
         view.setOnSelectProblem(problem -> {
             if (onSelectProblem != null) {
                 CreditClass sel = view.getSelectedClass();
-                if (sel != null && (problem.getClassId() == null || problem.getClassId() <= 0)) {
-                    problem.setClassId(sel.getId());
-                    problem.setClassName(sel.getName());
+                if (sel != null) {
+                    sessionManager.setCurrentClass(sel);
+                    if (problem.getClassId() == null || problem.getClassId() <= 0) {
+                        problem.setClassId(sel.getId());
+                        problem.setClassName(sel.getName());
+                    }
                 }
                 onSelectProblem.accept(problem);
             }
         });
 
         view.setOnSelectClass(selectedClass -> {
+            sessionManager.setCurrentClass(selectedClass);
             Integer classId = selectedClass != null ? selectedClass.getId() : null;
             loadProblems(classId);
         });
@@ -96,17 +101,26 @@ public class DashboardController {
                             if (obj.has("id")) cc.setId(obj.get("id").getAsInt());
                             if (obj.has("classCode")) cc.setClassCode(obj.get("classCode").getAsString());
                             if (obj.has("name")) cc.setName(obj.get("name").getAsString());
-                            if (obj.has("courseName")) cc.setCourseName(obj.get("courseName").getAsString());
+                            if (obj.has("courseId")) cc.setCourseId(obj.get("courseId").getAsInt());
+                            if (obj.has("courseName") && !obj.get("courseName").isJsonNull()) {
+                                cc.setCourseName(obj.get("courseName").getAsString());
+                            }
+                            if (obj.has("courseLanguage") && !obj.get("courseLanguage").isJsonNull()) {
+                                cc.setCourseLanguage(obj.get("courseLanguage").getAsString());
+                            }
                             if (obj.has("allowedLanguages") && !obj.get("allowedLanguages").isJsonNull()) {
                                 cc.setAllowedLanguages(obj.get("allowedLanguages").getAsString());
                             }
                             classes.add(cc);
                         }
                     }
+                    cachedClasses.clear();
+                    cachedClasses.addAll(classes);
                     view.setClasses(classes);
 
                     // Tải bài tập của lớp đang chọn
                     CreditClass selected = view.getSelectedClass();
+                    sessionManager.setCurrentClass(selected);
                     refreshAssessments(selected != null ? selected.getId() : null);
                 });
             });
@@ -203,6 +217,10 @@ public class DashboardController {
         activeAssessmentId = id;
         assessmentStateKnown = true;
         sessionManager.setActiveAssessment(id, false);
+        int classId = intValue(assessment, "classId");
+        if (classId > 0) {
+            cachedClasses.stream().filter(c -> c.getId() == classId).findFirst().ifPresent(sessionManager::setCurrentClass);
+        }
         view.setAssessmentLobby(false);
         view.setAssessmentMode(true, stringValue(assessment, "title"), stringValue(assessment, "classCode"),
                 stringValue(assessment, "closesAt"), intValue(assessment, "durationMinutes"));

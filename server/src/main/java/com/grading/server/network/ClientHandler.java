@@ -1024,10 +1024,20 @@ public class ClientHandler implements Runnable {
             // 2. Kiểm tra giới hạn ngôn ngữ của lớp tín chỉ nếu nộp trong lớp
             Integer classId = data.has("classId") && !data.get("classId").isJsonNull()
                     ? data.get("classId").getAsInt() : null;
+            if ((classId == null || classId <= 0) && "STUDENT".equalsIgnoreCase(authenticatedRole)) {
+                List<CreditClass> studentClasses = academicService.getClassesByStudent(authenticatedUserId);
+                for (CreditClass cc : studentClasses) {
+                    var classProblems = academicService.getProblemsByClassId(cc.getId());
+                    if (classProblems.stream().anyMatch(p -> p.getId() == problemId)) {
+                        classId = cc.getId();
+                        break;
+                    }
+                }
+            }
             if (classId != null && classId > 0) {
                 CreditClass creditClass = academicService.getClassById(classId);
                 if (creditClass != null && !creditClass.isLanguageAllowed(language)) {
-                    throw new IllegalArgumentException("Lớp " + creditClass.getName() + " không cho phép nộp bằng ngôn ngữ: " + language);
+                    throw new IllegalArgumentException("Lớp " + creditClass.getName() + " chỉ cho phép nộp bằng ngôn ngữ: " + creditClass.getEffectiveAllowedLanguages().toUpperCase());
                 }
             }
 

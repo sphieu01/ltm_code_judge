@@ -52,6 +52,7 @@ public class ProblemView extends BorderPane {
 
     // ======================== SUBMISSION & FILE UPLOAD ========================
     private ComboBox<String> languageComboBox;
+    private Label lockIndicatorLabel;
     private HBox uploadDropZone;
     private HBox selectedFileBox;
     private Label selectedFileLabel;
@@ -378,7 +379,11 @@ public class ProblemView extends BorderPane {
         languageComboBox = new ComboBox<>(FXCollections.observableArrayList("C", "C++", "Java", "Python 3"));
         languageComboBox.getSelectionModel().select("C");
         languageComboBox.setPrefWidth(130);
-        compilerBox.getChildren().addAll(compilerLabel, languageComboBox);
+        lockIndicatorLabel = new Label();
+        lockIndicatorLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #10b981; -fx-font-weight: bold;");
+        lockIndicatorLabel.setVisible(false);
+        lockIndicatorLabel.setManaged(false);
+        compilerBox.getChildren().addAll(compilerLabel, languageComboBox, lockIndicatorLabel);
 
         // 1. Nút Tải file lên (kích thước chuẩn 200x36)
         uploadDropZone = new HBox(8);
@@ -538,17 +543,21 @@ public class ProblemView extends BorderPane {
                 this.fileCodeContent = content;
                 this.activeSubmissionCode = content;
 
-                // Tự động nhận diện ngôn ngữ theo phần mở rộng file
-                if (fileName.endsWith(".cpp") || fileName.endsWith(".cc") || fileName.endsWith(".cxx")) {
-                    selectLanguageByName("C++");
-                } else if (fileName.endsWith(".c")) {
-                    selectLanguageByName("C");
-                } else if (fileName.endsWith(".java")) {
-                    selectLanguageByName("Java");
-                } else if (fileName.endsWith(".py")) {
-                    selectLanguageByName("Python 3");
+                // Tự động nhận diện ngôn ngữ theo phần mở rộng file (chỉ khi chưa bị khóa theo lớp học)
+                if (!languageComboBox.isDisable()) {
+                    if (fileName.endsWith(".cpp") || fileName.endsWith(".cc") || fileName.endsWith(".cxx")) {
+                        selectLanguageByName("C++");
+                    } else if (fileName.endsWith(".c")) {
+                        selectLanguageByName("C");
+                    } else if (fileName.endsWith(".java")) {
+                        selectLanguageByName("Java");
+                    } else if (fileName.endsWith(".py")) {
+                        selectLanguageByName("Python 3");
+                    }
+                    selectedFileLabel.setText(String.format("📄 %s (%d KB)", file.getName(), sizeKb));
+                } else {
+                    selectedFileLabel.setText(String.format("📄 %s (%d KB) — [Chấm bằng: %s]", file.getName(), sizeKb, languageComboBox.getValue()));
                 }
-                selectedFileLabel.setText(String.format("📄 %s (%d KB)", file.getName(), sizeKb));
             }
 
             selectedFileBox.setVisible(true);
@@ -565,6 +574,9 @@ public class ProblemView extends BorderPane {
     }
 
     private void selectLanguageByName(String name) {
+        if (languageComboBox.isDisable()) {
+            return; // Ngôn ngữ đã bị khóa theo lớp học, không tự ý chuyển
+        }
         for (String item : languageComboBox.getItems()) {
             if (item.equalsIgnoreCase(name) || item.startsWith(name)) {
                 languageComboBox.getSelectionModel().select(item);
@@ -670,6 +682,11 @@ public class ProblemView extends BorderPane {
             languageComboBox.setItems(FXCollections.observableArrayList("Java"));
             languageComboBox.getSelectionModel().select("Java");
             languageComboBox.setDisable(true);
+            if (lockIndicatorLabel != null) {
+                lockIndicatorLabel.setText("🔒 Khóa Java OOP");
+                lockIndicatorLabel.setVisible(true);
+                lockIndicatorLabel.setManaged(true);
+            }
             return;
         }
 
@@ -687,7 +704,19 @@ public class ProblemView extends BorderPane {
             if (!filtered.isEmpty()) {
                 languageComboBox.setItems(FXCollections.observableArrayList(filtered));
                 languageComboBox.getSelectionModel().select(0);
-                languageComboBox.setDisable(false);
+                boolean singleLanguage = (filtered.size() == 1);
+                languageComboBox.setDisable(singleLanguage);
+                if (lockIndicatorLabel != null) {
+                    if (singleLanguage) {
+                        lockIndicatorLabel.setText("🔒 Khóa theo lớp: " + filtered.get(0));
+                        lockIndicatorLabel.setVisible(true);
+                        lockIndicatorLabel.setManaged(true);
+                    } else {
+                        lockIndicatorLabel.setText("");
+                        lockIndicatorLabel.setVisible(false);
+                        lockIndicatorLabel.setManaged(false);
+                    }
+                }
                 return;
             }
         }
@@ -695,6 +724,10 @@ public class ProblemView extends BorderPane {
         languageComboBox.setItems(FXCollections.observableArrayList(defaultLangs));
         languageComboBox.getSelectionModel().select("C");
         languageComboBox.setDisable(false);
+        if (lockIndicatorLabel != null) {
+            lockIndicatorLabel.setVisible(false);
+            lockIndicatorLabel.setManaged(false);
+        }
     }
 
     public void setProblemDetails(String description, String inputFormat, String outputFormat,

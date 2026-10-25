@@ -99,6 +99,19 @@ public class ProblemController {
         v.setBusy(true, "Đang nộp bài lên Server...");
 
         Integer classId = (problem != null) ? problem.getClassId() : null;
+        if (classId == null && sessionManager.getCurrentClass() != null) {
+            classId = sessionManager.getCurrentClass().getId();
+        }
+
+        // Kiểm tra ngôn ngữ nộp có được phép trong lớp học không
+        if (sessionManager.getCurrentClass() != null) {
+            com.grading.client.model.CreditClass cc = sessionManager.getCurrentClass();
+            if (!cc.isLanguageAllowed(lang)) {
+                v.showExecutionResult("Lỗi nộp bài: Lớp học (" + cc.getName() + ") yêu cầu nộp bằng ngôn ngữ: " + cc.getEffectiveAllowedLanguages().toUpperCase(), "LANGUAGE_NOT_ALLOWED", true);
+                return;
+            }
+        }
+
         boolean isZip = v.isZipSubmission();
 
         socketClient.submitCode(problemId, lang, code, classId, isZip, response -> {

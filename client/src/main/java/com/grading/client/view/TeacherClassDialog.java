@@ -76,16 +76,26 @@ public class TeacherClassDialog extends Dialog<CreditClass> {
         CheckBox cbJava = new CheckBox("Java");
         CheckBox cbPython = new CheckBox("Python");
 
+        java.util.function.Consumer<Course> syncCourseLanguages = (c) -> {
+            if (c == null) return;
+            String l = c.getLanguage() != null ? c.getLanguage().trim().toLowerCase() : "";
+            cbC.setSelected(l.equals("c") || l.equals("cpp"));
+            cbCpp.setSelected(l.equals("cpp"));
+            cbJava.setSelected(l.equals("java"));
+            cbPython.setSelected(l.equals("python"));
+        };
+
         if (isEdit) {
             cbC.setSelected(existingClass.isLanguageAllowed("c"));
             cbCpp.setSelected(existingClass.isLanguageAllowed("cpp"));
             cbJava.setSelected(existingClass.isLanguageAllowed("java"));
             cbPython.setSelected(existingClass.isLanguageAllowed("python"));
         } else {
-            cbC.setSelected(true);
-            cbCpp.setSelected(true);
-            cbJava.setSelected(true);
-            cbPython.setSelected(true);
+            Course initialCourse = courseCombo.getSelectionModel().getSelectedItem();
+            syncCourseLanguages.accept(initialCourse);
+            courseCombo.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> {
+                syncCourseLanguages.accept(newV);
+            });
         }
 
         HBox langBox = new HBox(16, cbC, cbCpp, cbJava, cbPython);

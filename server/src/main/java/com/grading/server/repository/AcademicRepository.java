@@ -64,6 +64,15 @@ public class AcademicRepository {
             stmt.executeUpdate(
                     "ALTER TABLE classes ADD COLUMN IF NOT EXISTS allowed_languages VARCHAR(100) DEFAULT 'c,cpp,java,python'"
             );
+            // Tự động đồng bộ ngôn ngữ lớp học theo ngôn ngữ của môn học nếu lớp chưa được cấu hình riêng
+            stmt.executeUpdate(
+                    "UPDATE classes cl SET allowed_languages = " +
+                    "  CASE " +
+                    "    WHEN LOWER(TRIM(co.language)) = 'cpp' THEN 'cpp,c' " +
+                    "    ELSE LOWER(TRIM(co.language)) " +
+                    "  END " +
+                    "FROM courses co WHERE cl.course_id = co.id AND (cl.allowed_languages IS NULL OR cl.allowed_languages = 'c,cpp,java,python')"
+            );
 
             // 3. Bổ sung cột class_id vào users nếu chưa có
             stmt.executeUpdate(
@@ -371,11 +380,13 @@ public class AcademicRepository {
     public List<Problem> findProblemsByClassId(int classId) throws SQLException {
         List<Problem> list = new ArrayList<>();
         String sql = "SELECT DISTINCT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
-                     "p.created_by, p.class_id, cl.name AS class_name, p.is_active, p.created_at, " +
+                     "p.created_by, COALESCE(p.class_id, ?) AS class_id, " +
+                     "COALESCE(cl.name, target_cl.name) AS class_name, p.is_active, p.created_at, " +
                      "p.problem_type, p.oop_spec " +
                      "FROM problems p " +
                      "LEFT JOIN classes cl ON p.class_id = cl.id " +
                      "LEFT JOIN class_problems cp ON p.id = cp.problem_id " +
+                     "LEFT JOIN classes target_cl ON target_cl.id = ? " +
                      "WHERE (cp.class_id = ? OR p.class_id = ?) " +
                      "AND (p.is_active IS NULL OR p.is_active = TRUE) " +
                      "ORDER BY p.id";
@@ -383,6 +394,8 @@ public class AcademicRepository {
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, classId);
             stmt.setInt(2, classId);
+            stmt.setInt(3, classId);
+            stmt.setInt(4, classId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     Problem p = new Problem();
@@ -393,8 +406,9 @@ public class AcademicRepository {
                     p.setMemoryLimitKb(rs.getInt("memory_limit_kb"));
                     p.setDifficulty(rs.getString("difficulty"));
                     p.setCreatedBy(rs.getInt("created_by"));
-                    if (rs.getObject("class_id") != null) p.setClassId(rs.getInt("class_id"));
-                    p.setClassName(rs.getString("class_name"));
+                    p.setClassId(classId);
+                    String cName = rs.getString("class_name");
+                    p.setClassName(cName != null ? cName : "");
                     p.setActive(rs.getObject("is_active") == null || rs.getBoolean("is_active"));
                     try { p.setProblemType(rs.getString("problem_type")); } catch (Exception ignored) {}
                     try { p.setOopSpec(rs.getString("oop_spec")); } catch (Exception ignored) {}

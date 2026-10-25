@@ -169,7 +169,18 @@ public class ClientApp extends Application {
      * Hiển thị màn hình Chi tiết bài làm & Code Editor (ProblemView).
      */
     public void showProblemView(Problem problem) {
+        com.grading.client.model.CreditClass curClass = SessionManager.getInstance().getCurrentClass();
+        if (curClass != null) {
+            if (problem.getClassId() == null || problem.getClassId() <= 0) {
+                problem.setClassId(curClass.getId());
+                problem.setClassName(curClass.getName());
+            }
+        }
+
         ProblemView problemView = new ProblemView();
+        if (curClass != null) {
+            problemView.setAllowedLanguages(curClass.getEffectiveAllowedLanguages());
+        }
         problemView.loadProblem(problem);
 
         // Tùy biến chi tiết đề bài theo bài được chọn

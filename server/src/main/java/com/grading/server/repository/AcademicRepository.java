@@ -64,6 +64,15 @@ public class AcademicRepository {
             stmt.executeUpdate(
                     "ALTER TABLE classes ADD COLUMN IF NOT EXISTS allowed_languages VARCHAR(100) DEFAULT 'c,cpp,java,python'"
             );
+            // Tự động đồng bộ ngôn ngữ lớp học theo ngôn ngữ của môn học nếu lớp chưa được cấu hình riêng
+            stmt.executeUpdate(
+                    "UPDATE classes cl SET allowed_languages = " +
+                    "  CASE " +
+                    "    WHEN LOWER(TRIM(co.language)) = 'cpp' THEN 'cpp,c' " +
+                    "    ELSE LOWER(TRIM(co.language)) " +
+                    "  END " +
+                    "FROM courses co WHERE cl.course_id = co.id AND (cl.allowed_languages IS NULL OR cl.allowed_languages = 'c,cpp,java,python')"
+            );
 
             // 3. Bổ sung cột class_id vào users nếu chưa có
             stmt.executeUpdate(
@@ -391,7 +400,7 @@ public class AcademicRepository {
     public List<Problem> findProblemsByClassId(int classId) throws SQLException {
         List<Problem> list = new ArrayList<>();
         String sql = "SELECT DISTINCT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
-                     "p.created_by, p.class_id, cl.name AS class_name, p.is_active, p.created_at, " +
+                     "p.created_by, cl.id AS class_id, cl.name AS class_name, p.is_active, p.created_at, " +
                      "p.problem_type, p.oop_spec " +
                      "FROM problems p " +
                      "LEFT JOIN classes cl ON cl.id = ? " +
@@ -415,7 +424,8 @@ public class AcademicRepository {
                     p.setDifficulty(rs.getString("difficulty"));
                     p.setCreatedBy(rs.getInt("created_by"));
                     p.setClassId(classId);
-                    p.setClassName(rs.getString("class_name"));
+                    String cName = rs.getString("class_name");
+                    p.setClassName(cName != null ? cName : "");
                     p.setActive(rs.getObject("is_active") == null || rs.getBoolean("is_active"));
                     try { p.setProblemType(rs.getString("problem_type")); } catch (Exception ignored) {}
                     try { p.setOopSpec(rs.getString("oop_spec")); } catch (Exception ignored) {}

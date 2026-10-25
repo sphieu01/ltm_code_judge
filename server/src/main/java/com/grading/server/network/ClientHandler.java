@@ -1042,7 +1042,7 @@ public class ClientHandler implements Runnable {
                     logger.warn("Could not check active assessment for submission: {}", ex.getMessage());
                 }
 
-                if (assessmentId == null && classId == null) {
+                if (assessmentId == null && (classId == null || classId <= 0)) {
                     try {
                         List<CreditClass> studentClasses = academicService.getClassesByStudent(authenticatedUserId);
                         if (studentClasses != null) {
@@ -1053,7 +1053,7 @@ public class ClientHandler implements Runnable {
                                     break;
                                 }
                             }
-                            if (classId == null && studentClasses.size() == 1) {
+                            if ((classId == null || classId <= 0) && studentClasses.size() == 1) {
                                 classId = studentClasses.get(0).getId();
                             }
                         }

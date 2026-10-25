@@ -54,6 +54,9 @@ public class CreditClass {
         if (courseLanguage != null && !courseLanguage.isBlank()) {
             return courseLanguage.trim().toLowerCase();
         }
+        if (allowedLanguages != null && !allowedLanguages.isBlank() && !allowedLanguages.contains(",")) {
+            return allowedLanguages.trim().toLowerCase();
+        }
         String combined = ((name != null ? name : "") + " " + (courseName != null ? courseName : "")).toLowerCase();
         if (combined.contains("oop") || combined.contains("java") || combined.contains("hướng đối tượng")) {
             return "java";
@@ -66,9 +69,6 @@ public class CreditClass {
         }
         if (combined.contains("ngôn ngữ c") || combined.contains("lập trình c")) {
             return "c";
-        }
-        if (allowedLanguages != null && !allowedLanguages.isBlank() && !allowedLanguages.contains(",")) {
-            return allowedLanguages.trim().toLowerCase();
         }
         return null;
     }

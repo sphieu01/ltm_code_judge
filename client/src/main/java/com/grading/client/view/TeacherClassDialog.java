@@ -78,29 +78,13 @@ public class TeacherClassDialog extends Dialog<CreditClass> {
 
         java.util.function.Consumer<Course> syncCourseLanguages = (c) -> {
             if (c == null) return;
-            String cLang = c.getLanguage() != null ? c.getLanguage().toLowerCase() : "";
-            String cName = c.getName() != null ? c.getName().toLowerCase() : "";
-            if (cLang.equals("java") || cName.contains("java") || cName.contains("oop") || cName.contains("hướng đối tượng")) {
-                cbC.setSelected(false);
-                cbCpp.setSelected(false);
-                cbJava.setSelected(true);
-                cbPython.setSelected(false);
-            } else if (cLang.equals("python") || cName.contains("python")) {
-                cbC.setSelected(false);
-                cbCpp.setSelected(false);
-                cbJava.setSelected(false);
-                cbPython.setSelected(true);
-            } else if (cLang.equals("cpp") || cLang.equals("c") || cName.contains("c++") || cName.contains("c/c++")) {
-                cbC.setSelected(true);
-                cbCpp.setSelected(true);
-                cbJava.setSelected(false);
-                cbPython.setSelected(false);
-            } else {
-                cbC.setSelected(true);
-                cbCpp.setSelected(true);
-                cbJava.setSelected(true);
-                cbPython.setSelected(true);
-            }
+            CreditClass courseDefaults = new CreditClass();
+            courseDefaults.setCourseLanguage(c.getLanguage());
+            courseDefaults.setCourseName(c.getName());
+            cbC.setSelected(courseDefaults.isLanguageAllowed("c"));
+            cbCpp.setSelected(courseDefaults.isLanguageAllowed("cpp"));
+            cbJava.setSelected(courseDefaults.isLanguageAllowed("java"));
+            cbPython.setSelected(courseDefaults.isLanguageAllowed("python"));
         };
 
         if (isEdit) {

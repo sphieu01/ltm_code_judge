@@ -747,6 +747,7 @@ public class ProblemView extends BorderPane {
                         lockIndicatorLabel.setVisible(true);
                         lockIndicatorLabel.setManaged(true);
                     } else {
+                        lockIndicatorLabel.setText("");
                         lockIndicatorLabel.setVisible(false);
                         lockIndicatorLabel.setManaged(false);
                     }

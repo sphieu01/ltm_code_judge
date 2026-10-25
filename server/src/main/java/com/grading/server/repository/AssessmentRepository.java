@@ -122,8 +122,10 @@ public class AssessmentRepository {
     }
 
     public JsonArray findForStudent(int studentId) throws SQLException {
-        String sql = "SELECT a.id,a.class_id,a.title,a.opens_at,a.closes_at,a.duration_minutes,cl.class_code,cl.name class_name " +
+        String sql = "SELECT a.id,a.class_id,a.title,a.opens_at,a.closes_at,a.duration_minutes,cl.class_code,cl.name class_name, " +
+                "cl.allowed_languages, co.language AS course_lang " +
                 "FROM assessments a JOIN classes cl ON cl.id=a.class_id " +
+                "LEFT JOIN courses co ON cl.course_id=co.id " +
                 "JOIN class_enrollments ce ON ce.class_id=a.class_id " +
                 "WHERE ce.student_id=? AND a.is_published=TRUE ORDER BY a.opens_at DESC";
         JsonArray result = new JsonArray();
@@ -138,8 +140,10 @@ public class AssessmentRepository {
     }
 
     public JsonArray findByClass(int classId, int teacherId) throws SQLException {
-        String sql = "SELECT a.id,a.class_id,a.title,a.opens_at,a.closes_at,a.duration_minutes,cl.class_code,cl.name class_name " +
+        String sql = "SELECT a.id,a.class_id,a.title,a.opens_at,a.closes_at,a.duration_minutes,cl.class_code,cl.name class_name, " +
+                "cl.allowed_languages, co.language AS course_lang " +
                 "FROM assessments a JOIN classes cl ON cl.id=a.class_id " +
+                "LEFT JOIN courses co ON cl.course_id=co.id " +
                 "WHERE a.class_id=? AND (a.created_by=? OR cl.teacher_id=?) " +
                 "ORDER BY a.opens_at DESC";
         JsonArray result = new JsonArray();
@@ -163,8 +167,10 @@ public class AssessmentRepository {
     }
 
     public JsonObject getMonitor(int assessmentId, int teacherId) throws SQLException {
-        String sql = "SELECT a.id,a.class_id,a.title,a.opens_at,a.closes_at,a.duration_minutes,cl.class_code,cl.name class_name " +
+        String sql = "SELECT a.id,a.class_id,a.title,a.opens_at,a.closes_at,a.duration_minutes,cl.class_code,cl.name class_name, " +
+                "cl.allowed_languages, co.language AS course_lang " +
                 "FROM assessments a JOIN classes cl ON cl.id=a.class_id " +
+                "LEFT JOIN courses co ON cl.course_id=co.id " +
                 "WHERE a.id=? AND (a.created_by=? OR cl.teacher_id=?)";
         try (Connection conn = DatabaseConfig.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, assessmentId);
@@ -280,6 +286,20 @@ public class AssessmentRepository {
         result.addProperty("classId", rs.getInt("class_id"));
         result.addProperty("classCode", rs.getString("class_code"));
         result.addProperty("className", rs.getString("class_name"));
+
+        String allowedLangs = null;
+        try { allowedLangs = rs.getString("allowed_languages"); } catch (Exception ignored) {}
+        if (allowedLangs == null || allowedLangs.isBlank()) {
+            try {
+                String courseLang = rs.getString("course_lang");
+                if (courseLang != null && !courseLang.isBlank()) {
+                    allowedLangs = courseLang.trim().toLowerCase();
+                }
+            } catch (Exception ignored) {}
+        }
+        if (allowedLangs == null || allowedLangs.isBlank()) allowedLangs = "c,cpp,java,python";
+        result.addProperty("allowedLanguages", allowedLangs);
+
         result.addProperty("title", rs.getString("title"));
         result.addProperty("opensAt", opensAt.toString());
         result.addProperty("closesAt", effectiveClose.toString());
@@ -303,8 +323,14 @@ public class AssessmentRepository {
     }
 
     private JsonArray findProblems(Connection conn, int assessmentId, Integer studentId) throws SQLException {
-        String sql = "SELECT p.id,p.title,p.description,p.difficulty,p.time_limit_ms,p.memory_limit_kb,p.class_id,ap.order_num " +
-                "FROM assessment_problems ap JOIN problems p ON p.id=ap.problem_id " +
+        String sql = "SELECT p.id, p.title, p.description, p.difficulty, p.time_limit_ms, p.memory_limit_kb, " +
+                "a.class_id, cl.name AS class_name, cl.allowed_languages, co.language AS course_lang, " +
+                "p.problem_type, p.oop_spec, ap.order_num " +
+                "FROM assessment_problems ap " +
+                "JOIN problems p ON p.id=ap.problem_id " +
+                "JOIN assessments a ON a.id=ap.assessment_id " +
+                "LEFT JOIN classes cl ON cl.id=a.class_id " +
+                "LEFT JOIN courses co ON cl.course_id=co.id " +
                 "WHERE ap.assessment_id=? ORDER BY ap.order_num";
         JsonArray result = new JsonArray();
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -321,6 +347,25 @@ public class AssessmentRepository {
                     problem.addProperty("memoryLimitKb", rs.getInt("memory_limit_kb"));
                     int classId = rs.getInt("class_id");
                     if (!rs.wasNull()) problem.addProperty("classId", classId);
+                    String className = rs.getString("class_name");
+                    if (className != null) problem.addProperty("className", className);
+
+                    String allowed = rs.getString("allowed_languages");
+                    if (allowed == null || allowed.isBlank()) {
+                        String courseLang = rs.getString("course_lang");
+                        if (courseLang != null && !courseLang.isBlank()) {
+                            allowed = courseLang.trim().toLowerCase();
+                        }
+                    }
+                    if (allowed != null && !allowed.isBlank()) {
+                        problem.addProperty("allowedLanguages", allowed);
+                    }
+
+                    String pType = rs.getString("problem_type");
+                    if (pType != null) problem.addProperty("problemType", pType);
+                    String oopSpec = rs.getString("oop_spec");
+                    if (oopSpec != null) problem.addProperty("oopSpec", oopSpec);
+
                     if (studentId != null) addStudentProblemStatus(conn, problem, assessmentId, studentId, problemId);
                     result.add(problem);
                 }

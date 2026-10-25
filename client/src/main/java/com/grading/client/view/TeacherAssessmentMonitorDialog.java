@@ -210,7 +210,9 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
         if (array == null) return;
         for (JsonElement element : array) {
             JsonObject o = element.getAsJsonObject();
-            alerts.add(new AlertRow(value(o, "formattedTime"), value(o, "fullName"), value(o, "eventType"),
+            String event = value(o, "eventType");
+            if ("FOCUS_LOSS".equalsIgnoreCase(event)) continue;
+            alerts.add(new AlertRow(value(o, "formattedTime"), value(o, "fullName"), event,
                     value(o, "detail"), value(o, "severity"), value(o, "problemTitle")));
         }
     }

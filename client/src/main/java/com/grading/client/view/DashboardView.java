@@ -465,6 +465,16 @@ public class DashboardView extends BorderPane {
         return classFilterCombo.getSelectionModel().getSelectedItem();
     }
 
+    public void selectClass(CreditClass cc) {
+        if (cc == null) return;
+        for (CreditClass item : classFilterCombo.getItems()) {
+            if (item != null && item.getId() == cc.getId()) {
+                classFilterCombo.getSelectionModel().select(item);
+                return;
+            }
+        }
+    }
+
     public void setProblems(List<Problem> list) {
         problemList.setAll(list == null ? List.of() : list.stream()
                 .filter(problem -> problem != null && problem.getTitle() != null && !problem.getTitle().isBlank())

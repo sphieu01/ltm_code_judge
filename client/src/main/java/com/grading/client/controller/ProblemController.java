@@ -103,8 +103,24 @@ public class ProblemController {
             classId = sessionManager.getCurrentClass().getId();
         }
 
-        // Kiểm tra ngôn ngữ nộp có được phép trong lớp học không
-        if (sessionManager.getCurrentClass() != null) {
+        // Kiểm tra ngôn ngữ nộp có được phép trong lớp học / bài kiểm tra không
+        if (problem != null && problem.getAllowedLanguages() != null && !problem.getAllowedLanguages().isBlank()) {
+            String allowed = problem.getAllowedLanguages();
+            boolean matched = false;
+            String clean = lang.trim().toLowerCase();
+            for (String item : allowed.split(",")) {
+                String it = item.trim().toLowerCase();
+                if (it.equals(clean) || (it.equals("cpp") && clean.equals("c++")) || (it.equals("c++") && clean.equals("cpp"))) {
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                v.setBusy(false, null);
+                v.showExecutionResult("Lỗi nộp bài: Bài thi yêu cầu nộp bằng ngôn ngữ: " + allowed.toUpperCase(), "LANGUAGE_NOT_ALLOWED", true);
+                return;
+            }
+        } else if (sessionManager.getCurrentClass() != null) {
             com.grading.client.model.CreditClass cc = sessionManager.getCurrentClass();
             if (!cc.isLanguageAllowed(lang)) {
                 v.setBusy(false, null);
@@ -201,7 +217,6 @@ public class ProblemController {
 
     private static final long AI_VIOLATION_COOLDOWN_MS = 45_000L; // 45 giây cooldown giữa các lần tăng count và popup cảnh báo
     private long lastAiDetectionTime = 0;
-    private long lastFocusLossTime = 0;
     private final java.util.concurrent.atomic.AtomicBoolean isScanning = new java.util.concurrent.atomic.AtomicBoolean(false);
     private javafx.beans.value.ChangeListener<Boolean> currentFocusListener;
     private javafx.stage.Window trackedWindow;
@@ -295,13 +310,9 @@ public class ProblemController {
         trackedWindow = window;
         currentFocusListener = (obs, wasFocused, isNowFocused) -> {
             if (!isNowFocused && sessionManager.isAssessmentMode()) {
-                long now = System.currentTimeMillis();
-                if (now - lastFocusLossTime >= 5_000L) {
-                    lastFocusLossTime = now;
-                    reportAiViolation("FOCUS_LOSS", "Sinh viên rời khỏi cửa sổ làm bài kiểm tra");
-                }
-                // Rời khỏi cửa sổ: Quét xem sinh viên có vào ChatGPT / Gemini hay không.
-                // Nếu sinh viên chỉ mở VS Code, CLion, Dev-C++... thì xem là hợp lệ và KHÔNG phạt!
+                // Rời khỏi cửa sổ: Cho phép sinh viên dùng IDE bên ngoài (Dev-C++, CLion, VS Code...) hoàn toàn hợp lệ,
+                // KHÔNG cảnh báo mất focus (FOCUS_LOSS).
+                // Chỉ quét ngầm kiểm tra xem sinh viên có mở công cụ AI (ChatGPT, Gemini, Copilot...) hay không.
                 scanForAiCheating(true);
             }
         };

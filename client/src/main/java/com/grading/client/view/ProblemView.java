@@ -683,6 +683,10 @@ public class ProblemView extends BorderPane {
             oopInfoBanner.setManaged(isOop);
         }
 
+        if (problem.getAllowedLanguages() != null && !problem.getAllowedLanguages().isBlank()) {
+            this.allowedLanguagesSetting = problem.getAllowedLanguages();
+        }
+
         updateLanguageOptions();
 
         clearSelectedFile();

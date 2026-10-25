@@ -178,7 +178,9 @@ public class ClientApp extends Application {
         }
 
         ProblemView problemView = new ProblemView();
-        if (curClass != null) {
+        if (problem.getAllowedLanguages() != null && !problem.getAllowedLanguages().isBlank()) {
+            problemView.setAllowedLanguages(problem.getAllowedLanguages());
+        } else if (curClass != null) {
             problemView.setAllowedLanguages(curClass.getEffectiveAllowedLanguages());
         }
         problemView.loadProblem(problem);

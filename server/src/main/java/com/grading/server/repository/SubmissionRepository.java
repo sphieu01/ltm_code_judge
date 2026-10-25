@@ -22,6 +22,7 @@ public class SubmissionRepository {
              Statement stmt = conn.createStatement()) {
             stmt.executeUpdate("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS assessment_id INT " +
                     "REFERENCES assessments(id) ON DELETE SET NULL");
+            stmt.executeUpdate("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_zip BOOLEAN DEFAULT FALSE");
             stmt.executeUpdate("CREATE INDEX IF NOT EXISTS idx_submissions_assessment " +
                     "ON submissions(assessment_id, user_id, problem_id, submitted_at)");
             stmt.executeUpdate("UPDATE submissions SET score = 0 WHERE total_tests = 0 AND score <> 0");
@@ -32,29 +33,29 @@ public class SubmissionRepository {
 
     // ─── SQL ──────────────────────────────────────────────────────────────────
     private static final String SQL_INSERT =
-            "INSERT INTO submissions (user_id, problem_id, assessment_id, source_code, language, verdict, submitted_at) " +
-            "VALUES (?, ?, ?, ?, ?, 'PENDING'::verdict_type, CURRENT_TIMESTAMP) RETURNING id, submitted_at";
+            "INSERT INTO submissions (user_id, problem_id, assessment_id, source_code, language, is_zip, verdict, submitted_at) " +
+            "VALUES (?, ?, ?, ?, ?, ?, 'PENDING'::verdict_type, CURRENT_TIMESTAMP) RETURNING id, submitted_at";
 
     private static final String SQL_FIND_BY_ID =
-            "SELECT s.id, s.user_id, s.problem_id, s.assessment_id, p.title AS problem_title, s.source_code, s.language, s.verdict, s.score, " +
+            "SELECT s.id, s.user_id, s.problem_id, s.assessment_id, p.title AS problem_title, s.source_code, s.language, s.is_zip, s.verdict, s.score, " +
             "s.passed_tests, s.total_tests, s.exec_time_ms, s.memory_used_kb, s.compile_output, " +
             "s.submitted_at, s.judged_at FROM submissions s " +
             "LEFT JOIN problems p ON s.problem_id = p.id WHERE s.id = ?";
 
     private static final String SQL_FIND_BY_USER =
-            "SELECT s.id, s.user_id, s.problem_id, s.assessment_id, p.title AS problem_title, s.source_code, s.language, s.verdict, s.score, " +
+            "SELECT s.id, s.user_id, s.problem_id, s.assessment_id, p.title AS problem_title, s.source_code, s.language, s.is_zip, s.verdict, s.score, " +
             "s.passed_tests, s.total_tests, s.exec_time_ms, s.memory_used_kb, s.compile_output, " +
             "s.submitted_at, s.judged_at FROM submissions s " +
             "LEFT JOIN problems p ON s.problem_id = p.id WHERE s.user_id = ? ORDER BY s.submitted_at DESC";
 
     private static final String SQL_FIND_BY_USER_AND_PROBLEM =
-            "SELECT s.id, s.user_id, s.problem_id, s.assessment_id, p.title AS problem_title, s.source_code, s.language, s.verdict, s.score, " +
+            "SELECT s.id, s.user_id, s.problem_id, s.assessment_id, p.title AS problem_title, s.source_code, s.language, s.is_zip, s.verdict, s.score, " +
             "s.passed_tests, s.total_tests, s.exec_time_ms, s.memory_used_kb, s.compile_output, " +
             "s.submitted_at, s.judged_at FROM submissions s " +
             "LEFT JOIN problems p ON s.problem_id = p.id WHERE s.user_id = ? AND s.problem_id = ? ORDER BY s.submitted_at DESC";
 
     private static final String SQL_FIND_BY_USER_PROBLEM_ASSESSMENT =
-            "SELECT s.id, s.user_id, s.problem_id, s.assessment_id, p.title AS problem_title, s.source_code, s.language, s.verdict, s.score, " +
+            "SELECT s.id, s.user_id, s.problem_id, s.assessment_id, p.title AS problem_title, s.source_code, s.language, s.is_zip, s.verdict, s.score, " +
             "s.passed_tests, s.total_tests, s.exec_time_ms, s.memory_used_kb, s.compile_output, " +
             "s.submitted_at, s.judged_at FROM submissions s " +
             "LEFT JOIN problems p ON s.problem_id = p.id " +
@@ -87,6 +88,7 @@ public class SubmissionRepository {
             else stmt.setInt(3, submission.getAssessmentId());
             stmt.setString(4, submission.getSourceCode());
             stmt.setString(5, submission.getLanguage());
+            stmt.setBoolean(6, submission.isZip());
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
@@ -262,6 +264,9 @@ public class SubmissionRepository {
         } catch (SQLException ignored) {}
         s.setSourceCode(rs.getString("source_code"));
         s.setLanguage(rs.getString("language"));
+        try {
+            s.setZip(rs.getBoolean("is_zip"));
+        } catch (SQLException ignored) {}
         s.setVerdict(rs.getString("verdict"));
         s.setScore(rs.getInt("score"));
         s.setPassedTests(rs.getInt("passed_tests"));

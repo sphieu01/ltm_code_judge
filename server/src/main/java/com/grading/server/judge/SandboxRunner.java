@@ -229,33 +229,58 @@ public class SandboxRunner {
      * @return CompileResult với isSuccess và errorOutput
      */
     public CompileResult compile(int submissionId, String sourceCode, String language) {
+        return compile(submissionId, sourceCode, language, false);
+    }
+
+    public CompileResult compile(int submissionId, String sourceCode, String language, boolean isZip) {
         String workDir = getWorkDir(submissionId);
         new File(workDir).mkdirs();
 
-        String className = "java".equalsIgnoreCase(language) ? extractClassName(sourceCode) : "Main";
+        String className;
+        if (isZip) {
+            try {
+                com.grading.server.util.ZipUtils.extractBase64Zip(sourceCode, new File(workDir));
+            } catch (IOException e) {
+                return CompileResult.failure("Lỗi giải nén file zip: " + e.getMessage());
+            }
+            if (new File(workDir, "Main.java").exists()) {
+                className = "Main";
+            } else {
+                File[] javaFiles = new File(workDir).listFiles((dir, name) -> name.endsWith(".java"));
+                className = (javaFiles != null && javaFiles.length > 0) ? javaFiles[0].getName().replace(".java", "") : "Main";
+            }
+        } else {
+            className = "java".equalsIgnoreCase(language) ? extractClassName(sourceCode) : "Main";
+        }
+
         mainClassBySubmission.put(submissionId, className);
+        try {
+            Files.writeString(Paths.get(workDir, ".main_class"), className, StandardCharsets.UTF_8);
+        } catch (Exception ignored) {}
 
         boolean useDocker = com.grading.server.judge.docker.DockerSandboxRunner.isDockerAvailable();
 
         if (useDocker) {
-            logger.info("[DOCKER_SANDBOX] Submission id={} (lang={}) -> Compiling inside Docker container...", submissionId, language);
-            try {
-                writeSourceFile(workDir, sourceCode, language, className);
-            } catch (IOException e) {
-                return CompileResult.failure("File write error: " + e.getMessage());
+            logger.info("[DOCKER_SANDBOX] Submission id={} (lang={}, isZip={}) -> Compiling inside Docker container...", submissionId, language, isZip);
+            if (!isZip) {
+                try {
+                    writeSourceFile(workDir, sourceCode, language, className);
+                } catch (IOException e) {
+                    return CompileResult.failure("File write error: " + e.getMessage());
+                }
             }
             return com.grading.server.judge.docker.DockerSandboxRunner.compile(submissionId, language, workDir, className);
         }
 
         // ⚠️ LOG RÕ KHI CHẠY LOCAL PROCESS SANDBOX THEO YÊU CẦU CỦA USER:
-        logger.warn("⚠️ [LOCAL_SANDBOX] [COMPILE] Submission #{} (lang={}) -> Compiling locally on Host OS (workDir={})",
-                submissionId, language, workDir);
+        logger.warn("⚠️ [LOCAL_SANDBOX] [COMPILE] Submission #{} (lang={}, isZip={}) -> Compiling locally on Host OS (workDir={})",
+                submissionId, language, isZip, workDir);
 
         CompileResult result;
         try {
             switch (language.toLowerCase()) {
                 case "java":
-                    result = compileJava(submissionId, sourceCode, workDir);
+                    result = compileJava(submissionId, sourceCode, workDir, isZip, className);
                     break;
                 case "c":
                     result = compileC(submissionId, sourceCode, workDir);
@@ -304,22 +329,26 @@ public class SandboxRunner {
         return process.exitValue() == 0 ? CompileResult.success() : CompileResult.failure(output);
     }
 
-    private CompileResult compileJava(int submissionId, String sourceCode, String workDir)
+    private CompileResult compileJava(int submissionId, String sourceCode, String workDir, boolean isZip, String className)
             throws IOException, InterruptedException {
-        String className = extractClassName(sourceCode);
-        mainClassBySubmission.put(submissionId, className);
+        if (!isZip) {
+            // Lưu source code đúng theo className.java
+            String fileName = workDir + File.separator + className + ".java";
+            writeFile(fileName, sourceCode);
+        }
 
-        // Lưu metadata class name để đảm bảo tra cứu được
-        try {
-            Files.writeString(Paths.get(workDir, ".main_class"), className, StandardCharsets.UTF_8);
-        } catch (Exception ignored) {}
+        // Tìm tất cả file .java trong workDir để biên dịch
+        File[] javaFiles = new File(workDir).listFiles((dir, name) -> name.endsWith(".java"));
+        List<String> javacCmd = new ArrayList<>(List.of("javac", "-encoding", "UTF-8"));
+        if (javaFiles != null && javaFiles.length > 0) {
+            for (File jf : javaFiles) {
+                javacCmd.add(jf.getName());
+            }
+        } else {
+            javacCmd.add(className + ".java");
+        }
 
-        // Lưu source code đúng theo className.java
-        String fileName = workDir + File.separator + className + ".java";
-        writeFile(fileName, sourceCode);
-
-        // Compile với javac
-        ProcessBuilder pb = new ProcessBuilder("javac", "-encoding", "UTF-8", className + ".java");
+        ProcessBuilder pb = new ProcessBuilder(javacCmd);
         pb.directory(new File(workDir));
         pb.redirectErrorStream(true); // merge stderr vào stdout
 
@@ -503,7 +532,7 @@ public class SandboxRunner {
         writeFile(workDir + File.separator + fileName, sourceCode);
     }
 
-    private String getWorkDir(int submissionId) {
+    public String getWorkDir(int submissionId) {
         return TEMP_DIR + File.separator + submissionId;
     }
 

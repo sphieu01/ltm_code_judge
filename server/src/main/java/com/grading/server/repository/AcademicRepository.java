@@ -3,6 +3,7 @@ package com.grading.server.repository;
 import com.grading.server.config.DatabaseConfig;
 import com.grading.server.model.Course;
 import com.grading.server.model.CreditClass;
+import com.grading.server.model.Problem;
 import com.grading.server.model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,8 +57,12 @@ public class AcademicRepository {
                     "  name VARCHAR(150) NOT NULL," +
                     "  course_id INT REFERENCES courses(id) ON DELETE CASCADE," +
                     "  teacher_id INT REFERENCES users(id) ON DELETE SET NULL," +
+                    "  allowed_languages VARCHAR(100) DEFAULT 'c,cpp,java,python'," +
                     "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
                     ")"
+            );
+            stmt.executeUpdate(
+                    "ALTER TABLE classes ADD COLUMN IF NOT EXISTS allowed_languages VARCHAR(100) DEFAULT 'c,cpp,java,python'"
             );
 
             // 3. Bổ sung cột class_id vào users nếu chưa có
@@ -83,6 +88,22 @@ public class AcademicRepository {
             // 4. Bổ sung cột class_id vào problems nếu chưa có
             stmt.executeUpdate(
                     "ALTER TABLE problems ADD COLUMN IF NOT EXISTS class_id INT REFERENCES classes(id) ON DELETE SET NULL"
+            );
+
+            // 4.1. Bảng quan hệ Nhiều-Nhiều class_problems
+            stmt.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS class_problems (" +
+                    "  id SERIAL PRIMARY KEY," +
+                    "  class_id INT NOT NULL REFERENCES classes(id) ON DELETE CASCADE," +
+                    "  problem_id INT NOT NULL REFERENCES problems(id) ON DELETE CASCADE," +
+                    "  is_open BOOLEAN NOT NULL DEFAULT TRUE," +
+                    "  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                    "  UNIQUE (class_id, problem_id))"
+            );
+            stmt.executeUpdate(
+                    "INSERT INTO class_problems (class_id, problem_id) " +
+                    "SELECT class_id, id FROM problems WHERE class_id IS NOT NULL " +
+                    "ON CONFLICT (class_id, problem_id) DO NOTHING"
             );
 
             // 4.5. Đảm bảo luôn có sẵn tài khoản Giáo viên (Admin) mặc định
@@ -203,9 +224,32 @@ public class AcademicRepository {
 
     // ─── CLASSES ─────────────────────────────────────────────────────────────
 
+    private CreditClass mapCreditClass(ResultSet rs) throws SQLException {
+        CreditClass cc = new CreditClass();
+        cc.setId(rs.getInt("id"));
+        cc.setClassCode(rs.getString("class_code"));
+        cc.setName(rs.getString("name"));
+        cc.setCourseId(rs.getInt("course_id"));
+        cc.setCourseName(rs.getString("course_name"));
+        cc.setCourseLanguage(rs.getString("course_lang"));
+        cc.setTeacherId(rs.getInt("teacher_id"));
+        try {
+            cc.setStudentCount(rs.getInt("student_count"));
+        } catch (SQLException ignored) {}
+        try {
+            String allowed = rs.getString("allowed_languages");
+            if (allowed != null && !allowed.isBlank()) {
+                cc.setAllowedLanguages(allowed);
+            }
+        } catch (SQLException ignored) {}
+        Timestamp ts = rs.getTimestamp("created_at");
+        if (ts != null) cc.setCreatedAt(ts.toString());
+        return cc;
+    }
+
     public List<CreditClass> findAllClasses() throws SQLException {
         List<CreditClass> list = new ArrayList<>();
-        String sql = "SELECT cl.id, cl.class_code, cl.name, cl.course_id, cl.teacher_id, cl.created_at, " +
+        String sql = "SELECT cl.id, cl.class_code, cl.name, cl.course_id, cl.teacher_id, cl.allowed_languages, cl.created_at, " +
                      "co.name AS course_name, co.language AS course_lang, " +
                      "(SELECT COUNT(*) FROM class_enrollments ce WHERE ce.class_id = cl.id) AS student_count " +
                      "FROM classes cl " +
@@ -215,18 +259,7 @@ public class AcademicRepository {
              PreparedStatement stmt = conn.prepareStatement(sql);
              ResultSet rs = stmt.executeQuery()) {
             while (rs.next()) {
-                CreditClass cc = new CreditClass();
-                cc.setId(rs.getInt("id"));
-                cc.setClassCode(rs.getString("class_code"));
-                cc.setName(rs.getString("name"));
-                cc.setCourseId(rs.getInt("course_id"));
-                cc.setCourseName(rs.getString("course_name"));
-                cc.setCourseLanguage(rs.getString("course_lang"));
-                cc.setTeacherId(rs.getInt("teacher_id"));
-                cc.setStudentCount(rs.getInt("student_count"));
-                Timestamp ts = rs.getTimestamp("created_at");
-                if (ts != null) cc.setCreatedAt(ts.toString());
-                list.add(cc);
+                list.add(mapCreditClass(rs));
             }
         }
         return list;
@@ -234,7 +267,7 @@ public class AcademicRepository {
 
     public List<CreditClass> findActiveClasses() throws SQLException {
         List<CreditClass> list = new ArrayList<>();
-        String sql = "SELECT cl.id, cl.class_code, cl.name, cl.course_id, cl.teacher_id, cl.created_at, " +
+        String sql = "SELECT cl.id, cl.class_code, cl.name, cl.course_id, cl.teacher_id, cl.allowed_languages, cl.created_at, " +
                      "co.name AS course_name, co.language AS course_lang, " +
                      "(SELECT COUNT(*) FROM class_enrollments ce WHERE ce.class_id = cl.id) AS student_count " +
                      "FROM classes cl " +
@@ -245,18 +278,7 @@ public class AcademicRepository {
              PreparedStatement stmt = conn.prepareStatement(sql);
              ResultSet rs = stmt.executeQuery()) {
             while (rs.next()) {
-                CreditClass cc = new CreditClass();
-                cc.setId(rs.getInt("id"));
-                cc.setClassCode(rs.getString("class_code"));
-                cc.setName(rs.getString("name"));
-                cc.setCourseId(rs.getInt("course_id"));
-                cc.setCourseName(rs.getString("course_name"));
-                cc.setCourseLanguage(rs.getString("course_lang"));
-                cc.setTeacherId(rs.getInt("teacher_id"));
-                cc.setStudentCount(rs.getInt("student_count"));
-                Timestamp ts = rs.getTimestamp("created_at");
-                if (ts != null) cc.setCreatedAt(ts.toString());
-                list.add(cc);
+                list.add(mapCreditClass(rs));
             }
         }
         return list;
@@ -264,7 +286,7 @@ public class AcademicRepository {
 
     public List<CreditClass> findClassesByStudent(int studentId) throws SQLException {
         List<CreditClass> list = new ArrayList<>();
-        String sql = "SELECT cl.id, cl.class_code, cl.name, cl.course_id, cl.teacher_id, cl.created_at, " +
+        String sql = "SELECT cl.id, cl.class_code, cl.name, cl.course_id, cl.teacher_id, cl.allowed_languages, cl.created_at, " +
                      "co.name AS course_name, co.language AS course_lang, " +
                      "(SELECT COUNT(*) FROM class_enrollments ce2 WHERE ce2.class_id = cl.id) AS student_count " +
                      "FROM classes cl " +
@@ -277,26 +299,34 @@ public class AcademicRepository {
             stmt.setInt(1, studentId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    CreditClass cc = new CreditClass();
-                    cc.setId(rs.getInt("id"));
-                    cc.setClassCode(rs.getString("class_code"));
-                    cc.setName(rs.getString("name"));
-                    cc.setCourseId(rs.getInt("course_id"));
-                    cc.setCourseName(rs.getString("course_name"));
-                    cc.setCourseLanguage(rs.getString("course_lang"));
-                    cc.setTeacherId(rs.getInt("teacher_id"));
-                    cc.setStudentCount(rs.getInt("student_count"));
-                    Timestamp ts = rs.getTimestamp("created_at");
-                    if (ts != null) cc.setCreatedAt(ts.toString());
-                    list.add(cc);
+                    list.add(mapCreditClass(rs));
                 }
             }
         }
         return list;
     }
 
+    public CreditClass findClassById(int classId) throws SQLException {
+        String sql = "SELECT cl.id, cl.class_code, cl.name, cl.course_id, cl.teacher_id, cl.allowed_languages, cl.created_at, " +
+                     "co.name AS course_name, co.language AS course_lang, " +
+                     "(SELECT COUNT(*) FROM class_enrollments ce WHERE ce.class_id = cl.id) AS student_count " +
+                     "FROM classes cl " +
+                     "LEFT JOIN courses co ON cl.course_id = co.id " +
+                     "WHERE cl.id = ?";
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, classId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return mapCreditClass(rs);
+                }
+            }
+        }
+        return null;
+    }
+
     public CreditClass createClass(CreditClass creditClass) throws SQLException {
-        String sql = "INSERT INTO classes (class_code, name, course_id, teacher_id) VALUES (?, ?, ?, ?) RETURNING id, created_at";
+        String sql = "INSERT INTO classes (class_code, name, course_id, teacher_id, allowed_languages) VALUES (?, ?, ?, ?, ?) RETURNING id, created_at";
         try (Connection conn = DatabaseConfig.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, creditClass.getClassCode());
@@ -307,6 +337,7 @@ public class AcademicRepository {
             } else {
                 stmt.setNull(4, Types.INTEGER);
             }
+            stmt.setString(5, creditClass.getAllowedLanguages());
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     creditClass.setId(rs.getInt("id"));
@@ -318,14 +349,90 @@ public class AcademicRepository {
         throw new SQLException("Failed to create class");
     }
 
-    public void updateClass(int id, String classCode, String name, int courseId) throws SQLException {
-        String sql = "UPDATE classes SET class_code = ?, name = ?, course_id = ? WHERE id = ?";
+    public void updateClass(int id, String classCode, String name, int courseId, String allowedLanguages) throws SQLException {
+        String sql = "UPDATE classes SET class_code = ?, name = ?, course_id = ?, allowed_languages = ? WHERE id = ?";
         try (Connection conn = DatabaseConfig.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, classCode);
             stmt.setString(2, name);
             stmt.setInt(3, courseId);
-            stmt.setInt(4, id);
+            stmt.setString(4, allowedLanguages != null && !allowedLanguages.isBlank() ? allowedLanguages : "c,cpp,java,python");
+            stmt.setInt(5, id);
+            stmt.executeUpdate();
+        }
+    }
+
+    public void updateClass(int id, String classCode, String name, int courseId) throws SQLException {
+        updateClass(id, classCode, name, courseId, "c,cpp,java,python");
+    }
+
+    // ─── CLASS - PROBLEMS (Quan hệ Nhiều - Nhiều) ───────────────────────────
+
+    public List<Problem> findProblemsByClassId(int classId) throws SQLException {
+        List<Problem> list = new ArrayList<>();
+        String sql = "SELECT DISTINCT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
+                     "p.created_by, p.class_id, cl.name AS class_name, p.is_active, p.created_at, " +
+                     "p.problem_type, p.oop_spec " +
+                     "FROM problems p " +
+                     "LEFT JOIN classes cl ON p.class_id = cl.id " +
+                     "LEFT JOIN class_problems cp ON p.id = cp.problem_id " +
+                     "WHERE (cp.class_id = ? OR p.class_id = ?) " +
+                     "AND (p.is_active IS NULL OR p.is_active = TRUE) " +
+                     "ORDER BY p.id";
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, classId);
+            stmt.setInt(2, classId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    Problem p = new Problem();
+                    p.setId(rs.getInt("id"));
+                    p.setTitle(rs.getString("title"));
+                    p.setDescription(rs.getString("description"));
+                    p.setTimeLimitMs(rs.getInt("time_limit_ms"));
+                    p.setMemoryLimitKb(rs.getInt("memory_limit_kb"));
+                    p.setDifficulty(rs.getString("difficulty"));
+                    p.setCreatedBy(rs.getInt("created_by"));
+                    if (rs.getObject("class_id") != null) p.setClassId(rs.getInt("class_id"));
+                    p.setClassName(rs.getString("class_name"));
+                    p.setActive(rs.getObject("is_active") == null || rs.getBoolean("is_active"));
+                    try { p.setProblemType(rs.getString("problem_type")); } catch (Exception ignored) {}
+                    try { p.setOopSpec(rs.getString("oop_spec")); } catch (Exception ignored) {}
+                    Timestamp ts = rs.getTimestamp("created_at");
+                    if (ts != null) p.setCreatedAt(ts.toString());
+                    list.add(p);
+                }
+            }
+        }
+        return list;
+    }
+
+    public void assignProblemsToClass(int classId, List<Integer> problemIds) throws SQLException {
+        if (problemIds == null || problemIds.isEmpty()) return;
+        String sql = "INSERT INTO class_problems (class_id, problem_id) VALUES (?, ?) ON CONFLICT (class_id, problem_id) DO NOTHING";
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            for (int pid : problemIds) {
+                stmt.setInt(1, classId);
+                stmt.setInt(2, pid);
+                stmt.addBatch();
+            }
+            stmt.executeBatch();
+        }
+    }
+
+    public void removeProblemFromClass(int classId, int problemId) throws SQLException {
+        String sql = "DELETE FROM class_problems WHERE class_id = ? AND problem_id = ?";
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, classId);
+            stmt.setInt(2, problemId);
+            stmt.executeUpdate();
+        }
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement("UPDATE problems SET class_id = NULL WHERE id = ? AND class_id = ?")) {
+            stmt.setInt(1, problemId);
+            stmt.setInt(2, classId);
             stmt.executeUpdate();
         }
     }

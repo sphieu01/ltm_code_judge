@@ -71,7 +71,15 @@ public class AcademicService {
         return academicRepository.createClass(creditClass);
     }
 
+    public CreditClass getClassById(int classId) throws SQLException {
+        return academicRepository.findClassById(classId);
+    }
+
     public void updateClass(int id, String classCode, String name, int courseId) throws SQLException {
+        updateClass(id, classCode, name, courseId, "c,cpp,java,python");
+    }
+
+    public void updateClass(int id, String classCode, String name, int courseId, String allowedLanguages) throws SQLException {
         if (classCode == null || classCode.isBlank()) {
             throw new IllegalArgumentException("Mã lớp tín chỉ không được để trống");
         }
@@ -81,7 +89,21 @@ public class AcademicService {
         if (courseId <= 0) {
             throw new IllegalArgumentException("Vui lòng chọn môn học hợp lệ cho lớp");
         }
-        academicRepository.updateClass(id, classCode.trim(), name.trim(), courseId);
+        academicRepository.updateClass(id, classCode.trim(), name.trim(), courseId, allowedLanguages);
+    }
+
+    public List<com.grading.server.model.Problem> getProblemsByClassId(int classId) throws SQLException {
+        return academicRepository.findProblemsByClassId(classId);
+    }
+
+    public void assignProblemsToClass(int classId, List<Integer> problemIds) throws SQLException {
+        if (classId <= 0) throw new IllegalArgumentException("Lớp tín chỉ không hợp lệ");
+        academicRepository.assignProblemsToClass(classId, problemIds);
+    }
+
+    public void removeProblemFromClass(int classId, int problemId) throws SQLException {
+        if (classId <= 0 || problemId <= 0) throw new IllegalArgumentException("Thông tin lớp hoặc bài tập không hợp lệ");
+        academicRepository.removeProblemFromClass(classId, problemId);
     }
 
     public void deleteClass(int classId) throws SQLException {

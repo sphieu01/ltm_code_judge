@@ -18,6 +18,7 @@ public class Submission {
     private int execTimeMs;
     private int memoryUsedKb;
     private String compileOutput;
+    private boolean isZip;
     private String submittedAt;
     private String judgedAt;
 
@@ -64,6 +65,9 @@ public class Submission {
 
     public String getCompileOutput() { return compileOutput; }
     public void setCompileOutput(String compileOutput) { this.compileOutput = compileOutput; }
+
+    public boolean isZip() { return isZip; }
+    public void setZip(boolean zip) { this.isZip = zip; }
 
     public String getSubmittedAt() { return submittedAt; }
     public void setSubmittedAt(String submittedAt) { this.submittedAt = submittedAt; }

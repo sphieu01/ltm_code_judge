@@ -14,6 +14,7 @@ public class CreditClass {
     private String courseLanguage; // Ngôn ngữ lập trình chính của môn
     private int teacherId;      // Giáo viên phụ trách
     private int studentCount;   // Số lượng sinh viên trong lớp
+    private String allowedLanguages = "c,cpp,java,python"; // Danh sách ngôn ngữ cho phép nộp
     private String createdAt;
 
     public CreditClass() {}
@@ -50,6 +51,22 @@ public class CreditClass {
 
     public int getStudentCount() { return studentCount; }
     public void setStudentCount(int studentCount) { this.studentCount = studentCount; }
+
+    public String getAllowedLanguages() {
+        return allowedLanguages != null && !allowedLanguages.isBlank() ? allowedLanguages : "c,cpp,java,python";
+    }
+    public void setAllowedLanguages(String allowedLanguages) {
+        this.allowedLanguages = allowedLanguages;
+    }
+
+    public boolean isLanguageAllowed(String lang) {
+        if (lang == null) return false;
+        String clean = lang.trim().toLowerCase();
+        for (String item : getAllowedLanguages().split(",")) {
+            if (item.trim().equalsIgnoreCase(clean)) return true;
+        }
+        return false;
+    }
 
     public String getCreatedAt() { return createdAt; }
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }

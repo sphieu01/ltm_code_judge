@@ -1,9 +1,11 @@
 package com.grading.client.view;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.grading.client.model.CreditClass;
+import com.grading.client.model.OopSpec;
 import com.grading.client.model.Problem;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -14,12 +16,16 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
- * TeacherProblemDialog — Giao diện tạo bài tập dành cho Giáo viên.
- * Hỗ trợ thêm không giới hạn các testcase chấm bài bằng nút bấm động.
- * Tuân thủ quy chuẩn DESIGN.md Component 8.
+ * TeacherProblemDialog — Giao diện tạo và chỉnh sửa bài tập dành cho Giáo viên.
+ * Hỗ trợ 2 loại bài:
+ * 1. IO_MATCHING: Thuật toán so khớp I/O qua stdin/stdout.
+ * 2. JAVA_OOP: Lập trình Hướng đối tượng Java với bộ thiết kế cấu trúc lớp OOP trực quan (Reflection Grading)
+ *    và kiểm thử I/O qua Main.java.
  */
 public class TeacherProblemDialog extends Dialog<Problem> {
 
@@ -76,6 +82,322 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         }
     }
 
+    // ======================== OOP DESIGNER UI COMPONENTS ========================
+
+    private static class FieldItemUI {
+        final TextField nameField = new TextField();
+        final ComboBox<String> typeCombo = new ComboBox<>(FXCollections.observableArrayList(
+                "String", "int", "double", "boolean", "long", "float", "char", "Date", "List"
+        ));
+        final ComboBox<String> modifierCombo = new ComboBox<>(FXCollections.observableArrayList(
+                "private", "protected", "public"
+        ));
+        final HBox row = new HBox(8);
+
+        FieldItemUI(String name, String type, String modifier, Runnable onDelete) {
+            nameField.setPromptText("Tên thuộc tính (e.g. name, gpa)");
+            nameField.setText(name != null ? name : "");
+            nameField.setPrefWidth(160);
+
+            typeCombo.setEditable(true);
+            typeCombo.setValue(type != null && !type.isBlank() ? type : "String");
+            typeCombo.setPrefWidth(120);
+
+            modifierCombo.setValue(modifier != null && !modifier.isBlank() ? modifier : "private");
+            modifierCombo.setPrefWidth(110);
+
+            Button delBtn = new Button("✕");
+            delBtn.getStyleClass().addAll("button", "btn-secondary");
+            delBtn.setStyle("-fx-text-fill: -status-wa; -fx-padding: 2 6 2 6;");
+            delBtn.setOnAction(e -> onDelete.run());
+
+            row.setAlignment(Pos.CENTER_LEFT);
+            row.getChildren().addAll(
+                    new Label("Tên:"), nameField,
+                    new Label("Kiểu:"), typeCombo,
+                    new Label("Quyền:"), modifierCombo,
+                    delBtn
+            );
+        }
+    }
+
+    private static class ConstructorItemUI {
+        final ComboBox<String> modifierCombo = new ComboBox<>(FXCollections.observableArrayList(
+                "public", "protected", "private"
+        ));
+        final TextField paramsField = new TextField();
+        final HBox row = new HBox(8);
+
+        ConstructorItemUI(String modifier, List<String> params, Runnable onDelete) {
+            modifierCombo.setValue(modifier != null && !modifier.isBlank() ? modifier : "public");
+            modifierCombo.setPrefWidth(110);
+
+            paramsField.setPromptText("Kiểu tham số phân cách dấu phẩy (e.g. String, double hoặc để trống nếu constructor mặc định)");
+            if (params != null && !params.isEmpty()) {
+                paramsField.setText(String.join(", ", params));
+            }
+            HBox.setHgrow(paramsField, Priority.ALWAYS);
+
+            Button delBtn = new Button("✕");
+            delBtn.getStyleClass().addAll("button", "btn-secondary");
+            delBtn.setStyle("-fx-text-fill: -status-wa; -fx-padding: 2 6 2 6;");
+            delBtn.setOnAction(e -> onDelete.run());
+
+            row.setAlignment(Pos.CENTER_LEFT);
+            row.getChildren().addAll(
+                    new Label("Quyền:"), modifierCombo,
+                    new Label("Tham số:"), paramsField,
+                    delBtn
+            );
+        }
+    }
+
+    private static class MethodItemUI {
+        final TextField nameField = new TextField();
+        final TextField returnTypeField = new TextField("void");
+        final ComboBox<String> modifierCombo = new ComboBox<>(FXCollections.observableArrayList(
+                "public", "protected", "abstract", "private"
+        ));
+        final TextField paramsField = new TextField();
+        final HBox row = new HBox(8);
+
+        MethodItemUI(String name, String returnType, String modifier, List<String> params, Runnable onDelete) {
+            nameField.setPromptText("Tên method");
+            nameField.setText(name != null ? name : "");
+            nameField.setPrefWidth(140);
+
+            returnTypeField.setPromptText("Kiểu trả về");
+            returnTypeField.setText(returnType != null && !returnType.isBlank() ? returnType : "void");
+            returnTypeField.setPrefWidth(100);
+
+            modifierCombo.setValue(modifier != null && !modifier.isBlank() ? modifier : "public");
+            modifierCombo.setPrefWidth(100);
+
+            paramsField.setPromptText("Tham số (e.g. double, int)");
+            if (params != null && !params.isEmpty()) {
+                paramsField.setText(String.join(", ", params));
+            }
+            HBox.setHgrow(paramsField, Priority.ALWAYS);
+
+            Button delBtn = new Button("✕");
+            delBtn.getStyleClass().addAll("button", "btn-secondary");
+            delBtn.setStyle("-fx-text-fill: -status-wa; -fx-padding: 2 6 2 6;");
+            delBtn.setOnAction(e -> onDelete.run());
+
+            row.setAlignment(Pos.CENTER_LEFT);
+            row.getChildren().addAll(
+                    new Label("Tên:"), nameField,
+                    new Label("Trả về:"), returnTypeField,
+                    new Label("Quyền:"), modifierCombo,
+                    new Label("Tham số:"), paramsField,
+                    delBtn
+            );
+        }
+    }
+
+    private static class ClassCardUI {
+        final TextField nameField = new TextField();
+        final ComboBox<String> classTypeCombo = new ComboBox<>(FXCollections.observableArrayList(
+                "CLASS", "ABSTRACT_CLASS", "INTERFACE"
+        ));
+        final TextField superClassField = new TextField();
+        final TextField interfacesField = new TextField();
+
+        final VBox fieldsContainer = new VBox(4);
+        final List<FieldItemUI> fieldItems = new ArrayList<>();
+
+        final VBox constructorsContainer = new VBox(4);
+        final List<ConstructorItemUI> constructorItems = new ArrayList<>();
+
+        final VBox methodsContainer = new VBox(4);
+        final List<MethodItemUI> methodItems = new ArrayList<>();
+
+        final VBox card = new VBox(8);
+
+        ClassCardUI(String name, String classType, String superClass, List<String> interfaces, Runnable onDelete) {
+            card.setStyle("-fx-background-color: -bg-editor; -fx-border-color: -border-subtle; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-background-radius: 6px; -fx-padding: 12px;");
+
+            // Header hàng 1: Tên class, loại, extends, nút xóa
+            HBox header = new HBox(8);
+            header.setAlignment(Pos.CENTER_LEFT);
+
+            nameField.setPromptText("Tên Lớp (e.g. Student, Shape)");
+            nameField.setText(name != null ? name : "");
+            nameField.setPrefWidth(160);
+
+            classTypeCombo.setValue(classType != null ? classType : "CLASS");
+            classTypeCombo.setPrefWidth(140);
+
+            superClassField.setPromptText("Kế thừa (superClass, e.g. Person)");
+            superClassField.setText(superClass != null ? superClass : "");
+            superClassField.setPrefWidth(160);
+
+            Region sp = new Region();
+            HBox.setHgrow(sp, Priority.ALWAYS);
+
+            Button delClassBtn = new Button("🗑 Xóa Lớp");
+            delClassBtn.getStyleClass().addAll("button", "btn-secondary");
+            delClassBtn.setStyle("-fx-text-fill: -status-wa; -fx-font-size: 11px;");
+            delClassBtn.setOnAction(e -> onDelete.run());
+
+            header.getChildren().addAll(
+                    new Label("Tên Lớp (*):"), nameField,
+                    new Label("Loại:"), classTypeCombo,
+                    new Label("Kế thừa:"), superClassField,
+                    sp, delClassBtn
+            );
+
+            // Header hàng 2: Implements interfaces
+            HBox implRow = new HBox(8);
+            implRow.setAlignment(Pos.CENTER_LEFT);
+            interfacesField.setPromptText("Các Interface triển khai (phân cách dấu phẩy, e.g. Comparable, Serializable)");
+            if (interfaces != null && !interfaces.isEmpty()) {
+                interfacesField.setText(String.join(", ", interfaces));
+            }
+            HBox.setHgrow(interfacesField, Priority.ALWAYS);
+            implRow.getChildren().addAll(new Label("Triển khai (implements):"), interfacesField);
+
+            // Section Fields
+            HBox fieldHeader = new HBox(8);
+            fieldHeader.setAlignment(Pos.CENTER_LEFT);
+            Label fieldTitle = new Label("• Danh sách Thuộc tính (Fields - Khuyến nghị 'private' để kiểm tra tính đóng gói):");
+            fieldTitle.setStyle("-fx-font-size: 11.5px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
+            Region spF = new Region();
+            HBox.setHgrow(spF, Priority.ALWAYS);
+            Button addFieldBtn = new Button("➕ Thêm Field");
+            addFieldBtn.getStyleClass().addAll("button", "btn-secondary");
+            addFieldBtn.setStyle("-fx-font-size: 11px; -fx-padding: 2 8 2 8;");
+            addFieldBtn.setOnAction(e -> addField("", "String", "private"));
+            fieldHeader.getChildren().addAll(fieldTitle, spF, addFieldBtn);
+
+            // Section Constructors
+            HBox ctorHeader = new HBox(8);
+            ctorHeader.setAlignment(Pos.CENTER_LEFT);
+            Label ctorTitle = new Label("• Danh sách Hàm khởi tạo (Constructors):");
+            ctorTitle.setStyle("-fx-font-size: 11.5px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
+            Region spC = new Region();
+            HBox.setHgrow(spC, Priority.ALWAYS);
+            Button addCtorBtn = new Button("➕ Thêm Constructor");
+            addCtorBtn.getStyleClass().addAll("button", "btn-secondary");
+            addCtorBtn.setStyle("-fx-font-size: 11px; -fx-padding: 2 8 2 8;");
+            addCtorBtn.setOnAction(e -> addConstructor("public", new ArrayList<>()));
+            ctorHeader.getChildren().addAll(ctorTitle, spC, addCtorBtn);
+
+            // Section Methods
+            HBox methodHeader = new HBox(8);
+            methodHeader.setAlignment(Pos.CENTER_LEFT);
+            Label methodTitle = new Label("• Danh sách Phương thức (Methods):");
+            methodTitle.setStyle("-fx-font-size: 11.5px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
+            Region spM = new Region();
+            HBox.setHgrow(spM, Priority.ALWAYS);
+            Button addMethodBtn = new Button("➕ Thêm Method");
+            addMethodBtn.getStyleClass().addAll("button", "btn-secondary");
+            addMethodBtn.setStyle("-fx-font-size: 11px; -fx-padding: 2 8 2 8;");
+            addMethodBtn.setOnAction(e -> addMethod("", "void", "public", new ArrayList<>()));
+            methodHeader.getChildren().addAll(methodTitle, spM, addMethodBtn);
+
+            card.getChildren().addAll(
+                    header, implRow,
+                    new Separator(),
+                    fieldHeader, fieldsContainer,
+                    new Separator(),
+                    ctorHeader, constructorsContainer,
+                    new Separator(),
+                    methodHeader, methodsContainer
+            );
+        }
+
+        void addField(String name, String type, String modifier) {
+            FieldItemUI[] holder = new FieldItemUI[1];
+            holder[0] = new FieldItemUI(name, type, modifier, () -> {
+                fieldItems.remove(holder[0]);
+                fieldsContainer.getChildren().remove(holder[0].row);
+            });
+            fieldItems.add(holder[0]);
+            fieldsContainer.getChildren().add(holder[0].row);
+        }
+
+        void addConstructor(String modifier, List<String> params) {
+            ConstructorItemUI[] holder = new ConstructorItemUI[1];
+            holder[0] = new ConstructorItemUI(modifier, params, () -> {
+                constructorItems.remove(holder[0]);
+                constructorsContainer.getChildren().remove(holder[0].row);
+            });
+            constructorItems.add(holder[0]);
+            constructorsContainer.getChildren().add(holder[0].row);
+        }
+
+        void addMethod(String name, String returnType, String modifier, List<String> params) {
+            MethodItemUI[] holder = new MethodItemUI[1];
+            holder[0] = new MethodItemUI(name, returnType, modifier, params, () -> {
+                methodItems.remove(holder[0]);
+                methodsContainer.getChildren().remove(holder[0].row);
+            });
+            methodItems.add(holder[0]);
+            methodsContainer.getChildren().add(holder[0].row);
+        }
+
+        OopSpec.ClassSpec toSpec() {
+            String name = nameField.getText().trim();
+            if (name.isEmpty()) return null;
+            OopSpec.ClassSpec cs = new OopSpec.ClassSpec();
+            cs.setName(name);
+            cs.setClassType(classTypeCombo.getValue());
+            String sc = superClassField.getText().trim();
+            cs.setSuperClass(sc.isEmpty() ? null : sc);
+
+            String ifStr = interfacesField.getText().trim();
+            if (!ifStr.isEmpty()) {
+                cs.setInterfaces(Arrays.stream(ifStr.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .collect(Collectors.toList()));
+            }
+
+            for (FieldItemUI fi : fieldItems) {
+                String fn = fi.nameField.getText().trim();
+                if (!fn.isEmpty()) {
+                    cs.getFields().add(new OopSpec.FieldSpec(fn, fi.typeCombo.getValue(), fi.modifierCombo.getValue()));
+                }
+            }
+
+            for (ConstructorItemUI ci : constructorItems) {
+                List<String> pars = new ArrayList<>();
+                String ps = ci.paramsField.getText().trim();
+                if (!ps.isEmpty()) {
+                    pars = Arrays.stream(ps.split(","))
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .collect(Collectors.toList());
+                }
+                cs.getConstructors().add(new OopSpec.ConstructorSpec(ci.modifierCombo.getValue(), pars));
+            }
+
+            for (MethodItemUI mi : methodItems) {
+                String mn = mi.nameField.getText().trim();
+                if (!mn.isEmpty()) {
+                    List<String> pars = new ArrayList<>();
+                    String ps = mi.paramsField.getText().trim();
+                    if (!ps.isEmpty()) {
+                        pars = Arrays.stream(ps.split(","))
+                                .map(String::trim)
+                                .filter(s -> !s.isEmpty())
+                                .collect(Collectors.toList());
+                    }
+                    cs.getMethods().add(new OopSpec.MethodSpec(mn, mi.returnTypeField.getText().trim(), mi.modifierCombo.getValue(), pars));
+                }
+            }
+            return cs;
+        }
+    }
+
+    // ======================== FORM CONTROLS ========================
+
+    private ComboBox<String> problemTypeCombo;
+    private VBox oopSectionBox;
+    private VBox oopClassesContainer;
+    private final List<ClassCardUI> oopClassCards = new ArrayList<>();
+
     private TextField titleField;
     private ComboBox<String> difficultyCombo;
     private TextField timeLimitField;
@@ -112,8 +434,8 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         if (res != null) {
             pane.getStylesheets().setAll(res.toExternalForm());
         }
-        pane.setPrefWidth(750);
-        pane.setPrefHeight(650);
+        pane.setPrefWidth(880);
+        pane.setPrefHeight(720);
 
         ScrollPane scrollPane = new ScrollPane(buildFormContent());
         scrollPane.getStyleClass().add("scroll-pane");
@@ -142,26 +464,57 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         VBox form = new VBox(12);
         form.setPadding(new Insets(16));
 
-        // 1. Lớp tín chỉ áp dụng
-        Label classLabel = new Label("Gán cho Lớp tín chỉ");
+        // 1. Phân loại bài tập & Lớp tín chỉ áp dụng
+        HBox topRow = new HBox(16);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox typeBox = new VBox(4);
+        Label typeLabel = new Label("Dạng bài tập (*)");
+        typeLabel.getStyleClass().add("meta-item");
+        problemTypeCombo = new ComboBox<>(FXCollections.observableArrayList(
+                "IO_MATCHING (Thuật toán I/O)",
+                "JAVA_OOP (Lập trình Hướng đối tượng Java)"
+        ));
+        problemTypeCombo.getSelectionModel().select(0);
+        problemTypeCombo.setPrefWidth(300);
+        problemTypeCombo.setOnAction(e -> toggleProblemTypeView());
+        typeBox.getChildren().addAll(typeLabel, problemTypeCombo);
+
+        VBox classBox = new VBox(4);
+        Label classLabel = new Label("Gán cho Lớp tín chỉ (Tùy chọn)");
         classLabel.getStyleClass().add("meta-item");
         classCombo = new ComboBox<>();
+        List<CreditClass> comboList = new ArrayList<>();
+        // Item rỗng đại diện cho kho chung
+        CreditClass unassigned = new CreditClass();
+        unassigned.setId(0);
+        unassigned.setName("— Kho bài tập chung (Chưa gán lớp) —");
+        comboList.add(unassigned);
         if (availableClasses != null && !availableClasses.isEmpty()) {
-            classCombo.setItems(FXCollections.observableArrayList(availableClasses));
-            if (defaultClass != null) {
-                classCombo.getSelectionModel().select(defaultClass);
-            } else {
-                classCombo.getSelectionModel().select(0);
+            comboList.addAll(availableClasses);
+        }
+        classCombo.setItems(FXCollections.observableArrayList(comboList));
+        if (defaultClass != null) {
+            for (CreditClass c : comboList) {
+                if (c.getId() == defaultClass.getId()) {
+                    classCombo.getSelectionModel().select(c);
+                    break;
+                }
             }
         }
-        classCombo.setPromptText("Tất cả các lớp (Bài tập chung)");
-        classCombo.setMaxWidth(Double.MAX_VALUE);
+        if (classCombo.getSelectionModel().isEmpty()) {
+            classCombo.getSelectionModel().select(0);
+        }
+        classCombo.setPrefWidth(350);
+        classBox.getChildren().addAll(classLabel, classCombo);
+
+        topRow.getChildren().addAll(typeBox, classBox);
 
         // 2. Tiêu đề & Thông số
         Label titleLabel = new Label("Tiêu đề bài tập (*)");
         titleLabel.getStyleClass().add("meta-item");
         titleField = new TextField();
-        titleField.setPromptText("Ví dụ: Tìm số nguyên tố, Sắp xếp mảng...");
+        titleField.setPromptText("Ví dụ: Quản lý sinh viên (OOP), Tìm số nguyên tố...");
 
         HBox metaRow = new HBox(12);
         metaRow.setAlignment(Pos.CENTER_LEFT);
@@ -187,24 +540,29 @@ public class TeacherProblemDialog extends Dialog<Problem> {
 
         metaRow.getChildren().addAll(diffBox, timeBox, memBox);
 
-        // 3. Mô tả đề bài
+        // 3. KHU VỰC THIẾT KẾ CẤU TRÚC OOP (Ẩn khi là bài IO_MATCHING)
+        oopSectionBox = buildOopSection();
+        oopSectionBox.setVisible(false);
+        oopSectionBox.setManaged(false);
+
+        // 4. Mô tả bài toán
         Label descLabel = new Label("Mô tả bài toán (*)");
         descLabel.getStyleClass().add("meta-item");
         descriptionArea = new TextArea();
-        descriptionArea.setPromptText("Nêu rõ yêu cầu bài toán...");
+        descriptionArea.setPromptText("Nêu rõ yêu cầu bài toán, các chức năng cần cài đặt...");
         descriptionArea.setPrefRowCount(4);
 
         // Input & Output format
         Label inFmtLabel = new Label("Định dạng đầu vào");
         inFmtLabel.getStyleClass().add("meta-item");
         inputFormatArea = new TextArea();
-        inputFormatArea.setPromptText("Dòng 1 chứa n, dòng 2 chứa dãy...");
+        inputFormatArea.setPromptText("Dòng 1 chứa n, các dòng sau chứa thông tin...");
         inputFormatArea.setPrefRowCount(2);
 
         Label outFmtLabel = new Label("Định dạng đầu ra");
         outFmtLabel.getStyleClass().add("meta-item");
         outputFormatArea = new TextArea();
-        outputFormatArea.setPromptText("In ra một số nguyên...");
+        outputFormatArea.setPromptText("In ra danh sách hoặc kết quả tính toán...");
         outputFormatArea.setPrefRowCount(2);
 
         // Constraints
@@ -214,12 +572,12 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         constraintsArea.setPromptText("1 <= N <= 10^5...");
         constraintsArea.setPrefRowCount(2);
 
-        // 4. DANH SÁCH TESTCASE ĐỘNG
+        // 5. DANH SÁCH TESTCASE ĐỘNG
         HBox tcHeader = new HBox(10);
         tcHeader.setAlignment(Pos.CENTER_LEFT);
         tcHeader.setPadding(new Insets(10, 0, 4, 0));
 
-        Label tcTitle = new Label("DANH SÁCH BỘ TEST CASE CHẤM BÀI");
+        Label tcTitle = new Label("BỘ TEST CASE CHẤM BÀI QUA MAIN.JAVA (I/O MATCHING)");
         tcTitle.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: -accent;");
 
         Region sp = new Region();
@@ -234,14 +592,15 @@ public class TeacherProblemDialog extends Dialog<Problem> {
 
         testCasesContainer = new VBox(8);
 
-        // Khởi tạo sẵn 2 testcase ban đầu: 1 sample + 1 secret
-        addTestCase(true, "3 5", "8");
-        addTestCase(false, "100 200", "300");
+        // Khởi tạo sẵn 2 testcase ban đầu
+        addTestCase(true, "3\nNguyen Van A 3.5\nTran Thi B 3.8\nLe Van C 2.9", "Tran Thi B 3.8");
+        addTestCase(false, "1\nPham Van D 4.0", "Pham Van D 4.0");
 
         form.getChildren().addAll(
-                classLabel, classCombo,
+                topRow,
                 titleLabel, titleField,
                 metaRow,
+                oopSectionBox,
                 descLabel, descriptionArea,
                 inFmtLabel, inputFormatArea,
                 outFmtLabel, outputFormatArea,
@@ -252,23 +611,78 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         return form;
     }
 
+    private VBox buildOopSection() {
+        VBox sec = new VBox(10);
+        sec.setStyle("-fx-background-color: -bg-surface; -fx-border-color: -border-subtle; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-background-radius: 6px; -fx-padding: 12px;");
+
+        HBox banner = new HBox(8);
+        banner.setAlignment(Pos.CENTER_LEFT);
+        Label infoIcon = new Label("ℹ");
+        infoIcon.setStyle("-fx-font-size: 16px; -fx-text-fill: -accent; -fx-font-weight: bold;");
+        Label infoTxt = new Label("QUY TẮC CHẤM JAVA OOP: Sinh viên nộp gói .zip (hoặc code) chứa các class và Main.java. Hệ thống sẽ soi Reflection cấu trúc bên dưới trước (nếu vi phạm tính đóng gói private hoặc sai method sẽ báo CE ngay). Khi đạt 100% cấu trúc mới chạy bộ test case qua Main.java.");
+        infoTxt.setWrapText(true);
+        infoTxt.setStyle("-fx-font-size: 11.5px; -fx-text-fill: -text-secondary;");
+        banner.getChildren().addAll(infoIcon, infoTxt);
+
+        HBox header = new HBox(10);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        Label title = new Label("THIẾT KẾ ĐẶC TẢ CẤU TRÚC OOP (OOP SPECIFICATION)");
+        title.setStyle("-fx-font-size: 12.5px; -fx-font-weight: bold; -fx-text-fill: -accent;");
+
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
+
+        Button addClassBtn = new Button("➕ Thêm Lớp / Interface");
+        addClassBtn.getStyleClass().addAll("button", "btn-primary");
+        addClassBtn.setStyle("-fx-font-size: 11.5px; -fx-padding: 4 10 4 10;");
+        addClassBtn.setOnAction(e -> addClassCard("", "CLASS", null, new ArrayList<>()));
+
+        header.getChildren().addAll(title, sp, addClassBtn);
+
+        oopClassesContainer = new VBox(10);
+
+        sec.getChildren().addAll(banner, header, oopClassesContainer);
+        return sec;
+    }
+
+    private void toggleProblemTypeView() {
+        boolean isOop = problemTypeCombo.getSelectionModel().getSelectedIndex() == 1;
+        oopSectionBox.setVisible(isOop);
+        oopSectionBox.setManaged(isOop);
+
+        if (isOop && oopClassCards.isEmpty()) {
+            // Khởi tạo mẫu 1 Class gợi ý
+            ClassCardUI sampleClass = addClassCard("Student", "CLASS", null, new ArrayList<>());
+            sampleClass.addField("id", "String", "private");
+            sampleClass.addField("name", "String", "private");
+            sampleClass.addField("gpa", "double", "private");
+            sampleClass.addConstructor("public", Arrays.asList("String", "String", "double"));
+            sampleClass.addMethod("display", "void", "public", new ArrayList<>());
+        }
+    }
+
+    private ClassCardUI addClassCard(String name, String type, String superClass, List<String> interfaces) {
+        ClassCardUI[] holder = new ClassCardUI[1];
+        holder[0] = new ClassCardUI(name, type, superClass, interfaces, () -> {
+            oopClassCards.remove(holder[0]);
+            oopClassesContainer.getChildren().remove(holder[0].card);
+        });
+        oopClassCards.add(holder[0]);
+        oopClassesContainer.getChildren().add(holder[0].card);
+        return holder[0];
+    }
+
     private void addTestCase(boolean isSample, String inDefault, String outDefault) {
-        TestCaseItem item = new TestCaseItem(isSample, inDefault, outDefault, () -> {
+        TestCaseItem[] holder = new TestCaseItem[1];
+        holder[0] = new TestCaseItem(isSample, inDefault, outDefault, () -> {
             if (testCaseItems.size() > 1) {
-                testCaseItems.removeIf(tc -> tc.inputArea == null || tc.rootCard == null);
+                testCaseItems.remove(holder[0]);
+                testCasesContainer.getChildren().remove(holder[0].rootCard);
             }
         });
-        // Remove handler
-        Runnable removeAction = () -> {
-            if (testCaseItems.size() > 1) {
-                testCaseItems.remove(item);
-                testCasesContainer.getChildren().remove(item.rootCard);
-            }
-        };
-        // Rebuild card with functional delete
-        TestCaseItem actualItem = new TestCaseItem(isSample, inDefault, outDefault, removeAction);
-        testCaseItems.add(actualItem);
-        testCasesContainer.getChildren().add(actualItem.rootCard);
+        testCaseItems.add(holder[0]);
+        testCasesContainer.getChildren().add(holder[0].rootCard);
     }
 
     private Problem extractProblemFromForm() {
@@ -288,10 +702,29 @@ public class TeacherProblemDialog extends Dialog<Problem> {
 
         if (classCombo != null) {
             CreditClass selClass = classCombo.getSelectionModel().getSelectedItem();
-            if (selClass != null) {
+            if (selClass != null && selClass.getId() > 0) {
                 problem.setClassId(selClass.getId());
                 problem.setClassName(selClass.getName());
+            } else {
+                problem.setClassId(null);
+                problem.setClassName(null);
             }
+        }
+
+        boolean isOop = problemTypeCombo.getSelectionModel().getSelectedIndex() == 1;
+        if (isOop) {
+            problem.setProblemType("JAVA_OOP");
+            OopSpec spec = new OopSpec();
+            for (ClassCardUI card : oopClassCards) {
+                OopSpec.ClassSpec cs = card.toSpec();
+                if (cs != null) {
+                    spec.getClasses().add(cs);
+                }
+            }
+            problem.setOopSpec(new Gson().toJson(spec));
+        } else {
+            problem.setProblemType("IO_MATCHING");
+            problem.setOopSpec(null);
         }
 
         StringBuilder fullDesc = new StringBuilder();
@@ -330,7 +763,7 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         return arr;
     }
 
-    /** Nạp dữ liệu bài đã có để giáo viên sửa cả metadata lẫn test case. */
+    /** Nạp dữ liệu bài đã có để giáo viên sửa cả metadata lẫn test case và cấu trúc OOP. */
     public void loadForEditing(Problem problem, JsonArray testCases) {
         if (problem == null) return;
         setTitle("Chỉnh sửa bài tập");
@@ -339,11 +772,59 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         timeLimitField.setText(String.valueOf(problem.getTimeLimitMs()));
         memoryLimitField.setText(String.valueOf(problem.getMemoryLimitKb()));
         descriptionArea.setText(problem.getDescription() == null ? "" : problem.getDescription());
-        if (classCombo != null && problem.getClassId() != null) {
-            for (CreditClass c : classCombo.getItems()) {
-                if (c.getId() == problem.getClassId()) { classCombo.getSelectionModel().select(c); break; }
+
+        // Loại bài
+        if (problem.isJavaOop()) {
+            problemTypeCombo.getSelectionModel().select(1);
+        } else {
+            problemTypeCombo.getSelectionModel().select(0);
+        }
+        toggleProblemTypeView();
+
+        // Nạp cấu trúc OOP nếu có
+        oopClassCards.clear();
+        oopClassesContainer.getChildren().clear();
+        if (problem.isJavaOop() && problem.getOopSpec() != null && !problem.getOopSpec().isBlank()) {
+            try {
+                OopSpec spec = new Gson().fromJson(problem.getOopSpec(), OopSpec.class);
+                if (spec != null && spec.getClasses() != null) {
+                    for (OopSpec.ClassSpec cs : spec.getClasses()) {
+                        ClassCardUI card = addClassCard(cs.getName(), cs.getClassType(), cs.getSuperClass(), cs.getInterfaces());
+                        if (cs.getFields() != null) {
+                            for (OopSpec.FieldSpec f : cs.getFields()) {
+                                card.addField(f.getName(), f.getType(), f.getModifier());
+                            }
+                        }
+                        if (cs.getConstructors() != null) {
+                            for (OopSpec.ConstructorSpec c : cs.getConstructors()) {
+                                card.addConstructor(c.getModifier(), c.getParameterTypes());
+                            }
+                        }
+                        if (cs.getMethods() != null) {
+                            for (OopSpec.MethodSpec m : cs.getMethods()) {
+                                card.addMethod(m.getName(), m.getReturnType(), m.getModifier(), m.getParameterTypes());
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // Chọn lớp
+        if (classCombo != null) {
+            if (problem.getClassId() != null && problem.getClassId() > 0) {
+                for (CreditClass c : classCombo.getItems()) {
+                    if (c.getId() == problem.getClassId()) {
+                        classCombo.getSelectionModel().select(c);
+                        break;
+                    }
+                }
+            } else {
+                classCombo.getSelectionModel().select(0); // Kho chung
             }
         }
+
+        // Test cases
         testCaseItems.clear();
         testCasesContainer.getChildren().clear();
         if (testCases != null) {

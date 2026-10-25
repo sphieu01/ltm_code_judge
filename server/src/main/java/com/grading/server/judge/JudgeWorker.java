@@ -141,21 +141,23 @@ public class JudgeWorker implements Runnable {
             submission.setVerdict(Submission.VERDICT_JUDGING);
 
             // 1.5. Quét bảo mật tĩnh (SecurityScanner - Tầng 1)
-            com.grading.server.judge.security.SecurityScanner.SecurityResult secResult =
-                    com.grading.server.judge.security.SecurityScanner.scan(
-                            submission.getSourceCode(),
-                            submission.getLanguage()
-                    );
-            if (!secResult.isSafe()) {
-                logger.warn("Worker-{} rejected submission id={} due to security violation: {}",
-                        workerId, submission.getId(), secResult.reason());
-                submission.setVerdict(Submission.VERDICT_SV);
-                submission.setScore(0);
-                submission.setPassedTests(0);
-                submission.setTotalTests(problemRepository.findAllTestCases(submission.getProblemId()).size());
-                submission.setCompileOutput(secResult.reason());
-                finalizeSubmission(submission);
-                return;
+            if (!submission.isZip()) {
+                com.grading.server.judge.security.SecurityScanner.SecurityResult secResult =
+                        com.grading.server.judge.security.SecurityScanner.scan(
+                                submission.getSourceCode(),
+                                submission.getLanguage()
+                        );
+                if (!secResult.isSafe()) {
+                    logger.warn("Worker-{} rejected submission id={} due to security violation: {}",
+                            workerId, submission.getId(), secResult.reason());
+                    submission.setVerdict(Submission.VERDICT_SV);
+                    submission.setScore(0);
+                    submission.setPassedTests(0);
+                    submission.setTotalTests(problemRepository != null ? problemRepository.findAllTestCases(submission.getProblemId()).size() : 0);
+                    submission.setCompileOutput(secResult.reason());
+                    finalizeSubmission(submission);
+                    return;
+                }
             }
 
             // 2. Lấy tất cả test cases
@@ -177,7 +179,8 @@ public class JudgeWorker implements Runnable {
             SandboxRunner.CompileResult compileResult = sandboxRunner.compile(
                     submission.getId(),
                     submission.getSourceCode(),
-                    submission.getLanguage()
+                    submission.getLanguage(),
+                    submission.isZip()
             );
 
             if (!compileResult.isSuccess()) {
@@ -188,6 +191,50 @@ public class JudgeWorker implements Runnable {
                 submission.setCompileOutput(truncate(compileResult.getErrorOutput(), 5000));
                 finalizeSubmission(submission);
                 return;
+            }
+
+            // 3.5. Nếu là file zip, quét bảo mật tĩnh trên các file .java đã giải nén
+            if (submission.isZip()) {
+                java.io.File[] jFiles = new java.io.File(sandboxRunner.getWorkDir(submission.getId())).listFiles((d, n) -> n.endsWith(".java"));
+                if (jFiles != null) {
+                    for (java.io.File jf : jFiles) {
+                        try {
+                            String content = java.nio.file.Files.readString(jf.toPath(), java.nio.charset.StandardCharsets.UTF_8);
+                            com.grading.server.judge.security.SecurityScanner.SecurityResult secResult =
+                                    com.grading.server.judge.security.SecurityScanner.scan(content, "java");
+                            if (!secResult.isSafe()) {
+                                submission.setVerdict(Submission.VERDICT_SV);
+                                submission.setScore(0);
+                                submission.setPassedTests(0);
+                                submission.setCompileOutput(secResult.reason() + " (trong file " + jf.getName() + ")");
+                                finalizeSubmission(submission);
+                                return;
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+
+            // 3.6. Kiểm tra cấu trúc Java OOP bằng Reflection nếu bài toán có cấu hình OOP
+            if (problemRepository != null) {
+                java.util.Optional<com.grading.server.model.Problem> probOpt = problemRepository.findById(submission.getProblemId());
+                if (probOpt.isPresent() && probOpt.get().isJavaOop()) {
+                    com.grading.server.judge.oop.OopCheckResult oopResult =
+                            com.grading.server.judge.oop.OopReflectionGrader.check(
+                                    new java.io.File(sandboxRunner.getWorkDir(submission.getId())),
+                                    probOpt.get().getOopSpec()
+                            );
+                    if (!oopResult.isPassed()) {
+                        logger.warn("Worker-{} submission id={} vi phạm cấu trúc OOP: {}",
+                                workerId, submission.getId(), oopResult.getErrorMessage());
+                        submission.setVerdict(Submission.VERDICT_CE);
+                        submission.setScore(0);
+                        submission.setPassedTests(0);
+                        submission.setCompileOutput("[OOP_VIOLATION] " + oopResult.getErrorMessage());
+                        finalizeSubmission(submission);
+                        return;
+                    }
+                }
             }
 
             // 4. Chạy từng test case

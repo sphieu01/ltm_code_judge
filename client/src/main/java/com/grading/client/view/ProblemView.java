@@ -38,6 +38,7 @@ public class ProblemView extends BorderPane {
     // ======================== PROBLEM DETAILS (LEFT COLUMN)
     // ========================
     private Label problemTitleHeader;
+    private Label oopInfoBanner;
     private Label descriptionLabel;
     private Label inputFormatLabel;
     private Label outputFormatLabel;
@@ -64,6 +65,8 @@ public class ProblemView extends BorderPane {
     private File selectedFile;
     private String fileCodeContent;
     private String activeSubmissionCode;
+    private boolean isZipSubmission = false;
+    private String allowedLanguagesSetting = null;
     private static File lastDirectory = null;
 
     private Consumer<ProblemView> onSubmitCodeHandler;
@@ -168,6 +171,16 @@ public class ProblemView extends BorderPane {
         VBox section = new VBox(10);
         section.setPadding(new Insets(4, 0, 8, 0));
 
+        // Banner thông báo dành cho bài tập Java OOP
+        oopInfoBanner = new Label("📦 DẠNG BÀI: LẬP TRÌNH HƯỚNG ĐỐI TƯỢNG (JAVA OOP)\n"
+                + "• Sinh viên nộp gói .zip (hoặc file .java) chứa các class và Main.java điều phối I/O.\n"
+                + "• Hệ thống sẽ kiểm tra nghiêm ngặt cấu trúc OOP (tính đóng gói private, kế thừa, phương thức) trước. "
+                + "Nếu cấu trúc đạt 100% mới tiến hành chấm bộ test case qua Main.java.");
+        oopInfoBanner.setWrapText(true);
+        oopInfoBanner.setStyle("-fx-background-color: rgba(0, 122, 204, 0.12); -fx-text-fill: -accent; -fx-padding: 10 14; -fx-background-radius: 6px; -fx-border-color: -accent; -fx-border-radius: 6px; -fx-font-size: 13px; -fx-line-spacing: 3px; -fx-font-weight: bold;");
+        oopInfoBanner.setVisible(false);
+        oopInfoBanner.setManaged(false);
+
         // Nội dung mô tả đề bài hiển thị trực tiếp dạng văn bản tự nhiên
         descriptionLabel = new Label("Mô tả bài toán đang được tải...");
         descriptionLabel.setWrapText(true);
@@ -200,6 +213,7 @@ public class ProblemView extends BorderPane {
         metaConstraintsLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: -text-secondary;");
 
         section.getChildren().addAll(
+                oopInfoBanner,
                 descriptionLabel,
                 inTitle, inputFormatLabel,
                 outTitle, outputFormatLabel,
@@ -465,19 +479,28 @@ public class ProblemView extends BorderPane {
 
     private void openFileChooser() {
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Chọn file mã nguồn để nộp bài");
+        chooser.setTitle("Chọn file mã nguồn hoặc gói ZIP để nộp bài");
 
         if (lastDirectory != null && lastDirectory.exists() && lastDirectory.isDirectory()) {
             chooser.setInitialDirectory(lastDirectory);
         }
 
-        chooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("Tất cả mã nguồn (*.cpp, *.c, *.java, *.py)", "*.cpp", "*.c", "*.java",
-                        "*.py", "*.txt"),
-                new FileChooser.ExtensionFilter("C / C++ Files (*.cpp, *.c)", "*.cpp", "*.c"),
-                new FileChooser.ExtensionFilter("Java Files (*.java)", "*.java"),
-                new FileChooser.ExtensionFilter("Python Files (*.py)", "*.py"),
-                new FileChooser.ExtensionFilter("Mọi file (*.*)", "*.*"));
+        if (currentProblem != null && currentProblem.isJavaOop()) {
+            chooser.getExtensionFilters().addAll(
+                    new FileChooser.ExtensionFilter("Java OOP: Gói ZIP hoặc file Java (*.zip, *.java)", "*.zip", "*.java"),
+                    new FileChooser.ExtensionFilter("Gói nén ZIP (*.zip)", "*.zip"),
+                    new FileChooser.ExtensionFilter("Java Files (*.java)", "*.java"),
+                    new FileChooser.ExtensionFilter("Mọi file (*.*)", "*.*"));
+        } else {
+            chooser.getExtensionFilters().addAll(
+                    new FileChooser.ExtensionFilter("Tất cả mã nguồn (*.cpp, *.c, *.java, *.py, *.zip)", "*.cpp", "*.c", "*.java",
+                            "*.py", "*.zip", "*.txt"),
+                    new FileChooser.ExtensionFilter("C / C++ Files (*.cpp, *.c)", "*.cpp", "*.c"),
+                    new FileChooser.ExtensionFilter("Java Files (*.java)", "*.java"),
+                    new FileChooser.ExtensionFilter("Python Files (*.py)", "*.py"),
+                    new FileChooser.ExtensionFilter("Gói nén ZIP (*.zip)", "*.zip"),
+                    new FileChooser.ExtensionFilter("Mọi file (*.*)", "*.*"));
+        }
 
         choosingFile = true;
         try {
@@ -497,29 +520,37 @@ public class ProblemView extends BorderPane {
         this.selectedFile = file;
 
         try {
-            String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
-            this.fileCodeContent = content;
-            this.activeSubmissionCode = content;
-
-            // Tự động nhận diện ngôn ngữ theo phần mở rộng file
             String fileName = file.getName().toLowerCase();
-            if (fileName.endsWith(".cpp") || fileName.endsWith(".cc") || fileName.endsWith(".cxx")) {
-                selectLanguageByName("C++");
-            } else if (fileName.endsWith(".c")) {
-                selectLanguageByName("C");
-            } else if (fileName.endsWith(".java")) {
+            long sizeKb = Math.max(1, file.length() / 1024);
+
+            if (fileName.endsWith(".zip")) {
+                byte[] bytes = Files.readAllBytes(file.toPath());
+                this.fileCodeContent = java.util.Base64.getEncoder().encodeToString(bytes);
+                this.activeSubmissionCode = this.fileCodeContent;
+                this.isZipSubmission = true;
                 selectLanguageByName("Java");
-            } else if (fileName.endsWith(".py")) {
-                selectLanguageByName("Python 3");
+                selectedFileLabel.setText(String.format("📦 Gói ZIP: %s (%d KB)", file.getName(), sizeKb));
+            } else {
+                this.isZipSubmission = false;
+                String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+                this.fileCodeContent = content;
+                this.activeSubmissionCode = content;
+
+                // Tự động nhận diện ngôn ngữ theo phần mở rộng file
+                if (fileName.endsWith(".cpp") || fileName.endsWith(".cc") || fileName.endsWith(".cxx")) {
+                    selectLanguageByName("C++");
+                } else if (fileName.endsWith(".c")) {
+                    selectLanguageByName("C");
+                } else if (fileName.endsWith(".java")) {
+                    selectLanguageByName("Java");
+                } else if (fileName.endsWith(".py")) {
+                    selectLanguageByName("Python 3");
+                }
+                selectedFileLabel.setText(String.format("📄 %s (%d KB)", file.getName(), sizeKb));
             }
 
-            // Hiển thị badge file
-            long sizeKb = Math.max(1, file.length() / 1024);
-            selectedFileLabel.setText(String.format("📄 %s (%d KB)", file.getName(), sizeKb));
             selectedFileBox.setVisible(true);
             selectedFileBox.setManaged(true);
-
-            // Không nạp vào ô dán code để giữ ô độc lập cho chức năng "Nộp bài nhanh"
             submitButton.setDisable(false);
 
         } catch (Exception ex) {
@@ -544,6 +575,7 @@ public class ProblemView extends BorderPane {
         this.selectedFile = null;
         this.fileCodeContent = null;
         this.activeSubmissionCode = null;
+        this.isZipSubmission = false;
         selectedFileBox.setVisible(false);
         selectedFileBox.setManaged(false);
     }
@@ -613,9 +645,54 @@ public class ProblemView extends BorderPane {
             descriptionLabel.setText(problem.getDescription());
         }
 
+        boolean isOop = problem.isJavaOop();
+        if (oopInfoBanner != null) {
+            oopInfoBanner.setVisible(isOop);
+            oopInfoBanner.setManaged(isOop);
+        }
+
+        updateLanguageOptions();
+
         clearSelectedFile();
         updateProctorStatus(0, "INFO", null);
         clearHistory();
+    }
+
+    public void setAllowedLanguages(String allowedLanguages) {
+        this.allowedLanguagesSetting = allowedLanguages;
+        updateLanguageOptions();
+    }
+
+    private void updateLanguageOptions() {
+        if (currentProblem != null && currentProblem.isJavaOop()) {
+            languageComboBox.setItems(FXCollections.observableArrayList("Java"));
+            languageComboBox.getSelectionModel().select("Java");
+            languageComboBox.setDisable(true);
+            return;
+        }
+
+        List<String> defaultLangs = List.of("C", "C++", "Java", "Python 3");
+        if (allowedLanguagesSetting != null && !allowedLanguagesSetting.isBlank()) {
+            List<String> filtered = new ArrayList<>();
+            String[] tokens = allowedLanguagesSetting.split(",");
+            for (String t : tokens) {
+                String trimmed = t.trim().toLowerCase();
+                if (trimmed.equals("c") && !filtered.contains("C")) filtered.add("C");
+                else if (trimmed.equals("cpp") && !filtered.contains("C++")) filtered.add("C++");
+                else if (trimmed.equals("java") && !filtered.contains("Java")) filtered.add("Java");
+                else if (trimmed.equals("python") && !filtered.contains("Python 3")) filtered.add("Python 3");
+            }
+            if (!filtered.isEmpty()) {
+                languageComboBox.setItems(FXCollections.observableArrayList(filtered));
+                languageComboBox.getSelectionModel().select(0);
+                languageComboBox.setDisable(false);
+                return;
+            }
+        }
+
+        languageComboBox.setItems(FXCollections.observableArrayList(defaultLangs));
+        languageComboBox.getSelectionModel().select("C");
+        languageComboBox.setDisable(false);
     }
 
     public void setProblemDetails(String description, String inputFormat, String outputFormat,
@@ -742,13 +819,19 @@ public class ProblemView extends BorderPane {
         // Nếu có lỗi biên dịch, hiển thị popup thông báo chi tiết
         if (compileError != null && !compileError.trim().isEmpty()) {
             Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.setTitle("Lỗi biên dịch");
-            alert.setHeaderText("Biên dịch thất bại: " + verdict);
+            if (compileError.contains("[OOP_VIOLATION]")) {
+                alert.setTitle("Lỗi vi phạm cấu trúc OOP");
+                alert.setHeaderText("❌ KHÔNG ĐẠT CẤU TRÚC HƯỚNG ĐỐI TƯỢNG (CE)\n(Bài làm không được đưa vào chạy test case)");
+            } else {
+                alert.setTitle("Lỗi biên dịch");
+                alert.setHeaderText("Biên dịch thất bại: " + verdict);
+            }
             TextArea area = new TextArea(compileError);
             area.setEditable(false);
             area.setWrapText(true);
-            area.setPrefRowCount(10);
-            area.setPrefWidth(500);
+            area.setPrefRowCount(12);
+            area.setPrefWidth(600);
+            area.setStyle("-fx-font-family: 'JetBrains Mono', Consolas, monospace; -fx-font-size: 12px;");
             alert.getDialogPane().setContent(area);
             alert.show();
         }
@@ -830,6 +913,10 @@ public class ProblemView extends BorderPane {
 
     public Problem getCurrentProblem() {
         return currentProblem;
+    }
+
+    public boolean isZipSubmission() {
+        return isZipSubmission;
     }
 
     public boolean isChoosingFile() {

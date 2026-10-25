@@ -34,6 +34,7 @@ public class Submission {
     private int execTimeMs;         // thời gian chạy tối đa qua các test
     private int memoryUsedKb;       // bộ nhớ tối đa qua các test
     private String compileOutput;   // stdout/stderr của compiler (dùng khi CE)
+    private boolean isZip;          // true nếu mã nguồn được đóng gói dạng ZIP Base64
     private String submittedAt;
     private String judgedAt;
 
@@ -95,6 +96,9 @@ public class Submission {
 
     public String getCompileOutput() { return compileOutput; }
     public void setCompileOutput(String compileOutput) { this.compileOutput = compileOutput; }
+
+    public boolean isZip() { return isZip; }
+    public void setZip(boolean zip) { this.isZip = zip; }
 
     public String getSubmittedAt() { return submittedAt; }
     public void setSubmittedAt(String submittedAt) { this.submittedAt = submittedAt; }

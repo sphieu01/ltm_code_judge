@@ -226,7 +226,7 @@ public class AdminController {
         result.ifPresent(creditClass -> {
             SocketClient client = sessionManager.getSocketClient();
             if (client != null && client.isConnected()) {
-                client.createClass(creditClass.getClassCode(), creditClass.getName(), creditClass.getCourseId(), response -> {
+                client.createClass(creditClass.getClassCode(), creditClass.getName(), creditClass.getCourseId(), creditClass.getAllowedLanguages(), response -> {
                     Platform.runLater(() -> {
                         loadClasses();
                     });
@@ -242,7 +242,7 @@ public class AdminController {
         result.ifPresent(updated -> {
             SocketClient client = sessionManager.getSocketClient();
             if (client != null && client.isConnected()) {
-                client.updateClass(updated.getId(), updated.getClassCode(), updated.getName(), updated.getCourseId(), response -> {
+                client.updateClass(updated.getId(), updated.getClassCode(), updated.getName(), updated.getCourseId(), updated.getAllowedLanguages(), response -> {
                     Platform.runLater(() -> {
                         if ("SUCCESS".equalsIgnoreCase(response.getStatus())) {
                             Alert alert = new Alert(Alert.AlertType.INFORMATION);
@@ -464,6 +464,12 @@ public class AdminController {
                         } else if (obj.has("isActive")) {
                             p.setActive(obj.get("isActive").getAsBoolean());
                         }
+                        if (obj.has("problemType") && !obj.get("problemType").isJsonNull()) {
+                            p.setProblemType(obj.get("problemType").getAsString());
+                        }
+                        if (obj.has("oopSpec") && !obj.get("oopSpec").isJsonNull()) {
+                            p.setOopSpec(obj.get("oopSpec").getAsString());
+                        }
                         list.add(p);
                     }
                     view.setProblems(list);
@@ -480,16 +486,7 @@ public class AdminController {
         result.ifPresent(problem -> {
             SocketClient client = sessionManager.getSocketClient();
             if (client != null && client.isConnected()) {
-                JsonObject data = new JsonObject();
-                data.addProperty("title", problem.getTitle());
-                data.addProperty("difficulty", problem.getDifficulty());
-                data.addProperty("timeLimitMs", problem.getTimeLimitMs());
-                data.addProperty("memoryLimitKb", problem.getMemoryLimitKb());
-                data.addProperty("description", problem.getDescription());
-                if (problem.getClassId() != null) {
-                    data.addProperty("classId", problem.getClassId());
-                }
-                data.add("testCases", dialog.getTestCasesArray());
+                JsonObject data = buildProblemPayload(problem, dialog);
                 data.addProperty("sampleInput", dialog.getSampleInput());
                 data.addProperty("sampleOutput", dialog.getSampleOutput());
                 data.addProperty("hiddenInput", dialog.getSecretInput());
@@ -562,6 +559,16 @@ public class AdminController {
         else detail.setClassId(fallback.getClassId());
         detail.setClassName(data.has("className") && !data.get("className").isJsonNull()
                 ? data.get("className").getAsString() : fallback.getClassName());
+        if (data.has("problemType") && !data.get("problemType").isJsonNull()) {
+            detail.setProblemType(data.get("problemType").getAsString());
+        } else {
+            detail.setProblemType(fallback.getProblemType());
+        }
+        if (data.has("oopSpec") && !data.get("oopSpec").isJsonNull()) {
+            detail.setOopSpec(data.get("oopSpec").getAsString());
+        } else {
+            detail.setOopSpec(fallback.getOopSpec());
+        }
         return detail;
     }
 
@@ -595,6 +602,10 @@ public class AdminController {
         data.addProperty("timeLimitMs", problem.getTimeLimitMs());
         data.addProperty("memoryLimitKb", problem.getMemoryLimitKb());
         data.addProperty("description", problem.getDescription());
+        data.addProperty("problemType", problem.getProblemType());
+        if (problem.getOopSpec() != null) {
+            data.addProperty("oopSpec", problem.getOopSpec());
+        }
         if (problem.getClassId() != null) data.addProperty("classId", problem.getClassId());
         data.add("testCases", dialog.getTestCasesArray());
         return data;

@@ -68,7 +68,30 @@ public class TeacherClassDialog extends Dialog<CreditClass> {
         }
         courseCombo.setMaxWidth(Double.MAX_VALUE);
 
-        form.getChildren().addAll(codeLabel, classCodeField, nameLabel, nameField, courseLabel, courseCombo);
+        Label langLabel = new Label("Ngôn ngữ cho phép nộp bài (*)");
+        langLabel.getStyleClass().add("meta-item");
+
+        CheckBox cbC = new CheckBox("C");
+        CheckBox cbCpp = new CheckBox("C++");
+        CheckBox cbJava = new CheckBox("Java");
+        CheckBox cbPython = new CheckBox("Python");
+
+        if (isEdit) {
+            cbC.setSelected(existingClass.isLanguageAllowed("c"));
+            cbCpp.setSelected(existingClass.isLanguageAllowed("cpp"));
+            cbJava.setSelected(existingClass.isLanguageAllowed("java"));
+            cbPython.setSelected(existingClass.isLanguageAllowed("python"));
+        } else {
+            cbC.setSelected(true);
+            cbCpp.setSelected(true);
+            cbJava.setSelected(true);
+            cbPython.setSelected(true);
+        }
+
+        HBox langBox = new HBox(16, cbC, cbCpp, cbJava, cbPython);
+        langBox.setPadding(new Insets(4, 0, 4, 0));
+
+        form.getChildren().addAll(codeLabel, classCodeField, nameLabel, nameField, courseLabel, courseCombo, langLabel, langBox);
         pane.setContent(form);
 
         ButtonType saveBtnType = new ButtonType(isEdit ? "Lưu thay đổi" : "Lưu lớp tín chỉ", ButtonBar.ButtonData.OK_DONE);
@@ -87,6 +110,13 @@ public class TeacherClassDialog extends Dialog<CreditClass> {
                 Course selectedCourse = courseCombo.getSelectionModel().getSelectedItem();
                 if (code.isEmpty() || name.isEmpty() || selectedCourse == null) return null;
 
+                List<String> langs = new java.util.ArrayList<>();
+                if (cbC.isSelected()) langs.add("c");
+                if (cbCpp.isSelected()) langs.add("cpp");
+                if (cbJava.isSelected()) langs.add("java");
+                if (cbPython.isSelected()) langs.add("python");
+                if (langs.isEmpty()) langs.add("java"); // Fallback tối thiểu
+
                 CreditClass cc = new CreditClass();
                 if (isEdit) {
                     cc.setId(existingClass.getId());
@@ -95,6 +125,7 @@ public class TeacherClassDialog extends Dialog<CreditClass> {
                 cc.setName(name);
                 cc.setCourseId(selectedCourse.getId());
                 cc.setCourseName(selectedCourse.getName());
+                cc.setAllowedLanguages(String.join(",", langs));
                 return cc;
             }
             return null;

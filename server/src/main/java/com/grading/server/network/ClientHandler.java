@@ -2,6 +2,7 @@ package com.grading.server.network;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonArray;
+import com.grading.server.model.CreditClass;
 import com.grading.server.model.Problem;
 import com.grading.server.model.Submission;
 import com.grading.server.model.User;
@@ -19,6 +20,7 @@ import java.io.*;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -158,6 +160,9 @@ public class ClientHandler implements Runnable {
                     case CREATE_CLASS       -> handleCreateClass(request);
                     case UPDATE_CLASS       -> handleUpdateClass(request);
                     case DELETE_CLASS       -> handleDeleteClass(request);
+                    case GET_CLASS_PROBLEMS -> handleGetClassProblems(request);
+                    case ASSIGN_CLASS_PROBLEMS -> handleAssignClassProblems(request);
+                    case REMOVE_CLASS_PROBLEM -> handleRemoveClassProblem(request);
                     case GET_STUDENTS       -> handleGetStudents(request);
                     case IMPORT_STUDENTS    -> handleImportStudents(request);
                     case UPDATE_STUDENT     -> handleUpdateStudent(request);
@@ -339,6 +344,12 @@ public class ClientHandler implements Runnable {
             if (data.has("classId") && !data.get("classId").isJsonNull()) {
                 p.setClassId(data.get("classId").getAsInt());
             }
+            if (data.has("problemType") && !data.get("problemType").isJsonNull()) {
+                p.setProblemType(data.get("problemType").getAsString());
+            }
+            if (data.has("oopSpec") && !data.get("oopSpec").isJsonNull()) {
+                p.setOopSpec(data.get("oopSpec").getAsString());
+            }
 
             List<com.grading.server.model.TestCase> testCases = new java.util.ArrayList<>();
 
@@ -376,6 +387,11 @@ public class ClientHandler implements Runnable {
             }
 
             Problem created = problemService.createProblem(p, testCases);
+            if (p.getClassId() != null && p.getClassId() > 0) {
+                try {
+                    academicService.assignProblemsToClass(p.getClassId(), java.util.List.of(created.getId()));
+                } catch (Exception ignored) {}
+            }
 
             Message response = Message.success(
                     MessageType.CREATE_PROBLEM_RESPONSE,
@@ -409,8 +425,19 @@ public class ClientHandler implements Runnable {
             p.setTimeLimitMs(data.has("timeLimitMs") ? data.get("timeLimitMs").getAsInt() : 2000);
             p.setMemoryLimitKb(data.has("memoryLimitKb") ? data.get("memoryLimitKb").getAsInt() : 262144);
             if (data.has("classId") && !data.get("classId").isJsonNull()) p.setClassId(data.get("classId").getAsInt());
+            if (data.has("problemType") && !data.get("problemType").isJsonNull()) {
+                p.setProblemType(data.get("problemType").getAsString());
+            }
+            if (data.has("oopSpec") && !data.get("oopSpec").isJsonNull()) {
+                p.setOopSpec(data.get("oopSpec").getAsString());
+            }
             List<com.grading.server.model.TestCase> testCases = parseTestCases(data);
             Problem updated = problemService.updateProblem(p, testCases);
+            if (p.getClassId() != null && p.getClassId() > 0) {
+                try {
+                    academicService.assignProblemsToClass(p.getClassId(), java.util.List.of(p.getId()));
+                } catch (Exception ignored) {}
+            }
             send(Message.success(MessageType.UPDATE_PROBLEM_RESPONSE, request.getRequestId(),
                     "Cập nhật bài tập và test case thành công", MessageSerializer.toJsonElement(updated)));
         } catch (Exception e) {
@@ -664,6 +691,9 @@ public class ClientHandler implements Runnable {
             cc.setName(data.get("name").getAsString());
             cc.setCourseId(data.get("courseId").getAsInt());
             cc.setTeacherId(authenticatedUserId);
+            if (data.has("allowedLanguages") && !data.get("allowedLanguages").isJsonNull()) {
+                cc.setAllowedLanguages(data.get("allowedLanguages").getAsString());
+            }
 
             var created = academicService.createClass(cc);
             send(Message.success(
@@ -689,8 +719,11 @@ public class ClientHandler implements Runnable {
             String classCode = data.get("classCode").getAsString();
             String name = data.get("name").getAsString();
             int courseId = data.get("courseId").getAsInt();
+            String allowedLanguages = data.has("allowedLanguages") && !data.get("allowedLanguages").isJsonNull()
+                    ? data.get("allowedLanguages").getAsString()
+                    : "c,cpp,java,python";
 
-            academicService.updateClass(id, classCode, name, courseId);
+            academicService.updateClass(id, classCode, name, courseId, allowedLanguages);
             send(Message.success(
                     MessageType.UPDATE_CLASS_RESPONSE,
                     request.getRequestId(),
@@ -700,6 +733,72 @@ public class ClientHandler implements Runnable {
         } catch (Exception e) {
             logger.error("UpdateClass error", e);
             sendError(request.getRequestId(), "Không thể cập nhật lớp tín chỉ: " + e.getMessage());
+        }
+    }
+
+    private void handleGetClassProblems(Message request) {
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            int classId = data.get("classId").getAsInt();
+            var problems = academicService.getProblemsByClassId(classId);
+            send(Message.success(
+                    MessageType.GET_CLASS_PROBLEMS_RESPONSE,
+                    request.getRequestId(),
+                    "OK",
+                    MessageSerializer.toJsonElement(problems)
+            ));
+        } catch (Exception e) {
+            logger.error("GetClassProblems error", e);
+            sendError(request.getRequestId(), "Không thể tải danh sách bài tập của lớp: " + e.getMessage());
+        }
+    }
+
+    private void handleAssignClassProblems(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền gán bài tập vào lớp");
+            return;
+        }
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            int classId = data.get("classId").getAsInt();
+            List<Integer> problemIds = new ArrayList<>();
+            if (data.has("problemIds") && data.get("problemIds").isJsonArray()) {
+                for (var el : data.getAsJsonArray("problemIds")) {
+                    problemIds.add(el.getAsInt());
+                }
+            }
+            academicService.assignProblemsToClass(classId, problemIds);
+            send(Message.success(
+                    MessageType.ASSIGN_CLASS_PROBLEMS_RESPONSE,
+                    request.getRequestId(),
+                    "Đã gán bài tập vào lớp thành công",
+                    null
+            ));
+        } catch (Exception e) {
+            logger.error("AssignClassProblems error", e);
+            sendError(request.getRequestId(), "Không thể gán bài tập vào lớp: " + e.getMessage());
+        }
+    }
+
+    private void handleRemoveClassProblem(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền gỡ bài tập khỏi lớp");
+            return;
+        }
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            int classId = data.get("classId").getAsInt();
+            int problemId = data.get("problemId").getAsInt();
+            academicService.removeProblemFromClass(classId, problemId);
+            send(Message.success(
+                    MessageType.REMOVE_CLASS_PROBLEM_RESPONSE,
+                    request.getRequestId(),
+                    "Đã gỡ bài tập khỏi lớp thành công",
+                    null
+            ));
+        } catch (Exception e) {
+            logger.error("RemoveClassProblem error", e);
+            sendError(request.getRequestId(), "Không thể gỡ bài tập khỏi lớp: " + e.getMessage());
         }
     }
 
@@ -906,12 +1005,32 @@ public class ClientHandler implements Runnable {
             String sourceCode = data.get("sourceCode").getAsString();
             String language = data.get("language").getAsString();
 
+            // 1. Kiểm tra bài Java OOP bắt buộc phải nộp ngôn ngữ Java
+            Problem problem = problemService.getProblemDetail(problemId);
+            if (problem != null && problem.isJavaOop()) {
+                if (!"java".equalsIgnoreCase(language)) {
+                    throw new IllegalArgumentException("Bài tập Java OOP bắt buộc phải nộp bằng ngôn ngữ Java");
+                }
+            }
+
+            // 2. Kiểm tra giới hạn ngôn ngữ của lớp tín chỉ nếu nộp trong lớp
+            Integer classId = data.has("classId") && !data.get("classId").isJsonNull()
+                    ? data.get("classId").getAsInt() : null;
+            if (classId != null && classId > 0) {
+                CreditClass creditClass = academicService.getClassById(classId);
+                if (creditClass != null && !creditClass.isLanguageAllowed(language)) {
+                    throw new IllegalArgumentException("Lớp " + creditClass.getName() + " không cho phép nộp bằng ngôn ngữ: " + language);
+                }
+            }
+
+            boolean isZip = data.has("isZip") && data.get("isZip").getAsBoolean();
+
             Integer assessmentId = "STUDENT".equalsIgnoreCase(authenticatedRole)
                     ? academicService.getActiveAssessmentIdForProblem(authenticatedUserId, problemId)
                     : null;
 
             Submission submission = submissionService.submit(
-                    authenticatedUserId, problemId, assessmentId, sourceCode, language
+                    authenticatedUserId, problemId, assessmentId, sourceCode, language, isZip
             );
 
             // Trả về PENDING ngay lập tức — kết quả sẽ được push sau khi chấm xong

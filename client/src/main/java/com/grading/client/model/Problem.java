@@ -13,6 +13,8 @@ public class Problem {
     private Integer classId;   // Lớp tín chỉ gắn với bài tập
     private String className;  // Tên lớp tín chỉ
     private boolean active = true; // Trạng thái hiển thị cho sinh viên làm bài
+    private String problemType = "IO_MATCHING"; // "IO_MATCHING" | "JAVA_OOP"
+    private String oopSpec;        // JSON cấu hình OOP
     private int totalTestCases;
     private int sampleTestCases;
     private String status = ""; // "AC", "WA", "CE", "TLE", hoặc "" nếu chưa làm
@@ -63,6 +65,20 @@ public class Problem {
 
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+
+    public String getProblemType() {
+        return problemType != null ? problemType : "IO_MATCHING";
+    }
+    public void setProblemType(String problemType) {
+        this.problemType = problemType;
+    }
+
+    public String getOopSpec() { return oopSpec; }
+    public void setOopSpec(String oopSpec) { this.oopSpec = oopSpec; }
+
+    public boolean isJavaOop() {
+        return "JAVA_OOP".equalsIgnoreCase(problemType);
+    }
 
     /**
      * Hiển thị memory limit dạng "256 MB"

@@ -1,6 +1,7 @@
 package com.grading.client.network;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.grading.client.protocol.MessageType;
 import com.grading.client.protocol.Request;
@@ -383,20 +384,54 @@ public class SocketClient {
     }
 
     public void createClass(String classCode, String name, int courseId, Consumer<Response> callback) {
+        createClass(classCode, name, courseId, "c,cpp,java,python", callback);
+    }
+
+    public void createClass(String classCode, String name, int courseId, String allowedLanguages, Consumer<Response> callback) {
         JsonObject data = new JsonObject();
         data.addProperty("classCode", classCode);
         data.addProperty("name", name);
         data.addProperty("courseId", courseId);
+        data.addProperty("allowedLanguages", allowedLanguages != null ? allowedLanguages : "c,cpp,java,python");
         sendRequest(MessageType.CREATE_CLASS, data, callback);
     }
 
     public void updateClass(int id, String classCode, String name, int courseId, Consumer<Response> callback) {
+        updateClass(id, classCode, name, courseId, "c,cpp,java,python", callback);
+    }
+
+    public void updateClass(int id, String classCode, String name, int courseId, String allowedLanguages, Consumer<Response> callback) {
         JsonObject data = new JsonObject();
         data.addProperty("id", id);
         data.addProperty("classCode", classCode);
         data.addProperty("name", name);
         data.addProperty("courseId", courseId);
+        data.addProperty("allowedLanguages", allowedLanguages != null ? allowedLanguages : "c,cpp,java,python");
         sendRequest(MessageType.UPDATE_CLASS, data, callback);
+    }
+
+    public void getClassProblems(int classId, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("classId", classId);
+        sendRequest(MessageType.GET_CLASS_PROBLEMS, data, callback);
+    }
+
+    public void assignClassProblems(int classId, java.util.List<Integer> problemIds, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("classId", classId);
+        JsonArray arr = new JsonArray();
+        if (problemIds != null) {
+            for (int pid : problemIds) arr.add(pid);
+        }
+        data.add("problemIds", arr);
+        sendRequest(MessageType.ASSIGN_CLASS_PROBLEMS, data, callback);
+    }
+
+    public void removeClassProblem(int classId, int problemId, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("classId", classId);
+        data.addProperty("problemId", problemId);
+        sendRequest(MessageType.REMOVE_CLASS_PROBLEM, data, callback);
     }
 
     public void deleteClass(int classId, Consumer<Response> callback) {
@@ -531,10 +566,18 @@ public class SocketClient {
      * Gửi SUBMIT request — nộp code.
      */
     public void submitCode(int problemId, String language, String sourceCode, Consumer<Response> callback) {
+        submitCode(problemId, language, sourceCode, null, false, callback);
+    }
+
+    public void submitCode(int problemId, String language, String sourceCode, Integer classId, boolean isZip, Consumer<Response> callback) {
         JsonObject data = new JsonObject();
         data.addProperty("problemId", problemId);
         data.addProperty("language", language);
         data.addProperty("sourceCode", sourceCode);
+        if (classId != null && classId > 0) {
+            data.addProperty("classId", classId);
+        }
+        data.addProperty("isZip", isZip);
         sendRequest(MessageType.SUBMIT, data, callback);
     }
 

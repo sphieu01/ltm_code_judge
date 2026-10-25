@@ -49,6 +49,8 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
     private TableView<AlertRow> alertTable;
     private TableView<AssessmentRow> assessmentTable;
     private Tab studentsTab;
+    private Tab classProblemsTab;
+    private TableView<Problem> classProblemTable;
 
     public TeacherClassDetailDialog(Stage owner, CreditClass creditClass) {
         this.owner = owner;
@@ -95,7 +97,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         root.setPadding(new Insets(16));
         Label heading = new Label(creditClass.getClassCode() + " — " + creditClass.getName());
         heading.setStyle("-fx-font-size: 19px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
-        Label subtitle = new Label("Quản lý sinh viên, tạo bài kiểm tra và theo dõi tiến độ theo thời gian thực.");
+        Label subtitle = new Label("Quản lý sinh viên, bài tập của lớp, bài kiểm tra và theo dõi tiến độ theo thời gian thực.");
         subtitle.getStyleClass().add("meta-item");
 
         ButtonType createAssessmentType = new ButtonType("Tạo bài kiểm tra", ButtonBar.ButtonData.APPLY);
@@ -107,7 +109,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         TabPane tabs = new TabPane();
         Tab assessmentTab = buildAssessmentTab(createAssessmentButton);
         Tab monitorTab = buildAssessmentMonitorTab();
-        tabs.getTabs().addAll(buildStudentsTab(), assessmentTab, monitorTab);
+        tabs.getTabs().addAll(buildStudentsTab(), buildClassProblemsTab(), assessmentTab, monitorTab);
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         Runnable updateAssessmentButton = () -> {
             boolean assessmentSelected = tabs.getSelectionModel().getSelectedItem() == assessmentTab;
@@ -178,6 +180,246 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         VBox.setVgrow(box, Priority.ALWAYS);
         studentsTab = new Tab("Sinh viên (" + creditClass.getStudentCount() + ")", box);
         return studentsTab;
+    }
+
+    private Tab buildClassProblemsTab() {
+        VBox box = new VBox(12);
+        box.setPadding(new Insets(12));
+
+        HBox topBar = new HBox(12);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+
+        Label countLabel = new Label("Danh sách bài tập được gán vào lớp");
+        countLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: -text-bright;");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button assignBtn = new Button("➕ Gán bài tập vào lớp");
+        assignBtn.getStyleClass().addAll("button", "btn-primary");
+        assignBtn.setOnAction(e -> showAssignProblemsDialog());
+
+        topBar.getChildren().addAll(countLabel, spacer, assignBtn);
+
+        classProblemTable = new TableView<>(problems);
+        classProblemTable.getStyleClass().add("table-view");
+        classProblemTable.setPlaceholder(new Label("Lớp chưa được gán bài tập nào. Hãy bấm 'Gán bài tập vào lớp' để thêm từ kho chung."));
+
+        TableColumn<Problem, Number> idCol = new TableColumn<>("#");
+        idCol.setCellValueFactory(new PropertyValueFactory<>("id"));
+        idCol.setMinWidth(60);
+        idCol.setMaxWidth(80);
+        idCol.setStyle("-fx-alignment: CENTER;");
+
+        TableColumn<Problem, String> titleCol = new TableColumn<>("Tiêu đề bài toán");
+        titleCol.setCellValueFactory(new PropertyValueFactory<>("title"));
+        titleCol.setMinWidth(250);
+
+        TableColumn<Problem, String> typeCol = new TableColumn<>("Loại bài");
+        typeCol.setCellValueFactory(data -> new SimpleStringProperty(
+                data.getValue().isJavaOop() ? "Java OOP (Soi cấu trúc)" : "I/O Matching (Chuẩn)"
+        ));
+        typeCol.setMinWidth(160);
+        typeCol.setMaxWidth(200);
+        typeCol.setStyle("-fx-alignment: CENTER;");
+
+        TableColumn<Problem, String> diffCol = new TableColumn<>("Độ khó");
+        diffCol.setCellValueFactory(new PropertyValueFactory<>("difficulty"));
+        diffCol.setMinWidth(100);
+        diffCol.setMaxWidth(130);
+        diffCol.setStyle("-fx-alignment: CENTER;");
+
+        TableColumn<Problem, Void> actionCol = new TableColumn<>("Thao tác");
+        actionCol.setMinWidth(140);
+        actionCol.setMaxWidth(160);
+        actionCol.setStyle("-fx-alignment: CENTER;");
+        actionCol.setCellFactory(col -> new TableCell<>() {
+            private final Button removeBtn = new Button("Gỡ khỏi lớp");
+            {
+                removeBtn.getStyleClass().addAll("button", "btn-danger");
+                removeBtn.setStyle("-fx-font-size: 12px; -fx-padding: 4px 10px;");
+                removeBtn.setOnAction(e -> {
+                    Problem p = getTableView().getItems().get(getIndex());
+                    handleRemoveProblemFromClass(p);
+                });
+            }
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                setGraphic(empty ? null : removeBtn);
+                setAlignment(Pos.CENTER);
+            }
+        });
+
+        classProblemTable.getColumns().addAll(idCol, titleCol, typeCol, diffCol, actionCol);
+        classProblemTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        VBox.setVgrow(classProblemTable, Priority.ALWAYS);
+
+        box.getChildren().addAll(topBar, classProblemTable);
+        VBox.setVgrow(box, Priority.ALWAYS);
+
+        classProblemsTab = new Tab("Bài tập của lớp (" + problems.size() + ")", box);
+        return classProblemsTab;
+    }
+
+    private void handleRemoveProblemFromClass(Problem problem) {
+        if (problem == null) return;
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.initOwner(owner);
+        confirm.setTitle("Xác nhận gỡ bài");
+        confirm.setHeaderText(null);
+        confirm.setContentText("Bạn có chắc chắn muốn gỡ bài '" + problem.getTitle() + "' khỏi lớp tín chỉ này không?");
+        confirm.showAndWait().ifPresent(btn -> {
+            if (btn == ButtonType.OK) {
+                client.removeClassProblem(creditClass.getId(), problem.getId(), response -> {
+                    Platform.runLater(() -> {
+                        if ("SUCCESS".equalsIgnoreCase(response.getStatus())) {
+                            loadProblems();
+                        } else {
+                            Alert alert = new Alert(Alert.AlertType.ERROR);
+                            alert.initOwner(owner);
+                            alert.setTitle("Lỗi");
+                            alert.setContentText(response.getMessage() != null ? response.getMessage() : "Không thể gỡ bài tập khỏi lớp.");
+                            alert.showAndWait();
+                        }
+                    });
+                });
+            }
+        });
+    }
+
+    private void showAssignProblemsDialog() {
+        Dialog<List<Integer>> dialog = new Dialog<>();
+        dialog.initOwner(owner);
+        dialog.setTitle("Gán bài tập từ kho chung vào lớp");
+        dialog.getDialogPane().getStyleClass().add("card");
+        ThemeManager.getInstance().applyCurrentZoom(dialog.getDialogPane());
+        String cssPath = (ThemeManager.getInstance().isDark()) ? "/css/dark.css" : "/css/light.css";
+        var res = getClass().getResource(cssPath);
+        if (res != null) dialog.getDialogPane().getStylesheets().setAll(res.toExternalForm());
+        dialog.getDialogPane().setPrefSize(700, 500);
+
+        VBox content = new VBox(12);
+        content.setPadding(new Insets(16));
+
+        Label info = new Label("Chọn các bài tập từ kho chung để gán vào lớp '" + creditClass.getName() + "':");
+        info.setStyle("-fx-font-weight: bold; -fx-text-fill: -text-bright;");
+
+        ObservableList<Problem> allProblems = FXCollections.observableArrayList();
+        Set<Integer> currentProblemIds = new HashSet<>();
+        for (Problem p : problems) currentProblemIds.add(p.getId());
+
+        TableView<Problem> table = new TableView<>(allProblems);
+        table.setPlaceholder(new Label("Đang tải danh sách bài tập..."));
+
+        TableColumn<Problem, Boolean> checkCol = new TableColumn<>("Chọn");
+        checkCol.setMinWidth(70);
+        checkCol.setMaxWidth(80);
+        checkCol.setStyle("-fx-alignment: CENTER;");
+        checkCol.setCellValueFactory(data -> new javafx.beans.property.SimpleBooleanProperty(data.getValue().isActive()));
+        checkCol.setCellFactory(col -> new TableCell<>() {
+            private final CheckBox check = new CheckBox();
+            {
+                check.setOnAction(e -> getTableView().getItems().get(getIndex()).setActive(check.isSelected()));
+            }
+            @Override
+            protected void updateItem(Boolean item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty) setGraphic(null);
+                else {
+                    check.setSelected(Boolean.TRUE.equals(item));
+                    setGraphic(check);
+                    setAlignment(Pos.CENTER);
+                }
+            }
+        });
+
+        TableColumn<Problem, Number> idCol = new TableColumn<>("#");
+        idCol.setCellValueFactory(new PropertyValueFactory<>("id"));
+        idCol.setMinWidth(50);
+        idCol.setMaxWidth(70);
+        idCol.setStyle("-fx-alignment: CENTER;");
+
+        TableColumn<Problem, String> titleCol = new TableColumn<>("Tiêu đề");
+        titleCol.setCellValueFactory(new PropertyValueFactory<>("title"));
+        titleCol.setMinWidth(250);
+
+        TableColumn<Problem, String> typeCol = new TableColumn<>("Loại bài");
+        typeCol.setCellValueFactory(data -> new SimpleStringProperty(
+                data.getValue().isJavaOop() ? "Java OOP" : "I/O Matching"
+        ));
+        typeCol.setMinWidth(120);
+        typeCol.setMaxWidth(140);
+        typeCol.setStyle("-fx-alignment: CENTER;");
+
+        TableColumn<Problem, String> diffCol = new TableColumn<>("Độ khó");
+        diffCol.setCellValueFactory(new PropertyValueFactory<>("difficulty"));
+        diffCol.setMinWidth(90);
+        diffCol.setMaxWidth(110);
+        diffCol.setStyle("-fx-alignment: CENTER;");
+
+        table.getColumns().addAll(checkCol, idCol, titleCol, typeCol, diffCol);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        VBox.setVgrow(table, Priority.ALWAYS);
+
+        content.getChildren().addAll(info, table);
+        dialog.getDialogPane().setContent(content);
+
+        ButtonType assignType = new ButtonType("Gán vào lớp", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(assignType, ButtonType.CANCEL);
+        Button assignBtn = (Button) dialog.getDialogPane().lookupButton(assignType);
+        assignBtn.getStyleClass().addAll("button", "btn-primary");
+
+        client.getProblems(0, response -> Platform.runLater(() -> {
+            if ("SUCCESS".equalsIgnoreCase(response.getStatus()) && response.getData() != null) {
+                List<Problem> list = new ArrayList<>();
+                for (JsonElement el : response.getData().getAsJsonArray()) {
+                    JsonObject o = el.getAsJsonObject();
+                    int pid = o.has("id") ? o.get("id").getAsInt() : 0;
+                    if (currentProblemIds.contains(pid)) continue;
+                    Problem p = new Problem();
+                    p.setId(pid);
+                    if (o.has("title")) p.setTitle(o.get("title").getAsString());
+                    if (o.has("difficulty")) p.setDifficulty(o.get("difficulty").getAsString());
+                    if (o.has("problemType")) p.setProblemType(o.get("problemType").getAsString());
+                    p.setActive(false);
+                    list.add(p);
+                }
+                allProblems.setAll(list);
+                if (list.isEmpty()) {
+                    table.setPlaceholder(new Label("Tất cả bài tập trong kho đã được gán vào lớp này."));
+                }
+            }
+        }));
+
+        dialog.setResultConverter(btn -> {
+            if (btn == assignType) {
+                List<Integer> selectedIds = new ArrayList<>();
+                for (Problem p : allProblems) {
+                    if (p.isActive()) selectedIds.add(p.getId());
+                }
+                return selectedIds;
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(selectedIds -> {
+            if (!selectedIds.isEmpty()) {
+                client.assignClassProblems(creditClass.getId(), selectedIds, response -> {
+                    Platform.runLater(() -> {
+                        if ("SUCCESS".equalsIgnoreCase(response.getStatus())) {
+                            loadProblems();
+                        } else {
+                            Alert alert = new Alert(Alert.AlertType.ERROR);
+                            alert.initOwner(owner);
+                            alert.setTitle("Lỗi");
+                            alert.setContentText(response.getMessage() != null ? response.getMessage() : "Không thể gán bài tập vào lớp.");
+                            alert.showAndWait();
+                        }
+                    });
+                });
+            }
+        });
     }
 
     private Tab buildAssessmentTab(Button createAssessmentButton) {
@@ -529,18 +771,24 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
 
     private void loadProblems() {
         if (client == null || !client.isConnected()) return;
-        client.getProblems(creditClass.getId(), response -> Platform.runLater(() -> {
+        client.getClassProblems(creditClass.getId(), response -> Platform.runLater(() -> {
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null) return;
             List<Problem> list = new ArrayList<>();
             for (JsonElement e : response.getData().getAsJsonArray()) {
-                JsonObject o = e.getAsJsonObject(); Problem p = new Problem();
+                JsonObject o = e.getAsJsonObject();
+                Problem p = new Problem();
                 if (o.has("id")) p.setId(o.get("id").getAsInt());
                 if (o.has("title")) p.setTitle(o.get("title").getAsString());
                 if (o.has("difficulty")) p.setDifficulty(o.get("difficulty").getAsString());
-                // Assessment selection always starts empty; the teacher explicitly chooses each problem.
-                p.setActive(false); list.add(p);
+                if (o.has("problemType")) p.setProblemType(o.get("problemType").getAsString());
+                if (o.has("oopSpec") && !o.get("oopSpec").isJsonNull()) p.setOopSpec(o.get("oopSpec").getAsString());
+                p.setActive(false);
+                list.add(p);
             }
             problems.setAll(list);
+            if (classProblemsTab != null) {
+                classProblemsTab.setText("Bài tập của lớp (" + list.size() + ")");
+            }
         }));
     }
 

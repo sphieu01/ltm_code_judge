@@ -98,7 +98,10 @@ public class ProblemController {
         // Đã có kết nối -> Gửi request nộp bài qua SocketClient
         v.setBusy(true, "Đang nộp bài lên Server...");
 
-        socketClient.submitCode(problemId, lang, code, response -> {
+        Integer classId = (problem != null) ? problem.getClassId() : null;
+        boolean isZip = v.isZipSubmission();
+
+        socketClient.submitCode(problemId, lang, code, classId, isZip, response -> {
             Platform.runLater(() -> {
                 handleSubmitResponse(response);
             });

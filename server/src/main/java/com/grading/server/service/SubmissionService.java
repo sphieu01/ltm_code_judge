@@ -51,20 +51,31 @@ public class SubmissionService {
      */
     public Submission submit(int userId, int problemId, String sourceCode, String language)
             throws IllegalArgumentException, IllegalStateException, SQLException {
-        return submit(userId, problemId, null, sourceCode, language);
+        return submit(userId, problemId, null, sourceCode, language, false);
     }
 
     public Submission submit(int userId, int problemId, Integer assessmentId,
                              String sourceCode, String language)
             throws IllegalArgumentException, IllegalStateException, SQLException {
+        return submit(userId, problemId, assessmentId, sourceCode, language, false);
+    }
+
+    public Submission submit(int userId, int problemId, Integer assessmentId,
+                             String sourceCode, String language, boolean isZip)
+            throws IllegalArgumentException, IllegalStateException, SQLException {
 
         // Validate
         validateLanguage(language);
-        validateSourceCode(sourceCode);
+        if (isZip) {
+            validateZipContent(sourceCode);
+        } else {
+            validateSourceCode(sourceCode);
+        }
 
         // Lưu submission vào DB
         Submission submission = new Submission(userId, problemId, sourceCode, language.toLowerCase());
         submission.setAssessmentId(assessmentId);
+        submission.setZip(isZip);
         submission = submissionRepository.save(submission);
 
         // Đánh dấu thời điểm vào queue (dùng để tính queue waiting time)
@@ -78,8 +89,8 @@ public class SubmissionService {
             throw new IllegalStateException("Server đang bận, vui lòng thử lại sau");
         }
 
-        logger.info("Submission id={} enqueued (userId={}, problemId={}, lang={})",
-                submission.getId(), userId, problemId, language);
+        logger.info("Submission id={} enqueued (userId={}, problemId={}, lang={}, isZip={})",
+                submission.getId(), userId, problemId, language, isZip);
 
         return submission;
     }
@@ -148,6 +159,15 @@ public class SubmissionService {
         }
         if (sourceCode.length() > 100_000) { // 100KB limit
             throw new IllegalArgumentException("Source code vượt quá giới hạn 100KB");
+        }
+    }
+
+    private void validateZipContent(String base64Zip) {
+        if (base64Zip == null || base64Zip.isBlank()) {
+            throw new IllegalArgumentException("Dữ liệu nộp bài (.zip) không được để trống");
+        }
+        if (base64Zip.length() > 5_000_000) { // ~3.5MB unencoded
+            throw new IllegalArgumentException("File nộp vượt quá giới hạn 3.5MB");
         }
     }
 }

@@ -113,7 +113,7 @@ public class DockerSandboxRunner {
                 cmd.addAll(List.of("python3", "-m", "py_compile", "/app/solution.py"));
                 break;
             case "java":
-                cmd.addAll(List.of("javac", "-encoding", "UTF-8", "/app/" + className + ".java"));
+                cmd.addAll(List.of("bash", "-c", "javac -encoding UTF-8 /app/*.java"));
                 break;
             default:
                 return CompileResult.failure("Unsupported language in Docker: " + language);

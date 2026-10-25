@@ -50,6 +50,11 @@ public class DashboardController {
     private void initEvents() {
         view.setOnSelectProblem(problem -> {
             if (onSelectProblem != null) {
+                CreditClass sel = view.getSelectedClass();
+                if (sel != null && (problem.getClassId() == null || problem.getClassId() <= 0)) {
+                    problem.setClassId(sel.getId());
+                    problem.setClassName(sel.getName());
+                }
                 onSelectProblem.accept(problem);
             }
         });
@@ -92,6 +97,9 @@ public class DashboardController {
                             if (obj.has("classCode")) cc.setClassCode(obj.get("classCode").getAsString());
                             if (obj.has("name")) cc.setName(obj.get("name").getAsString());
                             if (obj.has("courseName")) cc.setCourseName(obj.get("courseName").getAsString());
+                            if (obj.has("allowedLanguages") && !obj.get("allowedLanguages").isJsonNull()) {
+                                cc.setAllowedLanguages(obj.get("allowedLanguages").getAsString());
+                            }
                             classes.add(cc);
                         }
                     }
@@ -250,6 +258,8 @@ public class DashboardController {
                 p.setTimeLimitMs(intValue(obj, "timeLimitMs"));
                 p.setMemoryLimitKb(intValue(obj, "memoryLimitKb"));
                 if (obj.has("classId") && !obj.get("classId").isJsonNull()) p.setClassId(obj.get("classId").getAsInt());
+                if (obj.has("problemType") && !obj.get("problemType").isJsonNull()) p.setProblemType(obj.get("problemType").getAsString());
+                if (obj.has("oopSpec") && !obj.get("oopSpec").isJsonNull()) p.setOopSpec(obj.get("oopSpec").getAsString());
                 p.setStatus(stringValue(obj, "verdict"));
                 list.add(p);
             }
@@ -334,6 +344,8 @@ public class DashboardController {
                         if (obj.has("description")) p.setDescription(obj.get("description").getAsString());
                         if (obj.has("classId") && !obj.get("classId").isJsonNull()) p.setClassId(obj.get("classId").getAsInt());
                         if (obj.has("className") && !obj.get("className").isJsonNull()) p.setClassName(obj.get("className").getAsString());
+                        if (obj.has("problemType") && !obj.get("problemType").isJsonNull()) p.setProblemType(obj.get("problemType").getAsString());
+                        if (obj.has("oopSpec") && !obj.get("oopSpec").isJsonNull()) p.setOopSpec(obj.get("oopSpec").getAsString());
                         p.setStatus(sessionManager.getProblemStatus(p.getId()));
                         list.add(p);
                     }

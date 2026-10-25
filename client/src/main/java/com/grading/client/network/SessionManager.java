@@ -16,6 +16,7 @@ public class SessionManager {
 
     private SocketClient socketClient;
     private User currentUser;
+    private volatile com.grading.client.model.CreditClass currentClass;
     private volatile Integer activeAssessmentId;
     private volatile boolean assessmentCompleted;
 
@@ -42,6 +43,14 @@ public class SessionManager {
 
     public void setCurrentUser(User user) {
         this.currentUser = user;
+    }
+
+    public com.grading.client.model.CreditClass getCurrentClass() {
+        return currentClass;
+    }
+
+    public void setCurrentClass(com.grading.client.model.CreditClass currentClass) {
+        this.currentClass = currentClass;
     }
 
     public Integer getActiveAssessmentId() { return activeAssessmentId; }
@@ -92,6 +101,7 @@ public class SessionManager {
             socketClient.disconnect();
         }
         currentUser = null;
+        currentClass = null;
         socketClient = null;
         problemStatusMap.clear();
         activeAssessmentId = null;

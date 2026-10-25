@@ -76,16 +76,41 @@ public class TeacherClassDialog extends Dialog<CreditClass> {
         CheckBox cbJava = new CheckBox("Java");
         CheckBox cbPython = new CheckBox("Python");
 
+        java.util.function.Consumer<Course> syncCourseLanguages = (c) -> {
+            if (c == null) return;
+            String cLang = c.getLanguage() != null ? c.getLanguage().toLowerCase() : "";
+            String cName = c.getName() != null ? c.getName().toLowerCase() : "";
+            if (cLang.equals("java") || cName.contains("java") || cName.contains("oop") || cName.contains("hướng đối tượng")) {
+                cbC.setSelected(false);
+                cbCpp.setSelected(false);
+                cbJava.setSelected(true);
+                cbPython.setSelected(false);
+            } else if (cLang.equals("python") || cName.contains("python")) {
+                cbC.setSelected(false);
+                cbCpp.setSelected(false);
+                cbJava.setSelected(false);
+                cbPython.setSelected(true);
+            } else if (cLang.equals("cpp") || cLang.equals("c") || cName.contains("c++") || cName.contains("c/c++")) {
+                cbC.setSelected(true);
+                cbCpp.setSelected(true);
+                cbJava.setSelected(false);
+                cbPython.setSelected(false);
+            } else {
+                cbC.setSelected(true);
+                cbCpp.setSelected(true);
+                cbJava.setSelected(true);
+                cbPython.setSelected(true);
+            }
+        };
+
         if (isEdit) {
             cbC.setSelected(existingClass.isLanguageAllowed("c"));
             cbCpp.setSelected(existingClass.isLanguageAllowed("cpp"));
             cbJava.setSelected(existingClass.isLanguageAllowed("java"));
             cbPython.setSelected(existingClass.isLanguageAllowed("python"));
         } else {
-            cbC.setSelected(true);
-            cbCpp.setSelected(true);
-            cbJava.setSelected(true);
-            cbPython.setSelected(true);
+            syncCourseLanguages.accept(courseCombo.getSelectionModel().getSelectedItem());
+            courseCombo.valueProperty().addListener((obs, oldVal, newVal) -> syncCourseLanguages.accept(newVal));
         }
 
         HBox langBox = new HBox(16, cbC, cbCpp, cbJava, cbPython);

@@ -52,6 +52,40 @@ public class CreditClass {
     public int getStudentCount() { return studentCount; }
     public void setStudentCount(int studentCount) { this.studentCount = studentCount; }
 
+    public String getEffectiveLanguage() {
+        if (courseLanguage != null && !courseLanguage.isBlank()) {
+            return courseLanguage.trim().toLowerCase();
+        }
+        String combined = ((name != null ? name : "") + " " + (courseName != null ? courseName : "")).toLowerCase();
+        if (combined.contains("oop") || combined.contains("java") || combined.contains("hướng đối tượng")) {
+            return "java";
+        }
+        if (combined.contains("python") || combined.contains("py")) {
+            return "python";
+        }
+        if (combined.contains("c++") || combined.contains("cpp")) {
+            return "cpp";
+        }
+        if (combined.contains("ngôn ngữ c") || combined.contains("lập trình c")) {
+            return "c";
+        }
+        if (allowedLanguages != null && !allowedLanguages.isBlank() && !allowedLanguages.contains(",")) {
+            return allowedLanguages.trim().toLowerCase();
+        }
+        return null;
+    }
+
+    public String getEffectiveAllowedLanguages() {
+        String eff = getEffectiveLanguage();
+        if (eff != null) {
+            if ("cpp".equalsIgnoreCase(eff)) {
+                return "cpp,c";
+            }
+            return eff;
+        }
+        return getAllowedLanguages();
+    }
+
     public String getAllowedLanguages() {
         return allowedLanguages != null && !allowedLanguages.isBlank() ? allowedLanguages : "c,cpp,java,python";
     }
@@ -62,7 +96,7 @@ public class CreditClass {
     public boolean isLanguageAllowed(String lang) {
         if (lang == null) return false;
         String clean = lang.trim().toLowerCase();
-        for (String item : getAllowedLanguages().split(",")) {
+        for (String item : getEffectiveAllowedLanguages().split(",")) {
             if (item.trim().equalsIgnoreCase(clean)) return true;
         }
         return false;

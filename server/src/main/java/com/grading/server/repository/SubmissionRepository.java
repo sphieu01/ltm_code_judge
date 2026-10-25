@@ -20,6 +20,10 @@ public class SubmissionRepository {
     public SubmissionRepository() {
         try (Connection conn = DatabaseConfig.getConnection();
              Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS assessment_id INT " +
+                    "REFERENCES assessments(id) ON DELETE SET NULL");
+            stmt.executeUpdate("CREATE INDEX IF NOT EXISTS idx_submissions_assessment " +
+                    "ON submissions(assessment_id, user_id, problem_id, submitted_at)");
             stmt.executeUpdate("UPDATE submissions SET score = 0 WHERE total_tests = 0 AND score <> 0");
         } catch (SQLException e) {
             logger.warn("Could not normalize legacy submission scores: {}", e.getMessage());
@@ -28,26 +32,33 @@ public class SubmissionRepository {
 
     // ─── SQL ──────────────────────────────────────────────────────────────────
     private static final String SQL_INSERT =
-            "INSERT INTO submissions (user_id, problem_id, source_code, language, verdict, submitted_at) " +
-            "VALUES (?, ?, ?, ?, 'PENDING'::verdict_type, CURRENT_TIMESTAMP) RETURNING id, submitted_at";
+            "INSERT INTO submissions (user_id, problem_id, assessment_id, source_code, language, verdict, submitted_at) " +
+            "VALUES (?, ?, ?, ?, ?, 'PENDING'::verdict_type, CURRENT_TIMESTAMP) RETURNING id, submitted_at";
 
     private static final String SQL_FIND_BY_ID =
-            "SELECT s.id, s.user_id, s.problem_id, p.title AS problem_title, s.source_code, s.language, s.verdict, s.score, " +
+            "SELECT s.id, s.user_id, s.problem_id, s.assessment_id, p.title AS problem_title, s.source_code, s.language, s.verdict, s.score, " +
             "s.passed_tests, s.total_tests, s.exec_time_ms, s.memory_used_kb, s.compile_output, " +
             "s.submitted_at, s.judged_at FROM submissions s " +
             "LEFT JOIN problems p ON s.problem_id = p.id WHERE s.id = ?";
 
     private static final String SQL_FIND_BY_USER =
-            "SELECT s.id, s.user_id, s.problem_id, p.title AS problem_title, s.source_code, s.language, s.verdict, s.score, " +
+            "SELECT s.id, s.user_id, s.problem_id, s.assessment_id, p.title AS problem_title, s.source_code, s.language, s.verdict, s.score, " +
             "s.passed_tests, s.total_tests, s.exec_time_ms, s.memory_used_kb, s.compile_output, " +
             "s.submitted_at, s.judged_at FROM submissions s " +
             "LEFT JOIN problems p ON s.problem_id = p.id WHERE s.user_id = ? ORDER BY s.submitted_at DESC";
 
     private static final String SQL_FIND_BY_USER_AND_PROBLEM =
-            "SELECT s.id, s.user_id, s.problem_id, p.title AS problem_title, s.source_code, s.language, s.verdict, s.score, " +
+            "SELECT s.id, s.user_id, s.problem_id, s.assessment_id, p.title AS problem_title, s.source_code, s.language, s.verdict, s.score, " +
             "s.passed_tests, s.total_tests, s.exec_time_ms, s.memory_used_kb, s.compile_output, " +
             "s.submitted_at, s.judged_at FROM submissions s " +
             "LEFT JOIN problems p ON s.problem_id = p.id WHERE s.user_id = ? AND s.problem_id = ? ORDER BY s.submitted_at DESC";
+
+    private static final String SQL_FIND_BY_USER_PROBLEM_ASSESSMENT =
+            "SELECT s.id, s.user_id, s.problem_id, s.assessment_id, p.title AS problem_title, s.source_code, s.language, s.verdict, s.score, " +
+            "s.passed_tests, s.total_tests, s.exec_time_ms, s.memory_used_kb, s.compile_output, " +
+            "s.submitted_at, s.judged_at FROM submissions s " +
+            "LEFT JOIN problems p ON s.problem_id = p.id " +
+            "WHERE s.user_id = ? AND s.problem_id = ? AND s.assessment_id = ? ORDER BY s.submitted_at DESC";
 
     private static final String SQL_UPDATE_VERDICT =
             "UPDATE submissions SET verdict = ?::verdict_type, score = ?, " +
@@ -72,8 +83,10 @@ public class SubmissionRepository {
 
             stmt.setInt(1, submission.getUserId());
             stmt.setInt(2, submission.getProblemId());
-            stmt.setString(3, submission.getSourceCode());
-            stmt.setString(4, submission.getLanguage());
+            if (submission.getAssessmentId() == null) stmt.setNull(3, Types.INTEGER);
+            else stmt.setInt(3, submission.getAssessmentId());
+            stmt.setString(4, submission.getSourceCode());
+            stmt.setString(5, submission.getLanguage());
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
@@ -158,6 +171,21 @@ public class SubmissionRepository {
         return list;
     }
 
+    public List<Submission> findByUserProblemAndAssessment(int userId, int problemId, int assessmentId)
+            throws SQLException {
+        List<Submission> list = new ArrayList<>();
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(SQL_FIND_BY_USER_PROBLEM_ASSESSMENT)) {
+            stmt.setInt(1, userId);
+            stmt.setInt(2, problemId);
+            stmt.setInt(3, assessmentId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) list.add(mapRow(rs));
+            }
+        }
+        return list;
+    }
+
     /**
      * Cập nhật trạng thái sang JUDGING khi worker bắt đầu xử lý.
      */
@@ -227,6 +255,8 @@ public class SubmissionRepository {
         s.setId(rs.getInt("id"));
         s.setUserId(rs.getInt("user_id"));
         s.setProblemId(rs.getInt("problem_id"));
+        int assessmentId = rs.getInt("assessment_id");
+        if (!rs.wasNull()) s.setAssessmentId(assessmentId);
         try {
             s.setProblemTitle(rs.getString("problem_title"));
         } catch (SQLException ignored) {}

@@ -51,6 +51,12 @@ public class SubmissionService {
      */
     public Submission submit(int userId, int problemId, String sourceCode, String language)
             throws IllegalArgumentException, IllegalStateException, SQLException {
+        return submit(userId, problemId, null, sourceCode, language);
+    }
+
+    public Submission submit(int userId, int problemId, Integer assessmentId,
+                             String sourceCode, String language)
+            throws IllegalArgumentException, IllegalStateException, SQLException {
 
         // Validate
         validateLanguage(language);
@@ -58,6 +64,7 @@ public class SubmissionService {
 
         // Lưu submission vào DB
         Submission submission = new Submission(userId, problemId, sourceCode, language.toLowerCase());
+        submission.setAssessmentId(assessmentId);
         submission = submissionRepository.save(submission);
 
         // Đánh dấu thời điểm vào queue (dùng để tính queue waiting time)
@@ -113,6 +120,11 @@ public class SubmissionService {
      */
     public List<Submission> getHistoryForProblem(int userId, int problemId) throws SQLException {
         return submissionRepository.findByUserIdAndProblemId(userId, problemId);
+    }
+
+    public List<Submission> getHistoryForAssessmentProblem(int userId, int problemId, int assessmentId)
+            throws SQLException {
+        return submissionRepository.findByUserProblemAndAssessment(userId, problemId, assessmentId);
     }
 
     // ─── Validation ───────────────────────────────────────────────────────────

@@ -41,8 +41,23 @@ echo [INFO] Maven CMD: %MVN_CMD%
 echo [INFO] Starting Client UI...
 echo.
 
-echo [INFO] Cleaning and compiling client classes...
-call "%MVN_CMD%" clean compile javafx:run
+set "CLIENT_JAR=target\grading-client-1.0-SNAPSHOT.jar"
+
+REM Uu tien chay JAR da build de co the mo nhieu client cung luc.
+IF EXIST "%CLIENT_JAR%" (
+    echo [INFO] Starting existing Client JAR...
+    start "Auto Grader Client" javaw -jar "%CLIENT_JAR%"
+    exit /b 0
+)
+
+echo [INFO] Client JAR not found. Building it first...
+REM Khong dung "clean": mot client dang chay co the khoa file JAR tren Windows.
+call "%MVN_CMD%" package -DskipTests
+
+IF NOT ERRORLEVEL 1 (
+    start "Auto Grader Client" javaw -jar "%CLIENT_JAR%"
+    exit /b 0
+)
 
 IF ERRORLEVEL 1 (
     echo.

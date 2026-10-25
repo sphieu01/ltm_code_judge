@@ -7,6 +7,7 @@ public class Submission {
     private int id;
     private int userId;
     private int problemId;
+    private Integer assessmentId;
     private String problemTitle;
     private String language;
     private String sourceCode;
@@ -30,6 +31,9 @@ public class Submission {
 
     public int getProblemId() { return problemId; }
     public void setProblemId(int problemId) { this.problemId = problemId; }
+
+    public Integer getAssessmentId() { return assessmentId; }
+    public void setAssessmentId(Integer assessmentId) { this.assessmentId = assessmentId; }
 
     public String getProblemTitle() { return problemTitle; }
     public void setProblemTitle(String problemTitle) { this.problemTitle = problemTitle; }

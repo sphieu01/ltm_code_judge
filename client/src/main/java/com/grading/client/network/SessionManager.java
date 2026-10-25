@@ -16,6 +16,8 @@ public class SessionManager {
 
     private SocketClient socketClient;
     private User currentUser;
+    private volatile Integer activeAssessmentId;
+    private volatile boolean assessmentCompleted;
 
     private SessionManager() {}
 
@@ -41,6 +43,19 @@ public class SessionManager {
     public void setCurrentUser(User user) {
         this.currentUser = user;
     }
+
+    public Integer getActiveAssessmentId() { return activeAssessmentId; }
+
+    public void setActiveAssessment(Integer assessmentId, boolean completed) {
+        this.activeAssessmentId = assessmentId;
+        this.assessmentCompleted = completed;
+    }
+
+    public boolean isAssessmentMode() {
+        return activeAssessmentId != null && !assessmentCompleted;
+    }
+
+    public boolean isAssessmentCompleted() { return assessmentCompleted; }
 
     private final java.util.Map<Integer, String> problemStatusMap = new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -79,6 +94,8 @@ public class SessionManager {
         currentUser = null;
         socketClient = null;
         problemStatusMap.clear();
+        activeAssessmentId = null;
+        assessmentCompleted = false;
     }
 
     public String getToken() {

@@ -40,12 +40,14 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
     private final ObservableList<User.UserDTO> students = FXCollections.observableArrayList();
     private final ObservableList<Problem> problems = FXCollections.observableArrayList();
     private final ObservableList<AlertRow> alerts = FXCollections.observableArrayList();
+    private final ObservableList<AssessmentRow> assessments = FXCollections.observableArrayList();
     private final Set<Integer> studentIds = new HashSet<>();
     private final Map<Integer, Integer> solvedCounts = new HashMap<>();
 
     private TableView<User.UserDTO> studentTable;
     private TableView<Problem> problemTable;
     private TableView<AlertRow> alertTable;
+    private TableView<AssessmentRow> assessmentTable;
     private Tab studentsTab;
 
     public TeacherClassDetailDialog(Stage owner, CreditClass creditClass) {
@@ -56,6 +58,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         build();
         loadStudents();
         loadProblems();
+        loadAssessments();
     }
 
     private void build() {
@@ -92,7 +95,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         root.setPadding(new Insets(16));
         Label heading = new Label(creditClass.getClassCode() + " — " + creditClass.getName());
         heading.setStyle("-fx-font-size: 19px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
-        Label subtitle = new Label("Quản lý sinh viên, kiểm tra theo lớp và các cảnh báo giám sát.");
+        Label subtitle = new Label("Quản lý sinh viên, tạo bài kiểm tra và theo dõi tiến độ theo thời gian thực.");
         subtitle.getStyleClass().add("meta-item");
 
         ButtonType createAssessmentType = new ButtonType("Tạo bài kiểm tra", ButtonBar.ButtonData.APPLY);
@@ -103,7 +106,8 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
 
         TabPane tabs = new TabPane();
         Tab assessmentTab = buildAssessmentTab(createAssessmentButton);
-        tabs.getTabs().addAll(buildStudentsTab(), assessmentTab, buildAlertsTab());
+        Tab monitorTab = buildAssessmentMonitorTab();
+        tabs.getTabs().addAll(buildStudentsTab(), assessmentTab, monitorTab);
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         Runnable updateAssessmentButton = () -> {
             boolean assessmentSelected = tabs.getSelectionModel().getSelectedItem() == assessmentTab;
@@ -190,8 +194,8 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
 
         TextField title = new TextField();
         title.setPromptText("Nhập tên bài kiểm tra");
-        LocalDateTime initialStart = LocalDate.now().atStartOfDay();
-        LocalDateTime initialClose = LocalDate.now().plusDays(1).atStartOfDay();
+        LocalDateTime initialStart = LocalDateTime.now().plusMinutes(1).withSecond(0).withNano(0);
+        LocalDateTime initialClose = initialStart.plusMinutes(60);
         DatePicker openDate = new DatePicker(initialStart.toLocalDate());
         DatePicker closeDate = new DatePicker(initialClose.toLocalDate());
         Spinner<Integer> openHour = new Spinner<>(0, 23, initialStart.getHour());
@@ -296,6 +300,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
                     duration.getValue(), selectedIds, response -> Platform.runLater(() -> {
                         createAssessmentButton.setDisable(false);
                         if ("SUCCESS".equalsIgnoreCase(response.getStatus())) {
+                            loadAssessments();
                             Alert notice = new Alert(Alert.AlertType.INFORMATION, response.getMessage(), ButtonType.OK);
                             notice.initOwner(owner);
                             notice.showAndWait();
@@ -305,8 +310,86 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
                     }));
         });
         box.getChildren().addAll(config, validation, problemTable);
-        VBox.setVgrow(box, Priority.ALWAYS);
-        return new Tab("Kiểm tra", box);
+        VBox.setVgrow(problemTable, Priority.ALWAYS);
+        return new Tab("Tạo bài kiểm tra", box);
+    }
+
+    private Tab buildAssessmentMonitorTab() {
+        VBox box = new VBox(12);
+        box.setPadding(new Insets(16));
+        Label existingTitle = new Label("Các bài kiểm tra đã tạo");
+        existingTitle.setStyle("-fx-font-size: 17px; -fx-font-weight: bold;");
+        Label hint = new Label("Nhấp đúp vào một bài kiểm tra hoặc dùng nút bên phải để mở trang giám sát và lịch sử.");
+        hint.getStyleClass().add("meta-item");
+        assessmentTable = new TableView<>(assessments);
+        assessmentTable.setPlaceholder(new Label("Chưa có bài kiểm tra nào."));
+        assessmentTable.getColumns().addAll(
+                assessmentColumn("Tên bài kiểm tra", AssessmentRow::title, 250),
+                assessmentColumn("Trạng thái", AssessmentRow::status, 120),
+                assessmentColumn("Thời gian", AssessmentRow::window, 270),
+                assessmentColumn("Tiến độ", AssessmentRow::progress, 160),
+                assessmentActionColumn());
+        assessmentTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        assessmentTable.setRowFactory(table -> {
+            TableRow<AssessmentRow> row = new TableRow<>();
+            row.setOnMouseClicked(event -> {
+                if (event.getClickCount() == 2 && !row.isEmpty()) openAssessmentMonitor(row.getItem());
+            });
+            return row;
+        });
+        Button refresh = new Button("Làm mới");
+        refresh.getStyleClass().addAll("button", "btn-secondary");
+        refresh.setOnAction(e -> loadAssessments());
+        HBox header = new HBox(10, existingTitle, new Region(), refresh);
+        HBox.setHgrow(header.getChildren().get(1), Priority.ALWAYS);
+        header.setAlignment(Pos.CENTER_LEFT);
+        box.getChildren().addAll(header, hint, assessmentTable);
+        VBox.setVgrow(assessmentTable, Priority.ALWAYS);
+        return new Tab("Giám sát kiểm tra", box);
+    }
+
+    private TableColumn<AssessmentRow, String> assessmentColumn(String title,
+            java.util.function.Function<AssessmentRow, String> getter, double width) {
+        TableColumn<AssessmentRow, String> column = new TableColumn<>(title);
+        column.setCellValueFactory(data -> new SimpleStringProperty(getter.apply(data.getValue())));
+        column.setPrefWidth(width);
+        return column;
+    }
+
+    private TableColumn<AssessmentRow, Void> assessmentActionColumn() {
+        TableColumn<AssessmentRow, Void> column = new TableColumn<>("Trạng thái / Thao tác");
+        column.setPrefWidth(255);
+        column.setCellFactory(c -> new TableCell<>() {
+            private final Button stateButton = new Button();
+            private final Button actionButton = new Button();
+            private final HBox buttons = new HBox(8, stateButton, actionButton);
+            {
+                buttons.setAlignment(Pos.CENTER);
+                stateButton.getStyleClass().addAll("button", "btn-secondary");
+                stateButton.setDisable(true);
+                actionButton.getStyleClass().addAll("button", "btn-primary");
+                actionButton.setOnAction(e -> openAssessmentMonitor(getTableView().getItems().get(getIndex())));
+            }
+            @Override protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                if (!empty) {
+                    AssessmentRow row = getTableView().getItems().get(getIndex());
+                    boolean active = "ACTIVE".equalsIgnoreCase(row.rawStatus());
+                    boolean expired = "EXPIRED".equalsIgnoreCase(row.rawStatus());
+                    stateButton.setText(active ? "Đang diễn ra" : expired ? "Đã kết thúc" : "Sắp diễn ra");
+                    actionButton.setText(expired ? "Xem lịch sử" : "Mở giám sát");
+                }
+                setGraphic(empty ? null : buttons);
+                setAlignment(Pos.CENTER);
+            }
+        });
+        return column;
+    }
+
+    private void openAssessmentMonitor(AssessmentRow row) {
+        if (row == null) return;
+        new TeacherAssessmentMonitorDialog(owner, row.id(), row.title()).showAndWait();
+        loadAssessments();
     }
 
     private HBox dateTimeBox(DatePicker date, Spinner<Integer> hour, Spinner<Integer> minute) {
@@ -405,7 +488,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
             students.setAll(list);
             creditClass.setStudentCount(list.size());
             if (studentsTab != null) studentsTab.setText("Sinh viên (" + list.size() + ")");
-            loadStats(); loadAlerts();
+            loadStats();
         }));
     }
 
@@ -461,6 +544,49 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         }));
     }
 
+    private void loadAssessments() {
+        if (client == null || !client.isConnected()) return;
+        client.getClassAssessments(creditClass.getId(), response -> Platform.runLater(() -> {
+            if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null
+                    || !response.getData().isJsonArray()) {
+                assessments.clear();
+                return;
+            }
+            List<AssessmentRow> rows = new ArrayList<>();
+            for (JsonElement element : response.getData().getAsJsonArray()) {
+                JsonObject o = element.getAsJsonObject();
+                int studentCount = intValue(o, "studentCount");
+                int startedCount = intValue(o, "startedCount");
+                int completedCount = intValue(o, "completedCount");
+                rows.add(new AssessmentRow(
+                        intValue(o, "id"),
+                        value(o, "title"),
+                        assessmentStatus(value(o, "status")),
+                        compactTime(value(o, "opensAt")) + " → " + compactTime(value(o, "closesAt")),
+                        "Đã làm " + startedCount + "/" + studentCount + " • Xong " + completedCount,
+                        value(o, "status")));
+            }
+            assessments.setAll(rows);
+        }));
+    }
+
+    private int intValue(JsonObject object, String field) {
+        return object.has(field) && !object.get(field).isJsonNull() ? object.get(field).getAsInt() : 0;
+    }
+
+    private String compactTime(String value) {
+        return value == null || value.equals("—") ? "—" : value.replace('T', ' ');
+    }
+
+    private String assessmentStatus(String status) {
+        return switch (status) {
+            case "ACTIVE" -> "Đang diễn ra";
+            case "UPCOMING" -> "Sắp diễn ra";
+            case "EXPIRED" -> "Đã kết thúc";
+            default -> status;
+        };
+    }
+
     private void loadAlerts() {
         if (client == null || !client.isConnected() || studentIds.isEmpty()) return;
         client.getProctorLogs(response -> Platform.runLater(() -> {
@@ -500,4 +626,6 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
     }
 
     private record AlertRow(String time, String student, String event, String tool, String severity, String problem) {}
+    private record AssessmentRow(int id, String title, String status, String window,
+                                 String progress, String rawStatus) {}
 }

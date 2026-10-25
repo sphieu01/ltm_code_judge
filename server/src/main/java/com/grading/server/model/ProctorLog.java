@@ -14,6 +14,7 @@ public class ProctorLog {
     private String username;
     private String fullName;
     private int problemId;
+    private Integer assessmentId;
     private String problemTitle;
     private String eventType;
     private String detail;
@@ -31,11 +32,19 @@ public class ProctorLog {
     public ProctorLog(int id, int userId, String username, String fullName,
                       int problemId, String problemTitle, String eventType, String detail,
                       int violationCount, String severity, String clientIp, long timestamp) {
+        this(id, userId, username, fullName, problemId, null, problemTitle, eventType, detail,
+                violationCount, severity, clientIp, timestamp);
+    }
+
+    public ProctorLog(int id, int userId, String username, String fullName,
+                      int problemId, Integer assessmentId, String problemTitle, String eventType, String detail,
+                      int violationCount, String severity, String clientIp, long timestamp) {
         this.id = id;
         this.userId = userId;
         this.username = username;
         this.fullName = fullName;
         this.problemId = problemId;
+        this.assessmentId = assessmentId;
         this.problemTitle = problemTitle;
         this.eventType = eventType;
         this.detail = detail;
@@ -91,6 +100,10 @@ public class ProctorLog {
     public void setProblemId(int problemId) {
         this.problemId = problemId;
     }
+
+    public Integer getAssessmentId() { return assessmentId; }
+
+    public void setAssessmentId(Integer assessmentId) { this.assessmentId = assessmentId; }
 
     public String getProblemTitle() {
         return problemTitle;

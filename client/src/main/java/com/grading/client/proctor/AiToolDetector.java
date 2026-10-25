@@ -30,13 +30,16 @@ public class AiToolDetector {
     private static final String[] AI_PROCESSES = {
             "chatgpt.exe", "claude.exe", "cursor.exe", "ollama.exe",
             "windsurf.exe", "trae.exe", "tabnine.exe", "tabnine-deep-local.exe",
-            "copilot-runtime.exe", "copilot-agent.exe", "aider.exe"
+            "copilot-runtime.exe", "copilot-agent.exe", "aider.exe", "codex.exe",
+            "gemini.exe", "antigravity ide.exe"
     };
 
     // Đường dẫn tương đối lưu extension của VS Code
     private static final String[] VSCODE_EXTENSION_PATHS = {
             ".vscode/extensions",
-            ".vscode-insiders/extensions"
+            ".vscode-insiders/extensions",
+            ".vscode-oss/extensions",
+            ".antigravity-ide/extensions"
     };
 
     // Tiền tố tên thư mục các extension AI phổ biến trên VS Code
@@ -104,6 +107,9 @@ public class AiToolDetector {
                     if (cmd.endsWith("cursor.exe")) return "Cursor AI Editor";
                     if (cmd.endsWith("windsurf.exe")) return "Windsurf AI Editor";
                     if (cmd.endsWith("trae.exe")) return "Trae AI Editor";
+                    if (cmd.endsWith("antigravity ide.exe")) return "Antigravity AI IDE";
+                    if (cmd.endsWith("codex.exe")) return "OpenAI Codex";
+                    if (cmd.endsWith("gemini.exe")) return "Google Gemini CLI";
                     if (cmd.endsWith("tabnine.exe") || cmd.endsWith("tabnine-deep-local.exe")) return "Tabnine AI Completion";
                     if (cmd.endsWith("chatgpt.exe")) return "ChatGPT Desktop App";
                     if (cmd.endsWith("claude.exe")) return "Claude Desktop App";
@@ -262,6 +268,9 @@ public class AiToolDetector {
         if (appExe.equalsIgnoreCase("copilot-agent.exe")) return "GitHub Copilot Agent";
         if (appExe.equalsIgnoreCase("ollama.exe")) return "Ollama Local AI";
         if (appExe.equalsIgnoreCase("aider.exe")) return "Aider AI Coding Agent";
+        if (appExe.equalsIgnoreCase("codex.exe")) return "OpenAI Codex";
+        if (appExe.equalsIgnoreCase("gemini.exe")) return "Google Gemini CLI";
+        if (appExe.equalsIgnoreCase("antigravity ide.exe")) return "Antigravity AI IDE";
         return appExe;
     }
 
@@ -300,8 +309,9 @@ public class AiToolDetector {
         if (ext == null) {
             return null; // Không có extension AI nào trong VS Code
         }
-        // Nếu có cài extension AI, kiểm tra xem VS Code (Code.exe) có đang chạy không
-        if (isProcessRunning("Code.exe")) {
+        // Nếu có cài extension AI, kiểm tra các IDE cùng họ VS Code đang chạy.
+        if (isProcessRunning("Code.exe") || isProcessRunning("VSCodium.exe")
+                || isProcessRunning("Antigravity IDE.exe")) {
             return "VS Code AI Extension (" + ext + ")";
         }
         return null;

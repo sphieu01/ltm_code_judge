@@ -436,6 +436,34 @@ public class SocketClient {
         sendRequest(MessageType.GET_ACTIVE_ASSESSMENT, data, callback);
     }
 
+    public void getStudentAssessments(Consumer<Response> callback) {
+        sendRequest(MessageType.GET_STUDENT_ASSESSMENTS, new JsonObject(), callback);
+    }
+
+    public void getClassAssessments(int classId, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("classId", classId);
+        sendRequest(MessageType.GET_CLASS_ASSESSMENTS, data, callback);
+    }
+
+    public void getAssessmentMonitor(int assessmentId, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("assessmentId", assessmentId);
+        sendRequest(MessageType.GET_ASSESSMENT_MONITOR, data, callback);
+    }
+
+    public void startAssessment(int assessmentId, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("assessmentId", assessmentId);
+        sendRequest(MessageType.START_ASSESSMENT, data, callback);
+    }
+
+    public void completeAssessment(int assessmentId, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("assessmentId", assessmentId);
+        sendRequest(MessageType.COMPLETE_ASSESSMENT, data, callback);
+    }
+
     public void importStudents(int classId, com.google.gson.JsonArray studentsArray, Consumer<Response> callback) {
         JsonObject data = new JsonObject();
         data.addProperty("classId", classId);
@@ -523,10 +551,15 @@ public class SocketClient {
      * Gửi GET_HISTORY request cho 1 bài tập cụ thể hoặc tất cả bài nộp nếu problemId == null.
      */
     public void getHistory(Integer problemId, Consumer<Response> callback) {
+        getHistory(problemId, null, callback);
+    }
+
+    public void getHistory(Integer problemId, Integer assessmentId, Consumer<Response> callback) {
         JsonObject data = null;
-        if (problemId != null && problemId > 0) {
+        if ((problemId != null && problemId > 0) || (assessmentId != null && assessmentId > 0)) {
             data = new JsonObject();
-            data.addProperty("problemId", problemId);
+            if (problemId != null && problemId > 0) data.addProperty("problemId", problemId);
+            if (assessmentId != null && assessmentId > 0) data.addProperty("assessmentId", assessmentId);
         }
         sendRequest(MessageType.GET_HISTORY, data, callback);
     }
@@ -581,7 +614,8 @@ public class SocketClient {
     /**
      * Báo cáo sự kiện giám sát phòng thi lên server (VD: AI_TOOL_DETECTED, FOCUS_LOSS...).
      */
-    public void sendProctorEvent(int problemId, String problemTitle, String eventType, String detail, Consumer<Response> callback) {
+    public void sendProctorEvent(int problemId, String problemTitle, String eventType, String detail,
+                                 Integer assessmentId, Consumer<Response> callback) {
         JsonObject data = new JsonObject();
         data.addProperty("problemId", problemId);
         data.addProperty("problemTitle", problemTitle);
@@ -589,7 +623,13 @@ public class SocketClient {
         if (detail != null) {
             data.addProperty("detail", detail);
         }
+        if (assessmentId != null && assessmentId > 0) data.addProperty("assessmentId", assessmentId);
         sendRequest(MessageType.PROCTOR_EVENT, data, callback);
+    }
+
+    public void sendProctorEvent(int problemId, String problemTitle, String eventType, String detail,
+                                 Consumer<Response> callback) {
+        sendProctorEvent(problemId, problemTitle, eventType, detail, null, callback);
     }
 
     public void sendProctorEvent(int problemId, String problemTitle, String eventType, Consumer<Response> callback) {

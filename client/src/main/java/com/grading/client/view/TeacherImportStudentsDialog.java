@@ -123,12 +123,15 @@ public class TeacherImportStudentsDialog extends Dialog<TeacherImportStudentsDia
 
         form.getChildren().addAll(classLabel, targetClassCombo, dropzone, previewTitle, previewTable);
 
-        Button cancelBtn = new Button("Hủy");
+        ButtonType cancelButtonType = new ButtonType("Hủy", ButtonBar.ButtonData.CANCEL_CLOSE);
+        ButtonType saveButtonType = new ButtonType("Xác nhận & lưu", ButtonBar.ButtonData.OK_DONE);
+        pane.getButtonTypes().addAll(cancelButtonType, saveButtonType);
+
+        Button cancelBtn = (Button) pane.lookupButton(cancelButtonType);
         cancelBtn.getStyleClass().addAll("button", "btn-secondary");
         cancelBtn.setCancelButton(true);
-        cancelBtn.setOnAction(event -> close());
 
-        Button saveBtn = new Button("Xác nhận & lưu");
+        Button saveBtn = (Button) pane.lookupButton(saveButtonType);
         saveBtn.getStyleClass().addAll("button", "btn-primary");
         saveBtn.setDefaultButton(true);
         saveBtn.setDisable(true);
@@ -137,9 +140,11 @@ public class TeacherImportStudentsDialog extends Dialog<TeacherImportStudentsDia
         previewList.addListener((javafx.collections.ListChangeListener<StudentPreviewRow>) change -> updateSaveState.run());
         targetClassCombo.getSelectionModel().selectedItemProperty().addListener(
                 (obs, oldValue, newValue) -> updateSaveState.run());
-        saveBtn.setOnAction(event -> {
+
+        setResultConverter(buttonType -> {
+            if (buttonType != saveButtonType) return null;
             CreditClass selectedClass = targetClassCombo.getSelectionModel().getSelectedItem();
-            if (selectedClass == null || previewList.isEmpty()) return;
+            if (selectedClass == null || previewList.isEmpty()) return null;
             JsonArray array = new JsonArray();
             for (StudentPreviewRow row : previewList) {
                 JsonObject obj = new JsonObject();
@@ -147,13 +152,8 @@ public class TeacherImportStudentsDialog extends Dialog<TeacherImportStudentsDia
                 obj.addProperty("fullName", row.fullName);
                 array.add(obj);
             }
-            setResult(new ImportPayload(selectedClass.getId(), array));
-            close();
+            return new ImportPayload(selectedClass.getId(), array);
         });
-
-        HBox actionBar = new HBox(10, cancelBtn, saveBtn);
-        actionBar.setAlignment(Pos.CENTER_RIGHT);
-        actionBar.setPadding(new Insets(12, 16, 12, 16));
 
         ScrollPane scroll = new ScrollPane(form);
         scroll.setFitToWidth(true);
@@ -161,7 +161,6 @@ public class TeacherImportStudentsDialog extends Dialog<TeacherImportStudentsDia
         scroll.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
         BorderPane content = new BorderPane();
         content.setCenter(scroll);
-        content.setBottom(actionBar);
         pane.setContent(content);
     }
 

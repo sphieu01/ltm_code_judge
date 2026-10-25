@@ -39,7 +39,11 @@ public class DashboardView extends BorderPane {
     private Button avatarBtn;
     private ProfilePopup profilePopup;
     private Label assessmentBanner;
+    private VBox assessmentOverview;
+    private TableView<AssessmentSummary> assessmentTable;
+    private Button completeAssessmentButton;
     private boolean assessmentMode;
+    private boolean assessmentLobby;
 
     // Table
     private TableView<Problem> problemTable;
@@ -50,6 +54,12 @@ public class DashboardView extends BorderPane {
     private Consumer<Problem> onSelectProblemHandler;
     private Consumer<CreditClass> onSelectClassHandler;
     private Runnable onLogoutHandler;
+    private Consumer<Integer> onOpenAssessmentHandler;
+    private Runnable onCompleteAssessmentHandler;
+
+    public record AssessmentSummary(int id, String title, String classCode, String status,
+                                    String opensAt, String closesAt, int durationMinutes,
+                                    int submittedCount, int problemCount, boolean started) {}
 
     public DashboardView() {
         buildLayout();
@@ -130,10 +140,41 @@ public class DashboardView extends BorderPane {
         assessmentBanner.setVisible(false);
         assessmentBanner.setManaged(false);
 
+        assessmentOverview = new VBox(8);
+        assessmentOverview.setPadding(new Insets(12));
+        assessmentOverview.setStyle("-fx-background-color: -bg-surface; -fx-border-color: -border-subtle; " +
+                "-fx-border-radius: 7; -fx-background-radius: 7;");
+        Label assessmentTitle = new Label("Bài kiểm tra của bạn");
+        assessmentTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
+        Label assessmentDescription = new Label(
+                "Các bài kiểm tra được giáo viên giao sẽ xuất hiện tại đây. Khi đến giờ, hãy bấm “Bắt đầu làm bài” để vào danh sách câu hỏi.");
+        assessmentDescription.setWrapText(true);
+        assessmentDescription.getStyleClass().add("meta-item");
+        assessmentTable = buildAssessmentTable();
+        assessmentTable.setPrefHeight(230);
+        assessmentOverview.getChildren().addAll(assessmentTitle, assessmentDescription, assessmentTable);
+        assessmentOverview.setVisible(false);
+        assessmentOverview.setManaged(false);
+
         problemTable = buildProblemTable();
         VBox.setVgrow(problemTable, Priority.ALWAYS);
 
-        centerBox.getChildren().addAll(assessmentBanner, problemTable);
+        completeAssessmentButton = new Button("Hoàn thành bài thi");
+        completeAssessmentButton.getStyleClass().addAll("button", "btn-primary");
+        completeAssessmentButton.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-padding: 9px 22px;");
+        completeAssessmentButton.setOnAction(e -> {
+            if (onCompleteAssessmentHandler != null) onCompleteAssessmentHandler.run();
+        });
+        HBox completeBar = new HBox(completeAssessmentButton);
+        completeBar.setAlignment(Pos.CENTER_RIGHT);
+        completeBar.setVisible(false);
+        completeBar.setManaged(false);
+        completeAssessmentButton.visibleProperty().addListener((obs, oldValue, visible) -> {
+            completeBar.setVisible(visible);
+            completeBar.setManaged(visible);
+        });
+
+        centerBox.getChildren().addAll(assessmentOverview, assessmentBanner, problemTable, completeBar);
         setCenter(centerBox);
 
         // 3. Bottom Status Bar
@@ -316,6 +357,55 @@ public class DashboardView extends BorderPane {
         return table;
     }
 
+    private TableView<AssessmentSummary> buildAssessmentTable() {
+        TableView<AssessmentSummary> table = new TableView<>();
+        table.setPlaceholder(new Label("Chưa có bài kiểm tra nào."));
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+
+        TableColumn<AssessmentSummary, String> title = new TableColumn<>("Bài kiểm tra");
+        title.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().title()));
+        title.setPrefWidth(260);
+        TableColumn<AssessmentSummary, String> classCode = new TableColumn<>("Lớp");
+        classCode.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().classCode()));
+        classCode.setPrefWidth(120);
+        TableColumn<AssessmentSummary, String> time = new TableColumn<>("Thời gian");
+        time.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(
+                formatAssessmentTime(d.getValue().opensAt()) + " → " + formatAssessmentTime(d.getValue().closesAt())));
+        time.setPrefWidth(285);
+        TableColumn<AssessmentSummary, String> status = new TableColumn<>("Trạng thái");
+        status.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(assessmentStatusText(d.getValue())));
+        status.setPrefWidth(240);
+        TableColumn<AssessmentSummary, Void> action = new TableColumn<>("Thao tác");
+        action.setPrefWidth(155);
+        action.setCellFactory(col -> new TableCell<>() {
+            private final Button button = new Button();
+            {
+                button.getStyleClass().addAll("button", "btn-primary");
+                button.setOnAction(e -> {
+                    AssessmentSummary row = getTableView().getItems().get(getIndex());
+                    if (onOpenAssessmentHandler != null) onOpenAssessmentHandler.accept(row.id());
+                });
+            }
+            @Override protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty) {
+                    setGraphic(null);
+                    return;
+                }
+                AssessmentSummary row = getTableView().getItems().get(getIndex());
+                boolean active = "ACTIVE".equalsIgnoreCase(row.status());
+                button.setText(active ? (row.started() ? "Tiếp tục làm bài" : "Bắt đầu làm bài")
+                        : "COMPLETED".equalsIgnoreCase(row.status()) ? "Đã hoàn thành"
+                        : "EXPIRED".equalsIgnoreCase(row.status()) ? "Đã kết thúc" : "Chưa đến giờ");
+                button.setDisable(!active);
+                setGraphic(button);
+                setAlignment(Pos.CENTER);
+            }
+        });
+        table.getColumns().addAll(title, classCode, time, status, action);
+        return table;
+    }
+
     private void setupFiltering() {
         filteredProblems = new FilteredList<>(problemList, p -> true);
 
@@ -376,12 +466,10 @@ public class DashboardView extends BorderPane {
     public void setAssessmentMode(boolean active, String title, String classCode,
                                   String closesAt, int durationMinutes) {
         assessmentMode = active;
-        for (Control control : List.of(classFilterCombo, difficultyFilterCombo, searchField, historyBtn)) {
-            control.setVisible(!active);
-            control.setManaged(!active);
-        }
+        updateAssessmentLayout();
         assessmentBanner.setVisible(active);
         assessmentBanner.setManaged(active);
+        completeAssessmentButton.setVisible(active);
         if (active) {
             brandLabel.setText("Bài kiểm tra đang diễn ra");
             assessmentBanner.setText((title == null ? "Bài kiểm tra" : title)
@@ -392,6 +480,42 @@ public class DashboardView extends BorderPane {
             brandLabel.setText("Auto Grader");
             assessmentBanner.setText("");
         }
+    }
+
+    public void setAssessmentLobby(boolean locked) {
+        assessmentLobby = locked;
+        updateAssessmentLayout();
+    }
+
+    private void updateAssessmentLayout() {
+        boolean locked = assessmentMode || assessmentLobby;
+        for (Control control : List.of(classFilterCombo, difficultyFilterCombo, searchField, historyBtn)) {
+            control.setVisible(!locked);
+            control.setManaged(!locked);
+        }
+        problemTable.setVisible(!assessmentLobby || assessmentMode);
+        problemTable.setManaged(!assessmentLobby || assessmentMode);
+        assessmentOverview.setVisible(!assessmentMode && !assessmentTable.getItems().isEmpty());
+        assessmentOverview.setManaged(!assessmentMode && !assessmentTable.getItems().isEmpty());
+        if (assessmentLobby && !assessmentMode) brandLabel.setText("Bài kiểm tra đang chờ bạn");
+    }
+
+    public void setAssessments(List<AssessmentSummary> assessments) {
+        assessmentTable.setItems(FXCollections.observableArrayList(assessments == null ? List.of() : assessments));
+        updateAssessmentLayout();
+    }
+
+    private String assessmentStatusText(AssessmentSummary assessment) {
+        if ("ACTIVE".equalsIgnoreCase(assessment.status())) {
+            return "Đang diễn ra · Kết thúc " + formatAssessmentTime(assessment.closesAt())
+                    + " · Đã nộp " + assessment.submittedCount() + "/" + assessment.problemCount() + " bài";
+        }
+        if ("COMPLETED".equalsIgnoreCase(assessment.status())) {
+            return "Đã hoàn thành " + assessment.submittedCount() + "/" + assessment.problemCount() + " bài";
+        }
+        if ("EXPIRED".equalsIgnoreCase(assessment.status())) return "Đã kết thúc";
+        return "Bắt đầu " + formatAssessmentTime(assessment.opensAt())
+                + " · Thời lượng " + assessment.durationMinutes() + " phút";
     }
 
     private String formatAssessmentTime(String value) {
@@ -418,5 +542,13 @@ public class DashboardView extends BorderPane {
 
     public void setOnLogout(Runnable handler) {
         this.onLogoutHandler = handler;
+    }
+
+    public void setOnOpenAssessment(Consumer<Integer> handler) {
+        this.onOpenAssessmentHandler = handler;
+    }
+
+    public void setOnCompleteAssessment(Runnable handler) {
+        this.onCompleteAssessmentHandler = handler;
     }
 }

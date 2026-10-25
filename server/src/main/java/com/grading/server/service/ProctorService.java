@@ -47,6 +47,13 @@ public class ProctorService {
     public ProctorResult recordEvent(int userId, String username, String fullName,
             int problemId, String problemTitle,
             String eventType, String detail, String clientIp) {
+        return recordEvent(userId, username, fullName, problemId, null, problemTitle,
+                eventType, detail, clientIp);
+    }
+
+    public ProctorResult recordEvent(int userId, String username, String fullName,
+            int problemId, Integer assessmentId, String problemTitle,
+            String eventType, String detail, String clientIp) {
         String key = userId + ":" + problemId;
         int count = violationCounters.computeIfAbsent(key, k -> new AtomicInteger(0)).incrementAndGet();
 
@@ -81,6 +88,7 @@ public class ProctorService {
                 username,
                 fullName,
                 problemId,
+                assessmentId,
                 problemTitle != null ? problemTitle : "Bài tập #" + problemId,
                 eventType,
                 detail,
@@ -115,6 +123,15 @@ public class ProctorService {
         List<ProctorLog> reversed = new ArrayList<>(logList);
         java.util.Collections.reverse(reversed);
         return reversed;
+    }
+
+    public List<ProctorLog> getLogsForAssessment(int assessmentId) {
+        List<ProctorLog> filtered = new ArrayList<>();
+        for (int i = logList.size() - 1; i >= 0; i--) {
+            ProctorLog log = logList.get(i);
+            if (log.getAssessmentId() != null && log.getAssessmentId() == assessmentId) filtered.add(log);
+        }
+        return filtered;
     }
 
     /**

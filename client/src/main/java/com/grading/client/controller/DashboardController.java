@@ -35,6 +35,7 @@ public class DashboardController {
     private Timeline assessmentPoller;
     private Integer activeAssessmentId;
     private boolean assessmentStateKnown;
+    private final java.util.Map<Integer, JsonObject> assessmentCache = new java.util.HashMap<>();
 
     public DashboardController(DashboardView view, Stage stage) {
         this.view = view;
@@ -57,6 +58,15 @@ public class DashboardController {
             Integer classId = selectedClass != null ? selectedClass.getId() : null;
             loadProblems(classId);
         });
+
+        view.setOnOpenAssessment(id -> {
+            JsonObject assessment = assessmentCache.get(id);
+            if (assessment != null && "ACTIVE".equalsIgnoreCase(stringValue(assessment, "status"))) {
+                startAssessment(assessment);
+            }
+        });
+
+        view.setOnCompleteAssessment(this::completeAssessment);
 
         view.setOnLogout(() -> {
             sessionManager.clear();
@@ -89,7 +99,7 @@ public class DashboardController {
 
                     // Tải bài tập của lớp đang chọn
                     CreditClass selected = view.getSelectedClass();
-                    checkActiveAssessment(selected != null ? selected.getId() : null);
+                    refreshAssessments(selected != null ? selected.getId() : null);
                 });
             });
         } else {
@@ -98,9 +108,9 @@ public class DashboardController {
     }
 
     private void startAssessmentPolling() {
-        assessmentPoller = new Timeline(new KeyFrame(Duration.seconds(5), event -> {
+        assessmentPoller = new Timeline(new KeyFrame(Duration.seconds(3), event -> {
             CreditClass selected = view.getSelectedClass();
-            checkActiveAssessment(selected != null ? selected.getId() : null);
+            refreshAssessments(selected != null ? selected.getId() : null);
         }));
         assessmentPoller.setCycleCount(Timeline.INDEFINITE);
         assessmentPoller.play();
@@ -109,28 +119,48 @@ public class DashboardController {
         });
     }
 
-    private void checkActiveAssessment(Integer selectedClassId) {
+    private void refreshAssessments(Integer selectedClassId) {
         SocketClient socketClient = sessionManager.getSocketClient();
         if (socketClient == null || !socketClient.isConnected()) return;
-        socketClient.getActiveAssessment(null, response -> Platform.runLater(() -> {
+        socketClient.getStudentAssessments(response -> Platform.runLater(() -> {
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus())) return;
-            JsonObject assessment = response.getData() != null && response.getData().isJsonObject()
-                    ? response.getData().getAsJsonObject() : null;
-            if (assessment != null) {
-                int id = assessment.get("id").getAsInt();
-                view.setAssessmentMode(true,
-                        assessment.has("title") ? assessment.get("title").getAsString() : "Bài kiểm tra",
-                        assessment.has("classCode") ? assessment.get("classCode").getAsString() : null,
-                        assessment.has("closesAt") ? assessment.get("closesAt").getAsString() : null,
-                        assessment.has("durationMinutes") ? assessment.get("durationMinutes").getAsInt() : 0);
-                if (!assessmentStateKnown || activeAssessmentId == null || activeAssessmentId != id) {
-                    activeAssessmentId = id;
-                    assessmentStateKnown = true;
-                    loadProblems(assessment.get("classId").getAsInt());
+            assessmentCache.clear();
+            List<DashboardView.AssessmentSummary> summaries = new ArrayList<>();
+            JsonObject active = null;
+            if (response.getData() != null && response.getData().isJsonArray()) {
+                for (JsonElement element : response.getData().getAsJsonArray()) {
+                    if (!element.isJsonObject()) continue;
+                    JsonObject item = element.getAsJsonObject();
+                    int id = intValue(item, "id");
+                    assessmentCache.put(id, item);
+                    String status = stringValue(item, "status");
+                    summaries.add(new DashboardView.AssessmentSummary(id,
+                            stringValue(item, "title"), stringValue(item, "classCode"), status,
+                            stringValue(item, "opensAt"), stringValue(item, "closesAt"),
+                            intValue(item, "durationMinutes"), intValue(item, "submittedCount"),
+                            intValue(item, "problemCount"), boolValue(item, "started")));
+                    if (active == null && "ACTIVE".equalsIgnoreCase(status)) active = item;
+                }
+            }
+            view.setAssessments(summaries);
+            if (active != null) {
+                activeAssessmentId = intValue(active, "id");
+                assessmentStateKnown = true;
+                Integer sessionAssessmentId = sessionManager.getActiveAssessmentId();
+                if (sessionManager.isAssessmentMode() && sessionAssessmentId != null
+                        && sessionAssessmentId.equals(activeAssessmentId)) {
+                    enterAssessment(active);
+                } else {
+                    sessionManager.setActiveAssessment(null, false);
+                    view.setAssessmentMode(false, null, null, null, 0);
+                    view.setAssessmentLobby(true);
+                    view.setProblems(List.of());
                 }
             } else {
                 boolean wasInAssessment = activeAssessmentId != null;
                 activeAssessmentId = null;
+                sessionManager.setActiveAssessment(null, false);
+                view.setAssessmentLobby(false);
                 view.setAssessmentMode(false, null, null, null, 0);
                 if (!assessmentStateKnown || wasInAssessment) {
                     assessmentStateKnown = true;
@@ -138,6 +168,105 @@ public class DashboardController {
                 }
             }
         }));
+    }
+
+    private void startAssessment(JsonObject assessment) {
+        SocketClient socketClient = sessionManager.getSocketClient();
+        int id = intValue(assessment, "id");
+        if (socketClient == null || !socketClient.isConnected() || id <= 0) return;
+        socketClient.startAssessment(id, response -> Platform.runLater(() -> {
+            if ("SUCCESS".equalsIgnoreCase(response.getStatus())) {
+                sessionManager.setActiveAssessment(id, false);
+                enterAssessment(assessment);
+            } else {
+                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                        javafx.scene.control.Alert.AlertType.ERROR,
+                        response.getMessage() == null ? "Không thể bắt đầu bài kiểm tra." : response.getMessage(),
+                        javafx.scene.control.ButtonType.OK);
+                alert.initOwner(stage);
+                alert.showAndWait();
+                refreshAssessments(view.getSelectedClass() == null ? null : view.getSelectedClass().getId());
+            }
+        }));
+    }
+
+    private void enterAssessment(JsonObject assessment) {
+        int id = intValue(assessment, "id");
+        activeAssessmentId = id;
+        assessmentStateKnown = true;
+        sessionManager.setActiveAssessment(id, false);
+        view.setAssessmentLobby(false);
+        view.setAssessmentMode(true, stringValue(assessment, "title"), stringValue(assessment, "classCode"),
+                stringValue(assessment, "closesAt"), intValue(assessment, "durationMinutes"));
+        setAssessmentProblems(assessment);
+    }
+
+    private void completeAssessment() {
+        Integer id = sessionManager.getActiveAssessmentId();
+        JsonObject assessment = id == null ? null : assessmentCache.get(id);
+        if (id == null || assessment == null) return;
+        int submitted = intValue(assessment, "submittedCount");
+        int total = intValue(assessment, "problemCount");
+        javafx.scene.control.Alert confirm = new javafx.scene.control.Alert(
+                javafx.scene.control.Alert.AlertType.CONFIRMATION,
+                "Bạn đã nộp " + submitted + "/" + total + " bài. Sau khi hoàn thành, bạn không thể quay lại bài thi này.",
+                javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        confirm.initOwner(stage);
+        confirm.setHeaderText("Hoàn thành và nộp bài thi?");
+        if (confirm.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL)
+                != javafx.scene.control.ButtonType.OK) return;
+
+        SocketClient socketClient = sessionManager.getSocketClient();
+        socketClient.completeAssessment(id, response -> Platform.runLater(() -> {
+            if ("SUCCESS".equalsIgnoreCase(response.getStatus())) {
+                sessionManager.setActiveAssessment(null, true);
+                activeAssessmentId = null;
+                assessmentStateKnown = false;
+                view.setAssessmentLobby(false);
+                view.setAssessmentMode(false, null, null, null, 0);
+                refreshAssessments(view.getSelectedClass() == null ? null : view.getSelectedClass().getId());
+            } else {
+                javafx.scene.control.Alert error = new javafx.scene.control.Alert(
+                        javafx.scene.control.Alert.AlertType.ERROR,
+                        response.getMessage() == null ? "Không thể hoàn thành bài kiểm tra." : response.getMessage(),
+                        javafx.scene.control.ButtonType.OK);
+                error.initOwner(stage);
+                error.showAndWait();
+            }
+        }));
+    }
+
+    private void setAssessmentProblems(JsonObject assessment) {
+        List<Problem> list = new ArrayList<>();
+        if (assessment.has("problems") && assessment.get("problems").isJsonArray()) {
+            for (JsonElement element : assessment.getAsJsonArray("problems")) {
+                if (!element.isJsonObject()) continue;
+                JsonObject obj = element.getAsJsonObject();
+                Problem p = new Problem();
+                p.setId(intValue(obj, "id"));
+                p.setTitle(stringValue(obj, "title"));
+                p.setDifficulty(stringValue(obj, "difficulty"));
+                p.setDescription(stringValue(obj, "description"));
+                p.setTimeLimitMs(intValue(obj, "timeLimitMs"));
+                p.setMemoryLimitKb(intValue(obj, "memoryLimitKb"));
+                if (obj.has("classId") && !obj.get("classId").isJsonNull()) p.setClassId(obj.get("classId").getAsInt());
+                p.setStatus(stringValue(obj, "verdict"));
+                list.add(p);
+            }
+        }
+        view.setProblems(list);
+    }
+
+    private String stringValue(JsonObject object, String field) {
+        return object.has(field) && !object.get(field).isJsonNull() ? object.get(field).getAsString() : "";
+    }
+
+    private int intValue(JsonObject object, String field) {
+        return object.has(field) && !object.get(field).isJsonNull() ? object.get(field).getAsInt() : 0;
+    }
+
+    private boolean boolValue(JsonObject object, String field) {
+        return object.has(field) && !object.get(field).isJsonNull() && object.get(field).getAsBoolean();
     }
 
     /**

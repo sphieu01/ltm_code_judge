@@ -11,6 +11,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.time.LocalDateTime;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
 
 /**
  * Service xử lý logic nghiệp vụ cho Môn học (Courses),
@@ -129,6 +130,34 @@ public class AcademicService {
 
     public JsonObject getActiveAssessment(int studentId, Integer classId) throws SQLException {
         return assessmentRepository.findActiveForStudent(studentId, classId);
+    }
+
+    public JsonArray getStudentAssessments(int studentId) throws SQLException {
+        return assessmentRepository.findForStudent(studentId);
+    }
+
+    public JsonArray getClassAssessments(int classId, int teacherId) throws SQLException {
+        if (classId <= 0) throw new IllegalArgumentException("Lớp tín chỉ không hợp lệ.");
+        return assessmentRepository.findByClass(classId, teacherId);
+    }
+
+    public JsonObject getAssessmentMonitor(int assessmentId, int teacherId) throws SQLException {
+        if (assessmentId <= 0) throw new IllegalArgumentException("Bài kiểm tra không hợp lệ.");
+        return assessmentRepository.getMonitor(assessmentId, teacherId);
+    }
+
+    public void startAssessment(int assessmentId, int studentId) throws SQLException {
+        if (assessmentId <= 0) throw new IllegalArgumentException("Bài kiểm tra không hợp lệ.");
+        assessmentRepository.start(assessmentId, studentId);
+    }
+
+    public void completeAssessment(int assessmentId, int studentId) throws SQLException {
+        if (assessmentId <= 0) throw new IllegalArgumentException("Bài kiểm tra không hợp lệ.");
+        assessmentRepository.complete(assessmentId, studentId);
+    }
+
+    public Integer getActiveAssessmentIdForProblem(int studentId, int problemId) throws SQLException {
+        return assessmentRepository.findActiveAssessmentIdForProblem(studentId, problemId);
     }
 
     public boolean isProblemAllowedForStudent(int studentId, int problemId) throws SQLException {

@@ -68,7 +68,7 @@ public class ProblemController {
         }
 
         // Kiểm tra chữ ký / định dạng sinh bởi AI (ChatGPT / Gemini)
-        String aiCodeSign = AiToolDetector.detectAiPastedCode(code);
+        String aiCodeSign = sessionManager.isAssessmentMode() ? AiToolDetector.detectAiPastedCode(code) : null;
         if (aiCodeSign != null) {
             reportAiViolation("AI_CODE_PASTED", aiCodeSign);
             v.showAiWarningAlert("Hệ thống phát hiện mã nguồn có dấu hiệu do AI sinh ra.\nVi phạm này đã được gửi trực tiếp đến Giám thị coi thi.");
@@ -184,6 +184,7 @@ public class ProblemController {
 
     private static final long AI_VIOLATION_COOLDOWN_MS = 45_000L; // 45 giây cooldown giữa các lần tăng count và popup cảnh báo
     private long lastAiDetectionTime = 0;
+    private long lastFocusLossTime = 0;
     private final java.util.concurrent.atomic.AtomicBoolean isScanning = new java.util.concurrent.atomic.AtomicBoolean(false);
     private javafx.beans.value.ChangeListener<Boolean> currentFocusListener;
     private javafx.stage.Window trackedWindow;
@@ -197,9 +198,28 @@ public class ProblemController {
                     Problem current = view.getCurrentProblem();
                     if (socketClient == null || !socketClient.isConnected() || current == null) return;
                     socketClient.getActiveAssessment(null, response -> Platform.runLater(() -> {
-                        if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null
-                                || !response.getData().isJsonObject()) return;
+                        if (!"SUCCESS".equalsIgnoreCase(response.getStatus())) return;
+                        if (response.getData() == null || !response.getData().isJsonObject()) {
+                            if (sessionManager.isAssessmentMode()) {
+                                sessionManager.setActiveAssessment(null, false);
+                                assessmentChecker.stop();
+                                view.navigateBackToDashboard();
+                            }
+                            return;
+                        }
                         JsonObject active = response.getData().getAsJsonObject();
+                        int assessmentId = active.has("id") ? active.get("id").getAsInt() : 0;
+                        Integer currentAssessmentId = sessionManager.getActiveAssessmentId();
+                        if (currentAssessmentId == null || currentAssessmentId != assessmentId) {
+                            assessmentChecker.stop();
+                            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                                    javafx.scene.control.Alert.AlertType.INFORMATION,
+                                    "Bài kiểm tra đã bắt đầu. Ứng dụng sẽ chuyển sang giao diện làm bài kiểm tra.");
+                            alert.setHeaderText(active.has("title") ? active.get("title").getAsString() : "Bài kiểm tra đang diễn ra");
+                            alert.showAndWait();
+                            view.navigateBackToDashboard();
+                            return;
+                        }
                         boolean allowed = false;
                         if (active.has("problemIds") && active.get("problemIds").isJsonArray()) {
                             for (JsonElement id : active.getAsJsonArray("problemIds")) {
@@ -257,7 +277,12 @@ public class ProblemController {
 
         trackedWindow = window;
         currentFocusListener = (obs, wasFocused, isNowFocused) -> {
-            if (!isNowFocused) {
+            if (!isNowFocused && sessionManager.isAssessmentMode()) {
+                long now = System.currentTimeMillis();
+                if (now - lastFocusLossTime >= 5_000L) {
+                    lastFocusLossTime = now;
+                    reportAiViolation("FOCUS_LOSS", "Sinh viên rời khỏi cửa sổ làm bài kiểm tra");
+                }
                 // Rời khỏi cửa sổ: Quét xem sinh viên có vào ChatGPT / Gemini hay không.
                 // Nếu sinh viên chỉ mở VS Code, CLion, Dev-C++... thì xem là hợp lệ và KHÔNG phạt!
                 scanForAiCheating(true);
@@ -267,7 +292,7 @@ public class ProblemController {
     }
 
     private void scanForAiCheating(boolean triggeredByFocusLoss) {
-        if (view.isChoosingFile()) {
+        if (!sessionManager.isAssessmentMode() || view.isChoosingFile()) {
             return; // Đang chọn file mã nguồn hợp lệ
         }
 
@@ -302,7 +327,8 @@ public class ProblemController {
 
         SocketClient socketClient = sessionManager.getSocketClient();
         if (socketClient != null && socketClient.isConnected()) {
-            socketClient.sendProctorEvent(problemId, problemTitle, eventType, detail, response -> {
+            socketClient.sendProctorEvent(problemId, problemTitle, eventType, detail,
+                    sessionManager.getActiveAssessmentId(), response -> {
                 Platform.runLater(() -> {
                     if ("SUCCESS".equalsIgnoreCase(response.getStatus())
                             && response.getData() != null
@@ -343,7 +369,9 @@ public class ProblemController {
         SocketClient socketClient = sessionManager.getSocketClient();
         if (socketClient == null || !socketClient.isConnected()) return;
 
-        socketClient.getHistory(problemId, response -> {
+        Integer assessmentId = sessionManager.isAssessmentMode()
+                ? sessionManager.getActiveAssessmentId() : null;
+        socketClient.getHistory(problemId, assessmentId, response -> {
             Platform.runLater(() -> {
                 if ("SUCCESS".equalsIgnoreCase(response.getStatus())
                         && response.getData() != null && response.getData().isJsonArray()) {

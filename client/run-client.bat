@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM run-client.bat — Chạy Code Grading Client (JavaFX)
+REM run-client.bat - Chay Code Grading Client (JavaFX)
 REM ============================================================
 
 REM 1. Tự động phát hiện và gán JAVA_HOME
@@ -17,6 +17,9 @@ IF NOT DEFINED JAVA_HOME (
 
 IF DEFINED JAVA_HOME (
     SET "PATH=%JAVA_HOME%\bin;%PATH%"
+    SET "JAVAW_CMD=%JAVA_HOME%\bin\javaw.exe"
+) ELSE (
+    SET "JAVAW_CMD=javaw"
 )
 
 REM 2. Tự động phát hiện Maven
@@ -43,12 +46,14 @@ echo [INFO] Maven CMD: %MVN_CMD%
 echo [INFO] Starting Client UI...
 echo.
 
-set "CLIENT_JAR=target\grading-client-1.0-SNAPSHOT.jar"
+set "CLIENT_DIR=%~dp0"
+set "CLIENT_JAR=%CLIENT_DIR%target\grading-client-1.0-SNAPSHOT.jar"
 
 REM Uu tien chay JAR da build de co the mo nhieu client cung luc.
 IF EXIST "%CLIENT_JAR%" (
-    echo [INFO] Starting existing Client JAR...
-    start "Auto Grader Client" javaw -jar "%CLIENT_JAR%"
+    echo [INFO] Dang khoi chay Client UI...
+    start "Auto Grader Client" /D "%CLIENT_DIR%" "%JAVAW_CMD%" -jar "%CLIENT_JAR%"
+    echo [INFO] Da mo Client thanh cong.
     exit /b 0
 )
 
@@ -57,7 +62,9 @@ REM Khong dung "clean": mot client dang chay co the khoa file JAR tren Windows.
 call "%MVN_CMD%" package -DskipTests
 
 IF NOT ERRORLEVEL 1 (
-    start "Auto Grader Client" javaw -jar "%CLIENT_JAR%"
+    echo [INFO] Dang khoi chay Client UI...
+    start "Auto Grader Client" /D "%CLIENT_DIR%" "%JAVAW_CMD%" -jar "%CLIENT_JAR%"
+    echo [INFO] Da mo Client thanh cong.
     exit /b 0
 )
 

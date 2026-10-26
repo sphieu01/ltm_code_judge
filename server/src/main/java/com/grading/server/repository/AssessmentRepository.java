@@ -98,16 +98,15 @@ public class AssessmentRepository {
                 }
 
                 String addProblem = "INSERT INTO assessment_problems (assessment_id,problem_id,order_num) " +
-                        "SELECT ?,p.id,? FROM problems p WHERE p.id=? AND (p.class_id=? OR p.class_id IS NULL)";
+                        "SELECT ?,p.id,? FROM problems p WHERE p.id=?";
                 try (PreparedStatement stmt = conn.prepareStatement(addProblem)) {
                     int order = 1;
                     for (Integer problemId : problemIds) {
                         stmt.setInt(1, assessmentId);
                         stmt.setInt(2, order++);
                         stmt.setInt(3, problemId);
-                        stmt.setInt(4, classId);
                         if (stmt.executeUpdate() == 0) {
-                            throw new IllegalArgumentException("Bài tập #" + problemId + " không thuộc lớp này.");
+                            throw new IllegalArgumentException("Bài tập #" + problemId + " không tồn tại.");
                         }
                     }
                 }

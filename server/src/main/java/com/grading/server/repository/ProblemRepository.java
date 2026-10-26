@@ -32,6 +32,9 @@ public class ProblemRepository {
                     "class_id INT REFERENCES classes(id) ON DELETE CASCADE, " +
                     "problem_id INT REFERENCES problems(id) ON DELETE CASCADE, " +
                     "PRIMARY KEY (class_id, problem_id))");
+            try {
+                stmt.executeUpdate("ALTER TABLE problems DROP COLUMN IF EXISTS class_id CASCADE");
+            } catch (SQLException ignored) {}
         } catch (SQLException e) {
             logger.warn("Schema initialization notice for problems: {}", e.getMessage());
         }
@@ -40,38 +43,38 @@ public class ProblemRepository {
     // ─── SQL ──────────────────────────────────────────────────────────────────
     private static final String SQL_FIND_ALL =
             "SELECT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
-            "p.created_by, p.class_id, cl.name AS class_name, p.is_active, p.created_at, p.problem_type, p.oop_spec " +
-            "FROM problems p LEFT JOIN classes cl ON p.class_id = cl.id ORDER BY p.id";
+            "p.created_by, p.is_active, p.created_at, p.problem_type, p.oop_spec " +
+            "FROM problems p ORDER BY p.id";
 
     private static final String SQL_FIND_ALL_FOR_STUDENT =
             "SELECT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
-            "p.created_by, p.class_id, cl.name AS class_name, p.is_active, p.created_at, p.problem_type, p.oop_spec " +
-            "FROM problems p LEFT JOIN classes cl ON p.class_id = cl.id " +
+            "p.created_by, p.is_active, p.created_at, p.problem_type, p.oop_spec " +
+            "FROM problems p " +
             "WHERE (p.is_active IS NULL OR p.is_active = TRUE) " +
             "AND NULLIF(BTRIM(p.title), '') IS NOT NULL ORDER BY p.id";
 
     private static final String SQL_FIND_BY_CLASS =
             "SELECT DISTINCT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
-            "p.created_by, ? AS class_id, cl.name AS class_name, p.is_active, p.created_at, p.problem_type, p.oop_spec " +
+            "p.created_by, cp.class_id, cl.name AS class_name, p.is_active, p.created_at, p.problem_type, p.oop_spec " +
             "FROM problems p " +
-            "LEFT JOIN classes cl ON cl.id = ? " +
-            "LEFT JOIN class_problems cp ON p.id = cp.problem_id " +
-            "WHERE (cp.class_id = ? OR p.class_id = ?) ORDER BY p.id";
+            "JOIN class_problems cp ON p.id = cp.problem_id " +
+            "JOIN classes cl ON cl.id = cp.class_id " +
+            "WHERE cp.class_id = ? ORDER BY p.id";
 
     private static final String SQL_FIND_BY_CLASS_FOR_STUDENT =
             "SELECT DISTINCT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
-            "p.created_by, ? AS class_id, cl.name AS class_name, p.is_active, p.created_at, p.problem_type, p.oop_spec " +
+            "p.created_by, cp.class_id, cl.name AS class_name, p.is_active, p.created_at, p.problem_type, p.oop_spec " +
             "FROM problems p " +
-            "LEFT JOIN classes cl ON cl.id = ? " +
-            "LEFT JOIN class_problems cp ON p.id = cp.problem_id " +
-            "WHERE (cp.class_id = ? OR p.class_id = ?) " +
+            "JOIN class_problems cp ON p.id = cp.problem_id " +
+            "JOIN classes cl ON cl.id = cp.class_id " +
+            "WHERE cp.class_id = ? " +
             "AND (p.is_active IS NULL OR p.is_active = TRUE) " +
             "AND NULLIF(BTRIM(p.title), '') IS NOT NULL ORDER BY p.id";
 
     private static final String SQL_FIND_BY_ID =
             "SELECT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
-            "p.created_by, p.class_id, cl.name AS class_name, p.is_active, p.created_at, p.problem_type, p.oop_spec " +
-            "FROM problems p LEFT JOIN classes cl ON p.class_id = cl.id WHERE p.id = ?";
+            "p.created_by, p.is_active, p.created_at, p.problem_type, p.oop_spec " +
+            "FROM problems p WHERE p.id = ?";
 
     private static final String SQL_FIND_TEST_CASES =
             "SELECT id, problem_id, input_data, expected_output, is_sample, order_num " +
@@ -82,8 +85,8 @@ public class ProblemRepository {
             "FROM test_cases WHERE problem_id = ? AND is_sample = TRUE ORDER BY order_num";
 
     private static final String SQL_INSERT_PROBLEM =
-            "INSERT INTO problems (title, description, time_limit_ms, memory_limit_kb, difficulty, created_by, class_id, problem_type, oop_spec) " +
-            "VALUES (?, ?, ?, ?, ?::difficulty_level, ?, ?, ?, ?) RETURNING id, created_at";
+            "INSERT INTO problems (title, description, time_limit_ms, memory_limit_kb, difficulty, created_by, problem_type, oop_spec) " +
+            "VALUES (?, ?, ?, ?, ?::difficulty_level, ?, ?, ?) RETURNING id, created_at";
 
     private static final String SQL_INSERT_TEST_CASE =
             "INSERT INTO test_cases (problem_id, input_data, expected_output, is_sample, order_num) " +
@@ -121,9 +124,6 @@ public class ProblemRepository {
              PreparedStatement stmt = conn.prepareStatement(SQL_FIND_BY_CLASS)) {
 
             stmt.setInt(1, classId);
-            stmt.setInt(2, classId);
-            stmt.setInt(3, classId);
-            stmt.setInt(4, classId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     problems.add(mapProblemRow(rs));
@@ -160,9 +160,6 @@ public class ProblemRepository {
              PreparedStatement stmt = conn.prepareStatement(SQL_FIND_BY_CLASS_FOR_STUDENT)) {
 
             stmt.setInt(1, classId);
-            stmt.setInt(2, classId);
-            stmt.setInt(3, classId);
-            stmt.setInt(4, classId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     problems.add(mapProblemRow(rs));
@@ -252,13 +249,8 @@ public class ProblemRepository {
             stmt.setInt(4, problem.getMemoryLimitKb() > 0 ? problem.getMemoryLimitKb() : 262144);
             stmt.setString(5, problem.getDifficulty() != null ? problem.getDifficulty() : "MEDIUM");
             stmt.setInt(6, problem.getCreatedBy());
-            if (problem.getClassId() != null && problem.getClassId() > 0) {
-                stmt.setInt(7, problem.getClassId());
-            } else {
-                stmt.setNull(7, Types.INTEGER);
-            }
-            stmt.setString(8, problem.getProblemType());
-            stmt.setString(9, problem.getOopSpec());
+            stmt.setString(7, problem.getProblemType());
+            stmt.setString(8, problem.getOopSpec());
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
@@ -316,18 +308,16 @@ public class ProblemRepository {
         try (Connection conn = DatabaseConfig.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                String update = "UPDATE problems SET title=?, description=?, time_limit_ms=?, memory_limit_kb=?, difficulty=?::difficulty_level, class_id=?, problem_type=?, oop_spec=? WHERE id=?";
+                String update = "UPDATE problems SET title=?, description=?, time_limit_ms=?, memory_limit_kb=?, difficulty=?::difficulty_level, problem_type=?, oop_spec=? WHERE id=?";
                 try (PreparedStatement stmt = conn.prepareStatement(update)) {
                     stmt.setString(1, problem.getTitle());
                     stmt.setString(2, problem.getDescription());
                     stmt.setInt(3, problem.getTimeLimitMs());
                     stmt.setInt(4, problem.getMemoryLimitKb());
                     stmt.setString(5, problem.getDifficulty());
-                    if (problem.getClassId() != null && problem.getClassId() > 0) stmt.setInt(6, problem.getClassId());
-                    else stmt.setNull(6, Types.INTEGER);
-                    stmt.setString(7, problem.getProblemType());
-                    stmt.setString(8, problem.getOopSpec());
-                    stmt.setInt(9, problem.getId());
+                    stmt.setString(6, problem.getProblemType());
+                    stmt.setString(7, problem.getOopSpec());
+                    stmt.setInt(8, problem.getId());
                     if (stmt.executeUpdate() == 0) throw new SQLException("Không tìm thấy bài tập id=" + problem.getId());
                 }
                 try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM test_cases WHERE problem_id=?")) {

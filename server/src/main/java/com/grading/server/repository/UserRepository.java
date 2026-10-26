@@ -20,16 +20,20 @@ public class UserRepository {
 
     // ─── SQL Queries ──────────────────────────────────────────────────────────
     private static final String SQL_FIND_BY_ID =
-            "SELECT u.id, u.username, u.password_hash, u.full_name, u.role, u.class_id, cl.name AS class_name, u.created_at " +
-            "FROM users u LEFT JOIN classes cl ON u.class_id = cl.id WHERE u.id = ?";
+            "SELECT u.id, u.username, u.password_hash, u.full_name, u.role, " +
+            "(SELECT ce.class_id FROM class_enrollments ce WHERE ce.student_id = u.id ORDER BY ce.enrolled_at ASC LIMIT 1) AS class_id, " +
+            "(SELECT cl.name FROM class_enrollments ce JOIN classes cl ON ce.class_id = cl.id WHERE ce.student_id = u.id ORDER BY ce.enrolled_at ASC LIMIT 1) AS class_name, " +
+            "u.created_at FROM users u WHERE u.id = ?";
 
     private static final String SQL_FIND_BY_USERNAME =
-            "SELECT u.id, u.username, u.password_hash, u.full_name, u.role, u.class_id, cl.name AS class_name, u.created_at " +
-            "FROM users u LEFT JOIN classes cl ON u.class_id = cl.id WHERE u.username = ?";
+            "SELECT u.id, u.username, u.password_hash, u.full_name, u.role, " +
+            "(SELECT ce.class_id FROM class_enrollments ce WHERE ce.student_id = u.id ORDER BY ce.enrolled_at ASC LIMIT 1) AS class_id, " +
+            "(SELECT cl.name FROM class_enrollments ce JOIN classes cl ON ce.class_id = cl.id WHERE ce.student_id = u.id ORDER BY ce.enrolled_at ASC LIMIT 1) AS class_name, " +
+            "u.created_at FROM users u WHERE u.username = ?";
 
     private static final String SQL_INSERT =
-            "INSERT INTO users (username, password_hash, full_name, role, class_id) " +
-            "VALUES (?, ?, ?, ?::user_role, ?) RETURNING id, created_at";
+            "INSERT INTO users (username, password_hash, full_name, role) " +
+            "VALUES (?, ?, ?, ?::user_role) RETURNING id, created_at";
 
     private static final String SQL_EXISTS_USERNAME =
             "SELECT COUNT(*) FROM users WHERE username = ?";
@@ -115,16 +119,19 @@ public class UserRepository {
             stmt.setString(2, user.getPasswordHash());
             stmt.setString(3, user.getFullName());
             stmt.setString(4, user.getRole() != null ? user.getRole() : "STUDENT");
-            if (user.getClassId() != null && user.getClassId() > 0) {
-                stmt.setInt(5, user.getClassId());
-            } else {
-                stmt.setNull(5, Types.INTEGER);
-            }
 
             try (ResultSet rs = stmt.executeQuery()) { // RETURNING clause
                 if (rs.next()) {
                     user.setId(rs.getInt("id"));
                     user.setCreatedAt(rs.getTimestamp("created_at").toString());
+                    if (user.getClassId() != null && user.getClassId() > 0) {
+                        try (PreparedStatement enroll = conn.prepareStatement(
+                                "INSERT INTO class_enrollments (class_id, student_id) VALUES (?, ?) ON CONFLICT (class_id, student_id) DO NOTHING")) {
+                            enroll.setInt(1, user.getClassId());
+                            enroll.setInt(2, user.getId());
+                            enroll.executeUpdate();
+                        } catch (SQLException ignored) {}
+                    }
                     logger.info("Created user: id={}, username='{}', classId={}",
                             user.getId(), user.getUsername(), user.getClassId());
                     return user;

@@ -357,17 +357,15 @@ public class AuthService {
             try (Connection conn = DatabaseConfig.getConnection()) {
                 conn.setAutoCommit(false);
                 try (PreparedStatement update = conn.prepareStatement(
-                        "UPDATE users SET full_name = ?, class_id = COALESCE(class_id, ?), " +
+                        "UPDATE users SET full_name = ?, " +
                         "password_hash = COALESCE(?, password_hash) WHERE id = ?");
                      PreparedStatement enroll = conn.prepareStatement(
                              "INSERT INTO class_enrollments (class_id, student_id) VALUES (?, ?) " +
                              "ON CONFLICT (class_id, student_id) DO NOTHING")) {
                     update.setString(1, u.getFullName());
-                    if (classId != null && classId > 0) update.setInt(2, classId);
-                    else update.setNull(2, Types.INTEGER);
-                    if (migratedPasswordHash != null) update.setString(3, migratedPasswordHash);
-                    else update.setNull(3, Types.VARCHAR);
-                    update.setInt(4, u.getId());
+                    if (migratedPasswordHash != null) update.setString(2, migratedPasswordHash);
+                    else update.setNull(2, Types.VARCHAR);
+                    update.setInt(3, u.getId());
                     update.executeUpdate();
                     if (classId != null && classId > 0) {
                         enroll.setInt(1, classId);

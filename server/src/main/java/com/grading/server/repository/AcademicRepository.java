@@ -74,12 +74,7 @@ public class AcademicRepository {
                     "FROM courses co WHERE cl.course_id = co.id AND (cl.allowed_languages IS NULL OR cl.allowed_languages = 'c,cpp,java,python')"
             );
 
-            // 3. Bổ sung cột class_id vào users nếu chưa có
-            stmt.executeUpdate(
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS class_id INT REFERENCES classes(id) ON DELETE SET NULL"
-            );
-
-            // Một sinh viên có thể thuộc nhiều lớp tín chỉ.
+            // 3. Đảm bảo bảng class_enrollments tồn tại
             stmt.executeUpdate(
                     "CREATE TABLE IF NOT EXISTS class_enrollments (" +
                     "class_id INT NOT NULL REFERENCES classes(id) ON DELETE CASCADE," +
@@ -87,19 +82,25 @@ public class AcademicRepository {
                     "enrolled_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                     "PRIMARY KEY (class_id, student_id))"
             );
-            stmt.executeUpdate(
-                    "INSERT INTO class_enrollments (class_id, student_id) " +
-                    "SELECT class_id, id FROM users " +
-                    "WHERE UPPER(TRIM(role::text)) = 'STUDENT' AND class_id IS NOT NULL " +
-                    "ON CONFLICT (class_id, student_id) DO NOTHING"
-            );
 
-            // 4. Bổ sung cột class_id vào problems nếu chưa có
-            stmt.executeUpdate(
-                    "ALTER TABLE problems ADD COLUMN IF NOT EXISTS class_id INT REFERENCES classes(id) ON DELETE SET NULL"
-            );
+            // 3.1. Di chuyển dữ liệu từ users.class_id (nếu còn) sang class_enrollments rồi xóa cột class_id
+            try {
+                stmt.executeUpdate(
+                        "DO $$ BEGIN " +
+                        "  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'class_id') THEN " +
+                        "    INSERT INTO class_enrollments (class_id, student_id) " +
+                        "    SELECT class_id, id FROM users " +
+                        "    WHERE UPPER(TRIM(role::text)) = 'STUDENT' AND class_id IS NOT NULL " +
+                        "    ON CONFLICT (class_id, student_id) DO NOTHING; " +
+                        "    ALTER TABLE users DROP COLUMN class_id CASCADE; " +
+                        "  END IF; " +
+                        "END $$;"
+                );
+            } catch (SQLException e) {
+                logger.warn("Notice migrating/dropping users.class_id: {}", e.getMessage());
+            }
 
-            // 4.1. Bảng quan hệ Nhiều-Nhiều class_problems
+            // 4. Bảng quan hệ Nhiều-Nhiều class_problems
             stmt.executeUpdate(
                     "CREATE TABLE IF NOT EXISTS class_problems (" +
                     "  id SERIAL PRIMARY KEY," +
@@ -109,11 +110,22 @@ public class AcademicRepository {
                     "  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                     "  UNIQUE (class_id, problem_id))"
             );
-            stmt.executeUpdate(
-                    "INSERT INTO class_problems (class_id, problem_id) " +
-                    "SELECT class_id, id FROM problems WHERE class_id IS NOT NULL " +
-                    "ON CONFLICT (class_id, problem_id) DO NOTHING"
-            );
+
+            // 4.1. Di chuyển dữ liệu từ problems.class_id (nếu còn) sang class_problems rồi xóa cột class_id
+            try {
+                stmt.executeUpdate(
+                        "DO $$ BEGIN " +
+                        "  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'problems' AND column_name = 'class_id') THEN " +
+                        "    INSERT INTO class_problems (class_id, problem_id) " +
+                        "    SELECT class_id, id FROM problems WHERE class_id IS NOT NULL " +
+                        "    ON CONFLICT (class_id, problem_id) DO NOTHING; " +
+                        "    ALTER TABLE problems DROP COLUMN class_id CASCADE; " +
+                        "  END IF; " +
+                        "END $$;"
+                );
+            } catch (SQLException e) {
+                logger.warn("Notice migrating/dropping problems.class_id: {}", e.getMessage());
+            }
 
             // 4.5. Đảm bảo luôn có sẵn tài khoản Giáo viên (Admin) mặc định
             ensureAdminUser(conn, "teacher01", "password123", "Giảng Viên Quản Trị");
@@ -403,16 +415,14 @@ public class AcademicRepository {
                      "p.created_by, cl.id AS class_id, cl.name AS class_name, p.is_active, p.created_at, " +
                      "p.problem_type, p.oop_spec " +
                      "FROM problems p " +
-                     "LEFT JOIN classes cl ON cl.id = ? " +
-                     "LEFT JOIN class_problems cp ON p.id = cp.problem_id " +
-                     "WHERE (cp.class_id = ? OR p.class_id = ?) " +
+                     "JOIN class_problems cp ON p.id = cp.problem_id " +
+                     "JOIN classes cl ON cl.id = cp.class_id " +
+                     "WHERE cp.class_id = ? " +
                      "AND (p.is_active IS NULL OR p.is_active = TRUE) " +
                      "ORDER BY p.id";
         try (Connection conn = DatabaseConfig.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, classId);
-            stmt.setInt(2, classId);
-            stmt.setInt(3, classId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     Problem p = new Problem();
@@ -460,40 +470,13 @@ public class AcademicRepository {
             stmt.setInt(2, problemId);
             stmt.executeUpdate();
         }
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement stmt = conn.prepareStatement("UPDATE problems SET class_id = NULL WHERE id = ? AND class_id = ?")) {
-            stmt.setInt(1, problemId);
-            stmt.setInt(2, classId);
-            stmt.executeUpdate();
-        }
     }
 
     public void deleteClass(int classId) throws SQLException {
-        try (Connection conn = DatabaseConfig.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                // 1. Gỡ sinh viên khỏi lớp bị xóa (đưa về chưa gán lớp)
-                try (PreparedStatement s1 = conn.prepareStatement("UPDATE users SET class_id = NULL WHERE class_id = ?")) {
-                    s1.setInt(1, classId);
-                    s1.executeUpdate();
-                }
-                // 2. Chuyển bài tập gán cho lớp này thành bài tập chung
-                try (PreparedStatement s2 = conn.prepareStatement("UPDATE problems SET class_id = NULL WHERE class_id = ?")) {
-                    s2.setInt(1, classId);
-                    s2.executeUpdate();
-                }
-                // 3. Xóa lớp tín chỉ
-                try (PreparedStatement s3 = conn.prepareStatement("DELETE FROM classes WHERE id = ?")) {
-                    s3.setInt(1, classId);
-                    s3.executeUpdate();
-                }
-                conn.commit();
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
-            }
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement s3 = conn.prepareStatement("DELETE FROM classes WHERE id = ?")) {
+            s3.setInt(1, classId);
+            s3.executeUpdate();
         }
     }
 
@@ -586,29 +569,13 @@ public class AcademicRepository {
     }
 
     public void removeStudentFromClass(int studentId, int classId) throws SQLException {
-        try (Connection conn = DatabaseConfig.getConnection()) {
-            conn.setAutoCommit(false);
-            try (PreparedStatement remove = conn.prepareStatement(
-                    "DELETE FROM class_enrollments WHERE student_id = ? AND class_id = ?")) {
-                remove.setInt(1, studentId);
-                remove.setInt(2, classId);
-                if (remove.executeUpdate() == 0) {
-                    throw new SQLException("Sinh viên không thuộc lớp tín chỉ này.");
-                }
-                try (PreparedStatement legacy = conn.prepareStatement(
-                        "UPDATE users SET class_id = (SELECT MIN(class_id) FROM class_enrollments WHERE student_id = ?) " +
-                        "WHERE id = ? AND class_id = ?")) {
-                    legacy.setInt(1, studentId);
-                    legacy.setInt(2, studentId);
-                    legacy.setInt(3, classId);
-                    legacy.executeUpdate();
-                }
-                conn.commit();
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement remove = conn.prepareStatement(
+                     "DELETE FROM class_enrollments WHERE student_id = ? AND class_id = ?")) {
+            remove.setInt(1, studentId);
+            remove.setInt(2, classId);
+            if (remove.executeUpdate() == 0) {
+                throw new SQLException("Sinh viên không thuộc lớp tín chỉ này.");
             }
         }
     }

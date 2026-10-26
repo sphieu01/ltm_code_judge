@@ -35,7 +35,7 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
     public TeacherAssessmentMonitorDialog(Stage owner, int assessmentId, String title) {
         this.assessmentId = assessmentId;
         initOwner(owner);
-        setTitle("Theo dõi bài kiểm tra — " + title);
+        setTitle("Theo dõi bài kiểm tra - " + title);
         setResizable(true);
         build();
 
@@ -222,7 +222,7 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
         Stage owner = (Stage) getDialogPane().getScene().getWindow();
         SourceCodeViewerDialog viewer = new SourceCodeViewerDialog(
                 owner,
-                row.student() + " — " + row.problem(),
+                row.student() + " - " + row.problem(),
                 "",
                 row.sourceCode(),
                 false
@@ -232,7 +232,7 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
 
     private String value(JsonObject object, String field) {
         return object != null && object.has(field) && !object.get(field).isJsonNull()
-                ? object.get(field).getAsString() : "—";
+                ? object.get(field).getAsString() : "-";
     }
 
     private int number(JsonObject object, String field) {
@@ -246,7 +246,7 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
     }
 
     private String format(String value) {
-        return value == null || value.equals("—") ? "—" : value.replace('T', ' ');
+        return value == null || value.equals("—") || value.equals("-") ? "-" : value.replace('T', ' ');
     }
 
     private String statusText(String status) {

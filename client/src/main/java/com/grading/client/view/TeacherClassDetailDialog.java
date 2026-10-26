@@ -95,7 +95,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
 
         VBox root = new VBox(14);
         root.setPadding(new Insets(16));
-        Label heading = new Label(creditClass.getClassCode() + " — " + creditClass.getName());
+        Label heading = new Label(creditClass.getClassCode() + " - " + creditClass.getName());
         heading.setStyle("-fx-font-size: 19px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
         Label subtitle = new Label("Quản lý sinh viên, bài tập của lớp, bài kiểm tra và theo dõi tiến độ theo thời gian thực.");
         subtitle.getStyleClass().add("meta-item");
@@ -823,7 +823,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
     }
 
     private String compactTime(String value) {
-        return value == null || value.equals("—") ? "—" : value.replace('T', ' ');
+        return value == null || value.equals("—") || value.equals("-") ? "-" : value.replace('T', ' ');
     }
 
     private String assessmentStatus(String status) {
@@ -857,7 +857,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         }));
     }
 
-    private String value(JsonObject object, String field) { return object.has(field) && !object.get(field).isJsonNull() ? object.get(field).getAsString() : "—"; }
+    private String value(JsonObject object, String field) { return object.has(field) && !object.get(field).isJsonNull() ? object.get(field).getAsString() : "-"; }
 
     private void importStudents() {
         TeacherImportStudentsDialog dialog = new TeacherImportStudentsDialog(owner, List.of(creditClass), creditClass);

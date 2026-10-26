@@ -424,7 +424,7 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         this.defaultClass = defaultClass;
         initOwner(owner);
         initModality(Modality.APPLICATION_MODAL);
-        setTitle("Thêm bài tập mới — Dành cho Giáo viên");
+        setTitle("Thêm bài tập mới - Dành cho Giáo viên");
 
         DialogPane pane = getDialogPane();
         ThemeManager.getInstance().applyCurrentZoom(pane);
@@ -488,7 +488,7 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         // Item rỗng đại diện cho kho chung
         CreditClass unassigned = new CreditClass();
         unassigned.setId(0);
-        unassigned.setName("— Kho bài tập chung (Chưa gán lớp) —");
+        unassigned.setName("- Kho bài tập chung (Chưa gán lớp) -");
         comboList.add(unassigned);
         if (availableClasses != null && !availableClasses.isEmpty()) {
             comboList.addAll(availableClasses);

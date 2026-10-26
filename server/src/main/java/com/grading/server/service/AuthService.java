@@ -298,7 +298,7 @@ public class AuthService {
             throw new IllegalArgumentException("Username không được để trống");
         }
         if (username.length() < 3 || username.length() > 50) {
-            throw new IllegalArgumentException("Username phải từ 3–50 ký tự");
+            throw new IllegalArgumentException("Username phải từ 3-50 ký tự");
         }
         if (!username.matches("^[a-zA-Z0-9_]+$")) {
             throw new IllegalArgumentException("Username chỉ được chứa chữ cái, số và dấu gạch dưới");

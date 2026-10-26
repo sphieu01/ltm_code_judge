@@ -31,7 +31,7 @@ public class SourceCodeViewerDialog extends Dialog<Void> {
     public SourceCodeViewerDialog(Stage owner, String title, String timestamp, String sourceCode, boolean isZip) {
         initOwner(owner);
         setTitle("Mã nguồn đã nộp");
-        setHeaderText((title != null ? title : "Bài nộp") + (timestamp != null && !timestamp.isBlank() ? " — " + timestamp : ""));
+        setHeaderText((title != null ? title : "Bài nộp") + (timestamp != null && !timestamp.isBlank() ? " - " + timestamp : ""));
         getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
 
         if (sourceCode == null || sourceCode.isBlank()) {

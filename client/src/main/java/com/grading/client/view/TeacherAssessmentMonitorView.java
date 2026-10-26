@@ -23,7 +23,7 @@ import javafx.util.Duration;
 import java.util.function.Function;
 
 /**
- * TeacherAssessmentMonitorView — Màn hình giáo viên theo dõi trực tiếp một bài kiểm tra.
+ * TeacherAssessmentMonitorView - Màn hình giáo viên theo dõi trực tiếp một bài kiểm tra.
  * Hiển thị trực tiếp trong cửa sổ chính và có nút Back quay về Chi tiết lớp.
  */
 public class TeacherAssessmentMonitorView extends BorderPane {
@@ -68,7 +68,7 @@ public class TeacherAssessmentMonitorView extends BorderPane {
             }
         });
 
-        Label titleLabel = new Label("Theo dõi bài kiểm tra — " + title);
+        Label titleLabel = new Label("Theo dõi bài kiểm tra - " + title);
         titleLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
 
         Region spacer = new Region();
@@ -253,7 +253,7 @@ public class TeacherAssessmentMonitorView extends BorderPane {
         if (row == null) return;
         SourceCodeViewerDialog viewer = new SourceCodeViewerDialog(
                 stage,
-                row.student() + " — " + row.problem(),
+                row.student() + " - " + row.problem(),
                 "",
                 row.sourceCode(),
                 false
@@ -263,7 +263,7 @@ public class TeacherAssessmentMonitorView extends BorderPane {
 
     private String value(JsonObject object, String field) {
         return object != null && object.has(field) && !object.get(field).isJsonNull()
-                ? object.get(field).getAsString() : "—";
+                ? object.get(field).getAsString() : "-";
     }
 
     private int number(JsonObject object, String field) {
@@ -277,7 +277,7 @@ public class TeacherAssessmentMonitorView extends BorderPane {
     }
 
     private String format(String value) {
-        return value == null || value.equals("—") ? "—" : value.replace('T', ' ');
+        return value == null || value.equals("—") || value.equals("-") ? "-" : value.replace('T', ' ');
     }
 
     private String statusText(String status) {

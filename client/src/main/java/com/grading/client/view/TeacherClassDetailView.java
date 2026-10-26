@@ -27,7 +27,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * TeacherClassDetailView — Màn hình chi tiết lớp tín chỉ: sinh viên, bài tập, bài kiểm tra và cảnh báo.
+ * TeacherClassDetailView - Màn hình chi tiết lớp tín chỉ: sinh viên, bài tập, bài kiểm tra và cảnh báo.
  * Hiển thị trực tiếp trong cửa sổ chính và có nút Back quay về Danh sách lớp.
  */
 public class TeacherClassDetailView extends BorderPane {
@@ -87,7 +87,7 @@ public class TeacherClassDetailView extends BorderPane {
             }
         });
 
-        Label heading = new Label(creditClass.getClassCode() + " — " + creditClass.getName());
+        Label heading = new Label(creditClass.getClassCode() + " - " + creditClass.getName());
         heading.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
 
         Region spacer = new Region();
@@ -802,7 +802,7 @@ public class TeacherClassDetailView extends BorderPane {
     }
 
     private String compactTime(String value) {
-        return value == null || value.equals("—") ? "—" : value.replace('T', ' ');
+        return value == null || value.equals("—") || value.equals("-") ? "-" : value.replace('T', ' ');
     }
 
     private String assessmentStatus(String status) {
@@ -837,7 +837,7 @@ public class TeacherClassDetailView extends BorderPane {
     }
 
     private String value(JsonObject object, String field) {
-        return object.has(field) && !object.get(field).isJsonNull() ? object.get(field).getAsString() : "—";
+        return object.has(field) && !object.get(field).isJsonNull() ? object.get(field).getAsString() : "-";
     }
 
     private void importStudents() {

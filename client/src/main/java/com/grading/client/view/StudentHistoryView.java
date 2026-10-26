@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * StudentHistoryView — Màn hình hiển thị toàn bộ lịch sử nộp bài của sinh viên.
+ * StudentHistoryView - Màn hình hiển thị toàn bộ lịch sử nộp bài của sinh viên.
  * Hiển thị trực tiếp trong cửa sổ chính và có nút Back quay về Dashboard.
  */
 public class StudentHistoryView extends BorderPane {
@@ -117,9 +117,9 @@ public class StudentHistoryView extends BorderPane {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || item == null || item.isBlank() || "—".equals(item)) {
+                if (empty || item == null || item.isBlank() || "—".equals(item) || "-".equals(item)) {
                     setGraphic(null);
-                    setText("—");
+                    setText("-");
                 } else {
                     String formatted = Submission.formatVerdict(item);
                     Label pill = new Label(formatted);
@@ -225,18 +225,18 @@ public class StudentHistoryView extends BorderPane {
     }
 
     private String formatExecutionTime(int executionTimeMs) {
-        return executionTimeMs > 0 ? executionTimeMs + " ms" : "—";
+        return executionTimeMs > 0 ? executionTimeMs + " ms" : "-";
     }
 
     private String formatTestResult(Submission submission) {
         return submission.getTotalTests() > 0
                 ? submission.getPassedTests() + "/" + submission.getTotalTests()
-                : "—";
+                : "-";
     }
 
     private String formatSubmittedAt(String submittedAt) {
         return submittedAt != null && submittedAt.length() > 19
-                ? submittedAt.substring(0, 19) : (submittedAt == null ? "—" : submittedAt);
+                ? submittedAt.substring(0, 19) : (submittedAt == null ? "-" : submittedAt);
     }
 
     private void showSourceCode(Submission submission) {

@@ -96,9 +96,9 @@ public class StudentHistoryDialog extends Dialog<Void> {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || item == null || item.isBlank() || "—".equals(item)) {
+                if (empty || item == null || item.isBlank() || "—".equals(item) || "-".equals(item)) {
                     setGraphic(null);
-                    setText("—");
+                    setText("-");
                 } else {
                     String formatted = com.grading.client.model.Submission.formatVerdict(item);
                     Label pill = new Label(formatted);
@@ -213,18 +213,18 @@ public class StudentHistoryDialog extends Dialog<Void> {
     }
 
     private String formatExecutionTime(int executionTimeMs) {
-        return executionTimeMs > 0 ? executionTimeMs + " ms" : "—";
+        return executionTimeMs > 0 ? executionTimeMs + " ms" : "-";
     }
 
     private String formatTestResult(Submission submission) {
         return submission.getTotalTests() > 0
                 ? submission.getPassedTests() + "/" + submission.getTotalTests()
-                : "—";
+                : "-";
     }
 
     private String formatSubmittedAt(String submittedAt) {
         return submittedAt != null && submittedAt.length() > 19
-                ? submittedAt.substring(0, 19) : (submittedAt == null ? "—" : submittedAt);
+                ? submittedAt.substring(0, 19) : (submittedAt == null ? "-" : submittedAt);
     }
 
     private void showSourceCode(Submission submission) {

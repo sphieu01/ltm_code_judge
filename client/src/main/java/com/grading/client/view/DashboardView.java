@@ -320,9 +320,9 @@ public class DashboardView extends BorderPane {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || item == null || item.isEmpty() || "—".equals(item)) {
+                if (empty || item == null || item.isEmpty() || "—".equals(item) || "-".equals(item)) {
                     setGraphic(null);
-                    setText("—");
+                    setText("-");
                     setStyle("-fx-text-fill: -text-secondary; -fx-alignment: CENTER;");
                 } else {
                     String display = com.grading.client.model.Submission.formatVerdict(item);
@@ -484,7 +484,7 @@ public class DashboardView extends BorderPane {
     private String assessmentCountdownText(AssessmentSummary assessment) {
         AssessmentSchedule schedule = AssessmentSchedule.from(assessment.opensAt(), assessment.closesAt());
         if (!schedule.isValid())
-            return "—";
+            return "-";
         long remaining = schedule.secondsUntilOpen(SessionManager.getInstance().getAssessmentNowEpochMs());
         return remaining > 0 ? AssessmentSchedule.formatCountdown(remaining)
                 : canStartAssessment(assessment) ? "Đã đến giờ" : "Đã kết thúc";
@@ -588,7 +588,7 @@ public class DashboardView extends BorderPane {
         setAssessmentCountdownVisible(active);
         if (active) {
             assessmentBanner.setText((title == null ? "Bài kiểm tra" : title)
-                    + (classCode == null ? "" : " — " + classCode)
+                    + (classCode == null ? "" : " - " + classCode)
                     + "\nThời lượng: " + durationMinutes + " phút · Kết thúc: " + formatAssessmentTime(closesAt)
                     + "\nChỉ các bài do giáo viên giao được hiển thị trong thời gian này.");
         } else {
@@ -699,7 +699,7 @@ public class DashboardView extends BorderPane {
 
     private String formatAssessmentTime(String value) {
         if (value == null || value.isBlank())
-            return "—";
+            return "-";
         String normalized = value.trim().replace(" ", "T");
         DateTimeFormatter format = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
         try {

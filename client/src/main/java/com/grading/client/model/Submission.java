@@ -93,8 +93,8 @@ public class Submission {
      * Chuẩn hóa hiển thị kết quả chấm (AC => Accepted, TLE => Time Limit Exceeded, v.v.)
      */
     public static String formatVerdict(String v) {
-        if (v == null || v.isBlank() || v.equals("--") || v.equals("—")) {
-            return "—";
+        if (v == null || v.isBlank() || v.equals("--") || v.equals("—") || v.equals("-")) {
+            return "-";
         }
         String u = v.trim().toUpperCase();
         if (u.equals("AC") || u.equals("ACCEPTED") || u.equals("PASSED")) {

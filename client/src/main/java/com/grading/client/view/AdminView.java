@@ -116,7 +116,7 @@ public class AdminView extends BorderPane {
         topBar.setAlignment(Pos.CENTER_LEFT);
         topBar.setPadding(new Insets(8, 20, 8, 20));
 
-        brandLabel = new Label("Auto Grader — Cổng Quản Trị Giáo Viên");
+        brandLabel = new Label("Auto Grader - Cổng Quản Trị Giáo Viên");
         brandLabel.setStyle("-fx-font-size: 17px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
 
         Label adminBadge = new Label("ADMIN / GIÁO VIÊN");

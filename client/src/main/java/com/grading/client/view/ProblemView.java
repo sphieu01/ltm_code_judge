@@ -949,7 +949,7 @@ public class ProblemView extends BorderPane {
             return;
         pill.getStyleClass().removeAll("pill-ac", "pill-wa", "pill-tle", "pill-ce", "pill-running", "pill-neutral");
 
-        if (verdict == null || verdict.equals("—") || verdict.equals("--")) {
+        if (verdict == null || verdict.equals("—") || verdict.equals("--") || verdict.equals("-")) {
             pill.setText("Chưa nộp bài");
             pill.getStyleClass().add("pill-neutral");
             return;

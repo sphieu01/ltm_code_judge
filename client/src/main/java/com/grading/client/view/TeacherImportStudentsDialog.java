@@ -89,7 +89,7 @@ public class TeacherImportStudentsDialog extends Dialog<TeacherImportStudentsDia
 
         Label dropTitle = new Label("Nhấp vào đây để chọn file dữ liệu (.csv, .txt)");
         dropTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: -text-bright;");
-        Label dropFormat = new Label("Mỗi dòng: B23DCCNxxx,Họ và tên (xxx từ 001–999; mật khẩu ban đầu là mã sinh viên)");
+        Label dropFormat = new Label("Mỗi dòng: B23DCCNxxx,Họ và tên (xxx từ 001-999; mật khẩu ban đầu là mã sinh viên)");
         dropFormat.setStyle("-fx-font-size: 11.5px; -fx-text-fill: -text-secondary;");
 
         fileStatusLabel = new Label("Chưa chọn file");

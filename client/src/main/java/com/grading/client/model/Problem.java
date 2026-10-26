@@ -22,6 +22,26 @@ public class Problem {
 
     public Problem() {}
 
+    public Problem(Problem other) {
+        if (other != null) {
+            this.id = other.id;
+            this.title = other.title;
+            this.description = other.description;
+            this.timeLimitMs = other.timeLimitMs;
+            this.memoryLimitKb = other.memoryLimitKb;
+            this.difficulty = other.difficulty;
+            this.classId = other.classId;
+            this.className = other.className;
+            this.active = other.active;
+            this.problemType = other.problemType;
+            this.oopSpec = other.oopSpec;
+            this.allowedLanguages = other.allowedLanguages;
+            this.totalTestCases = other.totalTestCases;
+            this.sampleTestCases = other.sampleTestCases;
+            this.status = other.status;
+        }
+    }
+
     public String getAllowedLanguages() { return allowedLanguages; }
     public void setAllowedLanguages(String allowedLanguages) { this.allowedLanguages = allowedLanguages; }
 

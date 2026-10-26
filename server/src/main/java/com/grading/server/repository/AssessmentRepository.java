@@ -123,6 +123,71 @@ public class AssessmentRepository {
         }
     }
 
+    public void update(int assessmentId, String title, LocalDateTime opensAt, LocalDateTime closesAt,
+                       int durationMinutes, List<Integer> problemIds) throws SQLException {
+        try (Connection conn = connections.open()) {
+            conn.setAutoCommit(false);
+            try {
+                String updateSql = "UPDATE assessments SET title=?, opens_at=?, closes_at=?, duration_minutes=? WHERE id=?";
+                try (PreparedStatement stmt = conn.prepareStatement(updateSql)) {
+                    stmt.setString(1, title);
+                    stmt.setTimestamp(2, Timestamp.valueOf(opensAt));
+                    stmt.setTimestamp(3, Timestamp.valueOf(closesAt));
+                    stmt.setInt(4, durationMinutes);
+                    stmt.setInt(5, assessmentId);
+                    int updated = stmt.executeUpdate();
+                    if (updated == 0) {
+                        throw new IllegalArgumentException("Không tìm thấy bài kiểm tra.");
+                    }
+                }
+
+                if (problemIds != null && !problemIds.isEmpty()) {
+                    String deleteOldProblems = "DELETE FROM assessment_problems WHERE assessment_id=?";
+                    try (PreparedStatement stmt = conn.prepareStatement(deleteOldProblems)) {
+                        stmt.setInt(1, assessmentId);
+                        stmt.executeUpdate();
+                    }
+
+                    String addProblem = "INSERT INTO assessment_problems (assessment_id,problem_id,order_num) " +
+                            "SELECT ?,p.id,? FROM problems p WHERE p.id=?";
+                    try (PreparedStatement stmt = conn.prepareStatement(addProblem)) {
+                        int order = 1;
+                        for (Integer problemId : problemIds) {
+                            stmt.setInt(1, assessmentId);
+                            stmt.setInt(2, order++);
+                            stmt.setInt(3, problemId);
+                            if (stmt.executeUpdate() == 0) {
+                                throw new IllegalArgumentException("Bài tập #" + problemId + " không tồn tại.");
+                            }
+                        }
+                    }
+                }
+
+                conn.commit();
+            } catch (Exception e) {
+                conn.rollback();
+                if (e instanceof SQLException sql) throw sql;
+                if (e instanceof RuntimeException runtime) throw runtime;
+                throw new SQLException(e);
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+    }
+
+    public void delete(int assessmentId) throws SQLException {
+        try (Connection conn = connections.open()) {
+            String sql = "DELETE FROM assessments WHERE id=?";
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setInt(1, assessmentId);
+                int deleted = stmt.executeUpdate();
+                if (deleted == 0) {
+                    throw new IllegalArgumentException("Không tìm thấy bài kiểm tra.");
+                }
+            }
+        }
+    }
+
     /** Uses the application server clock so Neon/UTC cannot shift a Vietnam local schedule. */
     public JsonObject findActiveForStudent(int studentId, Integer requestedClassId) throws SQLException {
         LocalDateTime now = LocalDateTime.now(clock);

@@ -172,6 +172,8 @@ public class ClientHandler implements Runnable {
                     case TOGGLE_COURSE_ACTIVE -> handleToggleCourseActive(request);
                     case TOGGLE_PROBLEM_ACTIVE -> handleToggleProblemActive(request);
                     case CREATE_ASSESSMENT -> handleCreateAssessment(request);
+                    case UPDATE_ASSESSMENT -> handleUpdateAssessment(request);
+                    case DELETE_ASSESSMENT -> handleDeleteAssessment(request);
                     case GET_ACTIVE_ASSESSMENT -> handleGetActiveAssessment(request);
                     case GET_STUDENT_ASSESSMENTS -> handleGetStudentAssessments(request);
                     case GET_CLASS_ASSESSMENTS -> handleGetClassAssessments(request);
@@ -1205,6 +1207,51 @@ public class ClientHandler implements Runnable {
         } catch (Exception e) {
             logger.error("CreateAssessment error", e);
             sendError(request.getRequestId(), e.getMessage() != null ? e.getMessage() : "Không thể tạo bài kiểm tra.");
+        }
+    }
+
+    private void handleUpdateAssessment(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền cập nhật bài kiểm tra.");
+            return;
+        }
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            List<Integer> problemIds = null;
+            if (data.has("problemIds") && data.get("problemIds").isJsonArray()) {
+                problemIds = new java.util.ArrayList<>();
+                for (var id : data.getAsJsonArray("problemIds")) problemIds.add(id.getAsInt());
+            }
+            int assessmentId = data.get("assessmentId").getAsInt();
+            academicService.updateAssessment(
+                    assessmentId,
+                    data.has("title") ? data.get("title").getAsString() : "",
+                    java.time.LocalDateTime.parse(data.get("opensAt").getAsString()),
+                    java.time.LocalDateTime.parse(data.get("closesAt").getAsString()),
+                    data.get("durationMinutes").getAsInt(),
+                    problemIds);
+            send(Message.success(MessageType.UPDATE_ASSESSMENT_RESPONSE, request.getRequestId(),
+                    "Đã cập nhật bài kiểm tra thành công.", null));
+        } catch (Exception e) {
+            logger.error("UpdateAssessment error", e);
+            sendError(request.getRequestId(), e.getMessage() != null ? e.getMessage() : "Không thể cập nhật bài kiểm tra.");
+        }
+    }
+
+    private void handleDeleteAssessment(Message request) {
+        if (!"TEACHER".equalsIgnoreCase(authenticatedRole)) {
+            sendError(request.getRequestId(), "Chỉ giáo viên mới có quyền xóa bài kiểm tra.");
+            return;
+        }
+        try {
+            JsonObject data = request.getData().getAsJsonObject();
+            int assessmentId = data.get("assessmentId").getAsInt();
+            academicService.deleteAssessment(assessmentId);
+            send(Message.success(MessageType.DELETE_ASSESSMENT_RESPONSE, request.getRequestId(),
+                    "Đã xóa bài kiểm tra thành công.", null));
+        } catch (Exception e) {
+            logger.error("DeleteAssessment error", e);
+            sendError(request.getRequestId(), e.getMessage() != null ? e.getMessage() : "Không thể xóa bài kiểm tra.");
         }
     }
 

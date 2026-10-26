@@ -150,6 +150,22 @@ public class AcademicService {
                 durationMinutes, teacherId, problemIds.stream().distinct().toList());
     }
 
+    public void updateAssessment(int assessmentId, String title, LocalDateTime opensAt, LocalDateTime closesAt,
+                                 int durationMinutes, List<Integer> problemIds) throws SQLException {
+        if (assessmentId <= 0) throw new IllegalArgumentException("Bài kiểm tra không hợp lệ.");
+        if (title == null || title.isBlank()) throw new IllegalArgumentException("Tên bài kiểm tra không được để trống.");
+        if (opensAt == null || closesAt == null || !closesAt.isAfter(opensAt))
+            throw new IllegalArgumentException("Thời gian kết thúc phải sau thời gian bắt đầu.");
+        if (durationMinutes <= 0) throw new IllegalArgumentException("Thời lượng phải lớn hơn 0 phút.");
+        assessmentRepository.update(assessmentId, title.trim(), opensAt, closesAt,
+                durationMinutes, problemIds != null ? problemIds.stream().distinct().toList() : List.of());
+    }
+
+    public void deleteAssessment(int assessmentId) throws SQLException {
+        if (assessmentId <= 0) throw new IllegalArgumentException("Bài kiểm tra không hợp lệ.");
+        assessmentRepository.delete(assessmentId);
+    }
+
     public JsonObject getActiveAssessment(int studentId, Integer classId) throws SQLException {
         return assessmentRepository.findActiveForStudent(studentId, classId);
     }

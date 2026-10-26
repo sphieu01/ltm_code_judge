@@ -22,7 +22,14 @@ public class ProfilePopup extends Popup {
     public ProfilePopup(User user) {
         this.user = user;
         setAutoHide(true);
-        getContent().add(buildPopupContent());
+        VBox content = buildPopupContent();
+        String cssPath = ThemeManager.getInstance().isDark() ? "/css/dark.css" : "/css/light.css";
+        var res = getClass().getResource(cssPath);
+        if (res != null) {
+            content.getStylesheets().setAll(res.toExternalForm());
+        }
+        ThemeManager.getInstance().applyCurrentZoom(content);
+        getContent().add(content);
     }
 
     private VBox buildPopupContent() {
@@ -30,6 +37,14 @@ public class ProfilePopup extends Popup {
         container.getStyleClass().add("profile-popup");
         container.setMinWidth(280);
         container.setMaxWidth(320);
+        // Đảm bảo nền mờ/xuyên thấu không xảy ra khi hiển thị trên các control khác
+        boolean isDark = ThemeManager.getInstance().isDark();
+        container.setStyle(
+            "-fx-background-color: " + (isDark ? "#252526" : "#FFFFFF") + "; " +
+            "-fx-border-color: " + (isDark ? "#3E3E42" : "#D0D7DE") + "; " +
+            "-fx-border-width: 1px; -fx-border-radius: 8px; -fx-background-radius: 8px; " +
+            "-fx-padding: 16px; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.25), 10, 0, 0, 4);"
+        );
 
         // Header: Avatar lớn + Tên đầy đủ
         HBox userHeaderBox = new HBox(12);

@@ -609,17 +609,33 @@ public class TeacherClassDetailView extends BorderPane {
 
     private TableColumn<AssessmentRow, Void> assessmentActionColumn() {
         TableColumn<AssessmentRow, Void> column = new TableColumn<>("Trạng thái / Thao tác");
-        column.setPrefWidth(255);
+        column.setMinWidth(380);
+        column.setPrefWidth(400);
         column.setCellFactory(c -> new TableCell<>() {
             private final Button stateButton = new Button();
             private final Button actionButton = new Button();
-            private final HBox buttons = new HBox(8, stateButton, actionButton);
+            private final Button editButton = new Button("Sửa");
+            private final Button deleteButton = new Button("Xóa");
+            private final HBox buttons = new HBox(6, stateButton, actionButton, editButton, deleteButton);
             {
                 buttons.setAlignment(Pos.CENTER);
                 stateButton.getStyleClass().addAll("button", "btn-secondary");
                 stateButton.setDisable(true);
                 actionButton.getStyleClass().addAll("button", "btn-primary");
                 actionButton.setOnAction(e -> openAssessmentMonitor(getTableView().getItems().get(getIndex())));
+
+                editButton.getStyleClass().addAll("button", "btn-secondary");
+                editButton.setOnAction(e -> {
+                    AssessmentRow row = getTableView().getItems().get(getIndex());
+                    handleEditAssessment(row);
+                });
+
+                deleteButton.getStyleClass().addAll("button", "btn-secondary");
+                deleteButton.setStyle("-fx-text-fill: #F85149; -fx-border-color: #F85149;");
+                deleteButton.setOnAction(e -> {
+                    AssessmentRow row = getTableView().getItems().get(getIndex());
+                    handleDeleteAssessment(row);
+                });
             }
             @Override protected void updateItem(Void item, boolean empty) {
                 super.updateItem(item, empty);
@@ -635,6 +651,43 @@ public class TeacherClassDetailView extends BorderPane {
             }
         });
         return column;
+    }
+
+    private void handleEditAssessment(AssessmentRow row) {
+        if (row == null) return;
+        TeacherEditAssessmentDialog dialog = new TeacherEditAssessmentDialog(owner, row, creditClass, problems);
+        dialog.showAndWait().ifPresent(success -> {
+            if (success) {
+                loadAssessments();
+            }
+        });
+    }
+
+    private void handleDeleteAssessment(AssessmentRow row) {
+        if (row == null) return;
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.initOwner(owner);
+        alert.setGraphic(null);
+        alert.setTitle("Xác nhận xóa");
+        alert.setHeaderText("Xóa bài kiểm tra");
+        alert.setContentText("Bạn có chắc chắn muốn xóa bài kiểm tra \"" + row.title() + "\" không?");
+
+        alert.showAndWait().ifPresent(btn -> {
+            if (btn == ButtonType.OK) {
+                client.deleteAssessment(row.id(), response -> Platform.runLater(() -> {
+                    if ("SUCCESS".equalsIgnoreCase(response.getStatus())) {
+                        loadAssessments();
+                    } else {
+                        Alert err = new Alert(Alert.AlertType.ERROR);
+                        err.initOwner(owner);
+                        err.setGraphic(null);
+                        err.setTitle("Lỗi");
+                        err.setContentText(response.getMessage() != null ? response.getMessage() : "Không thể xóa bài kiểm tra.");
+                        err.showAndWait();
+                    }
+                }));
+            }
+        });
     }
 
     private void openAssessmentMonitor(AssessmentRow row) {
@@ -785,13 +838,24 @@ public class TeacherClassDetailView extends BorderPane {
                 int studentCount = intValue(o, "studentCount");
                 int startedCount = intValue(o, "startedCount");
                 int completedCount = intValue(o, "completedCount");
+                String opensAtStr = value(o, "opensAt");
+                String closesAtStr = value(o, "closesAt");
+                int durationMinutes = intValue(o, "durationMinutes");
+                java.time.LocalDateTime opensAt = null;
+                java.time.LocalDateTime closesAt = null;
+                try {
+                    if (opensAtStr != null && !opensAtStr.equals("-")) opensAt = java.time.LocalDateTime.parse(opensAtStr);
+                    if (closesAtStr != null && !closesAtStr.equals("-")) closesAt = java.time.LocalDateTime.parse(closesAtStr);
+                } catch (Exception ignored) {}
+
                 rows.add(new AssessmentRow(
                         intValue(o, "id"),
                         value(o, "title"),
                         assessmentStatus(value(o, "status")),
-                        compactTime(value(o, "opensAt")) + " → " + compactTime(value(o, "closesAt")),
+                        compactTime(opensAtStr) + " -> " + compactTime(closesAtStr),
                         "Đã làm " + startedCount + "/" + studentCount + " • Xong " + completedCount,
-                        value(o, "status")));
+                        value(o, "status"),
+                        opensAt, closesAt, durationMinutes));
             }
             assessments.setAll(rows);
         }));
@@ -857,5 +921,6 @@ public class TeacherClassDetailView extends BorderPane {
     }
 
     public record AlertRow(String time, String student, String event, String tool, String severity, String problem) {}
-    public record AssessmentRow(int id, String title, String status, String window, String progress, String rawStatus) {}
+    public record AssessmentRow(int id, String title, String status, String window, String progress, String rawStatus,
+                                java.time.LocalDateTime opensAt, java.time.LocalDateTime closesAt, int durationMinutes) {}
 }

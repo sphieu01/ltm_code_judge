@@ -480,6 +480,27 @@ public class SocketClient {
         sendRequest(MessageType.CREATE_ASSESSMENT, data, callback);
     }
 
+    public void updateAssessment(int assessmentId, String title, String opensAt, String closesAt,
+                                  int durationMinutes, com.google.gson.JsonArray problemIds,
+                                  Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("assessmentId", assessmentId);
+        data.addProperty("title", title);
+        data.addProperty("opensAt", opensAt);
+        data.addProperty("closesAt", closesAt);
+        data.addProperty("durationMinutes", durationMinutes);
+        if (problemIds != null) {
+            data.add("problemIds", problemIds);
+        }
+        sendRequest(MessageType.UPDATE_ASSESSMENT, data, callback);
+    }
+
+    public void deleteAssessment(int assessmentId, Consumer<Response> callback) {
+        JsonObject data = new JsonObject();
+        data.addProperty("assessmentId", assessmentId);
+        sendRequest(MessageType.DELETE_ASSESSMENT, data, callback);
+    }
+
     public void getActiveAssessment(Integer classId, Consumer<Response> callback) {
         JsonObject data = new JsonObject();
         if (classId != null && classId > 0) data.addProperty("classId", classId);

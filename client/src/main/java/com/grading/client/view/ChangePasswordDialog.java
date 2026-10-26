@@ -16,9 +16,9 @@ import javafx.stage.Stage;
  */
 public class ChangePasswordDialog extends Dialog<Boolean> {
 
-    private PasswordField oldPasswordField;
-    private PasswordField newPasswordField;
-    private PasswordField confirmPasswordField;
+    private PasswordBox oldPasswordBox;
+    private PasswordBox newPasswordBox;
+    private PasswordBox confirmPasswordBox;
     private Label errorLabel;
     private Button submitBtn;
 
@@ -46,20 +46,17 @@ public class ChangePasswordDialog extends Dialog<Boolean> {
         // 1. Mật khẩu hiện tại
         Label oldPassLabel = new Label("Mật khẩu hiện tại (*)");
         oldPassLabel.getStyleClass().add("meta-item");
-        oldPasswordField = new PasswordField();
-        oldPasswordField.setPromptText("Nhập mật khẩu hiện tại...");
+        oldPasswordBox = new PasswordBox("Nhập mật khẩu hiện tại...");
 
         // 2. Mật khẩu mới
         Label newPassLabel = new Label("Mật khẩu mới (*)");
         newPassLabel.getStyleClass().add("meta-item");
-        newPasswordField = new PasswordField();
-        newPasswordField.setPromptText("Tối thiểu 6 ký tự...");
+        newPasswordBox = new PasswordBox("Tối thiểu 6 ký tự...");
 
         // 3. Xác nhận mật khẩu mới
         Label confirmPassLabel = new Label("Xác nhận mật khẩu mới (*)");
         confirmPassLabel.getStyleClass().add("meta-item");
-        confirmPasswordField = new PasswordField();
-        confirmPasswordField.setPromptText("Nhập lại mật khẩu mới...");
+        confirmPasswordBox = new PasswordBox("Nhập lại mật khẩu mới...");
 
         // Label lỗi
         errorLabel = new Label();
@@ -68,9 +65,9 @@ public class ChangePasswordDialog extends Dialog<Boolean> {
 
         form.getChildren().addAll(
                 title,
-                oldPassLabel, oldPasswordField,
-                newPassLabel, newPasswordField,
-                confirmPassLabel, confirmPasswordField,
+                oldPassLabel, oldPasswordBox,
+                newPassLabel, newPasswordBox,
+                confirmPassLabel, confirmPasswordBox,
                 errorLabel
         );
         pane.setContent(form);
@@ -86,9 +83,9 @@ public class ChangePasswordDialog extends Dialog<Boolean> {
 
         // Ngăn auto close khi click submit nếu có lỗi validation
         submitBtn.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
-            String oldPass = oldPasswordField.getText();
-            String newPass = newPasswordField.getText();
-            String confirmPass = confirmPasswordField.getText();
+            String oldPass = oldPasswordBox.getText();
+            String newPass = newPasswordBox.getText();
+            String confirmPass = confirmPasswordBox.getText();
 
             if (oldPass.isEmpty() || newPass.isEmpty() || confirmPass.isEmpty()) {
                 errorLabel.setText("Vui lòng nhập đầy đủ thông tin.");

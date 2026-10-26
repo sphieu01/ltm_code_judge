@@ -21,7 +21,7 @@ public class EditStudentDialog extends Dialog<EditStudentDialog.EditStudentPaylo
     private TextField usernameField;
     private TextField fullNameField;
     private ComboBox<CreditClass> classCombo;
-    private PasswordField newPasswordField;
+    private PasswordBox newPasswordBox;
 
     public EditStudentDialog(Stage owner, User.UserDTO student, List<CreditClass> classes) {
         initOwner(owner);
@@ -70,14 +70,13 @@ public class EditStudentDialog extends Dialog<EditStudentDialog.EditStudentPaylo
 
         Label passLabel = new Label("Mật khẩu mới (bỏ trống nếu không đổi):");
         passLabel.getStyleClass().add("meta-item");
-        newPasswordField = new PasswordField();
-        newPasswordField.setPromptText("Nhập mật khẩu mới nếu muốn đặt lại");
+        newPasswordBox = new PasswordBox("Nhập mật khẩu mới nếu muốn đặt lại");
 
         form.getChildren().addAll(
                 userLabel, usernameField,
                 nameLabel, fullNameField,
                 classLabel, classCombo,
-                passLabel, newPasswordField
+                passLabel, newPasswordBox
         );
 
         pane.setContent(form);
@@ -106,7 +105,7 @@ public class EditStudentDialog extends Dialog<EditStudentDialog.EditStudentPaylo
                 }
                 CreditClass selectedClass = classCombo.getSelectionModel().getSelectedItem();
                 Integer classId = selectedClass != null ? selectedClass.getId() : null;
-                String newPass = newPasswordField.getText();
+                String newPass = newPasswordBox.getText();
                 if (newPass != null && newPass.isBlank()) newPass = null;
 
                 return new EditStudentPayload(student.getId(), fullName, classId, newPass);

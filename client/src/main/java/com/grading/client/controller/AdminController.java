@@ -573,10 +573,33 @@ public class AdminController {
     }
 
     private void handleViewClass(CreditClass creditClass) {
-        if (creditClass == null) return;
-        TeacherClassDetailDialog dialog = new TeacherClassDetailDialog(stage, creditClass);
-        dialog.showAndWait();
-        loadClasses();
+        if (creditClass == null || stage == null || stage.getScene() == null) return;
+        javafx.scene.Scene scene = stage.getScene();
+        javafx.scene.Parent previousRoot = scene.getRoot();
+
+        TeacherClassDetailView classDetailView = new TeacherClassDetailView(stage, creditClass);
+        classDetailView.setOnBack(() -> {
+            scene.setRoot(previousRoot);
+            ThemeManager.getInstance().applyTheme(scene);
+            loadClasses();
+        });
+
+        classDetailView.setOnOpenMonitor(row -> {
+            javafx.scene.Parent classDetailRoot = scene.getRoot();
+            TeacherAssessmentMonitorView monitorView = new TeacherAssessmentMonitorView(stage, row.id(), row.title());
+            monitorView.setOnBack(() -> {
+                monitorView.stopPolling();
+                scene.setRoot(classDetailRoot);
+                ThemeManager.getInstance().applyTheme(scene);
+                classDetailView.loadAssessments();
+            });
+            scene.setRoot(monitorView);
+            ThemeManager.getInstance().applyTheme(scene);
+            monitorView.startPolling();
+        });
+
+        scene.setRoot(classDetailView);
+        ThemeManager.getInstance().applyTheme(scene);
     }
 
     private void handleDeleteProblem(Problem problem) {

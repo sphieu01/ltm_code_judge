@@ -232,10 +232,20 @@ public class DashboardView extends BorderPane {
     }
 
     private void showHistoryDialog() {
-        javafx.stage.Window win = getScene() != null ? getScene().getWindow() : null;
+        javafx.scene.Scene scene = getScene();
+        if (scene == null) return;
+        javafx.stage.Window win = scene.getWindow();
         Stage stage = win instanceof Stage ? (Stage) win : null;
-        StudentHistoryDialog dialog = new StudentHistoryDialog(stage);
-        dialog.showAndWait();
+        javafx.scene.Parent previousRoot = scene.getRoot();
+
+        StudentHistoryView historyView = new StudentHistoryView(stage);
+        historyView.setOnBack(() -> {
+            scene.setRoot(previousRoot);
+            ThemeManager.getInstance().applyTheme(scene);
+        });
+
+        scene.setRoot(historyView);
+        ThemeManager.getInstance().applyTheme(scene);
     }
 
     private void showProfilePopup() {

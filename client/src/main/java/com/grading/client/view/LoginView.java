@@ -15,7 +15,7 @@ public class LoginView extends BorderPane {
     private TextField hostField;
     private TextField portField;
     private TextField usernameField;
-    private PasswordField passwordField;
+    private PasswordBox passwordBox;
 
     private Label errorLabel;
     private Button submitBtn;
@@ -73,9 +73,8 @@ public class LoginView extends BorderPane {
         VBox passBox = new VBox(4);
         Label passLabel = new Label("Mật khẩu");
         passLabel.getStyleClass().add("meta-item");
-        passwordField = new PasswordField();
-        passwordField.setPromptText("Nhập mật khẩu...");
-        passBox.getChildren().addAll(passLabel, passwordField);
+        passwordBox = new PasswordBox("Nhập mật khẩu...");
+        passBox.getChildren().addAll(passLabel, passwordBox);
 
         // Thông báo lỗi
         errorLabel = new Label();
@@ -117,7 +116,7 @@ public class LoginView extends BorderPane {
     }
 
     public String getPassword() {
-        return passwordField.getText();
+        return passwordBox.getText();
     }
 
     public void setError(String msg) {
@@ -133,6 +132,10 @@ public class LoginView extends BorderPane {
     }
 
     public PasswordField getPasswordField() {
-        return passwordField;
+        return passwordBox.getPasswordField();
+    }
+
+    public PasswordBox getPasswordBox() {
+        return passwordBox;
     }
 }

@@ -794,6 +794,25 @@
     -fx-border-color: -border-focus;
 }
 
+/* Eye Toggle Button in Password Fields */
+.btn-eye-toggle {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-cursor: hand;
+    -fx-padding: 3 4 3 4;
+    -fx-background-radius: 4px;
+}
+.btn-eye-toggle:hover {
+    -fx-background-color: -bg-hover;
+}
+.btn-eye-toggle .eye-icon {
+    -fx-fill: -text-secondary;
+}
+.btn-eye-toggle:hover .eye-icon {
+    -fx-fill: -accent;
+}
+
 /* ===== TABLE VIEW ===== */
 .table-view {
     -fx-background-color: -bg-main;

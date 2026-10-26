@@ -1046,6 +1046,7 @@ public class ProblemView extends BorderPane {
         alert.setTitle("Cảnh Báo Giám Sát Chống Gian Lận");
         alert.setHeaderText("Phát hiện mở công cụ AI!");
         alert.setContentText(msg);
+        alert.setGraphic(null);
         activeProctorAlert = alert;
         alert.setOnHidden(e -> {
             if (activeProctorAlert == alert) {
@@ -1102,6 +1103,7 @@ public class ProblemView extends BorderPane {
         alert.setTitle("Cảnh Báo Chống Gian Lận AI");
         alert.setHeaderText("Phát hiện mã nguồn có dấu hiệu do AI sinh ra!");
         alert.setContentText(warningMessage);
+        alert.setGraphic(null);
         alert.show();
     }
 

@@ -172,17 +172,16 @@ public class ClientApp extends Application {
     public void showProblemView(Problem problem) {
         com.grading.client.model.CreditClass curClass = SessionManager.getInstance().getCurrentClass();
         if (curClass != null) {
-            if (problem.getClassId() == null || problem.getClassId() <= 0) {
-                problem.setClassId(curClass.getId());
-                problem.setClassName(curClass.getName());
-            }
+            problem.setClassId(curClass.getId());
+            problem.setClassName(curClass.getName());
+            problem.setAllowedLanguages(curClass.getEffectiveAllowedLanguages());
         }
 
         ProblemView problemView = new ProblemView();
-        if (problem.getAllowedLanguages() != null && !problem.getAllowedLanguages().isBlank()) {
-            problemView.setAllowedLanguages(problem.getAllowedLanguages());
-        } else if (curClass != null) {
+        if (curClass != null && curClass.getEffectiveAllowedLanguages() != null) {
             problemView.setAllowedLanguages(curClass.getEffectiveAllowedLanguages());
+        } else if (problem.getAllowedLanguages() != null && !problem.getAllowedLanguages().isBlank()) {
+            problemView.setAllowedLanguages(problem.getAllowedLanguages());
         }
         problemView.loadProblem(problem);
 

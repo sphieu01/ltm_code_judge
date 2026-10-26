@@ -79,19 +79,17 @@ public class DashboardController {
                 if (sessionManager.isAssessmentMode()) {
                     CreditClass cur = sessionManager.getCurrentClass();
                     if (cur != null) {
-                        if (problem.getClassId() == null || problem.getClassId() <= 0) {
-                            problem.setClassId(cur.getId());
-                            problem.setClassName(cur.getName());
-                        }
+                        problem.setClassId(cur.getId());
+                        problem.setClassName(cur.getName());
+                        problem.setAllowedLanguages(cur.getEffectiveAllowedLanguages());
                     }
                 } else {
                     CreditClass sel = view.getSelectedClass();
                     if (sel != null) {
                         sessionManager.setCurrentClass(sel);
-                        if (problem.getClassId() == null || problem.getClassId() <= 0) {
-                            problem.setClassId(sel.getId());
-                            problem.setClassName(sel.getName());
-                        }
+                        problem.setClassId(sel.getId());
+                        problem.setClassName(sel.getName());
+                        problem.setAllowedLanguages(sel.getEffectiveAllowedLanguages());
                     }
                 }
                 onSelectProblem.accept(problem);

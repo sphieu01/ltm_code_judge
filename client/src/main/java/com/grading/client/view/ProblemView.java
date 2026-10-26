@@ -593,11 +593,8 @@ public class ProblemView extends BorderPane {
                     } else if (fileName.endsWith(".py")) {
                         selectLanguageByName("Python 3");
                     }
-                    selectedFileLabel.setText(String.format("📄 %s (%d KB)", file.getName(), sizeKb));
-                } else {
-                    selectedFileLabel.setText(String.format("📄 %s (%d KB) — [Chấm bằng: %s]", file.getName(), sizeKb,
-                            languageComboBox.getValue()));
                 }
+                selectedFileLabel.setText(String.format("📄 %s (%d KB)", file.getName(), sizeKb));
             }
 
             selectedFileBox.setVisible(true);
@@ -731,15 +728,18 @@ public class ProblemView extends BorderPane {
     }
 
     private void updateLanguageOptions() {
+        if (lockIndicatorLabel != null) {
+            lockIndicatorLabel.setText("");
+            lockIndicatorLabel.setVisible(false);
+            lockIndicatorLabel.setManaged(false);
+        }
+
+        String currentVal = languageComboBox.getValue();
+
         if (currentProblem != null && currentProblem.isJavaOop()) {
             languageComboBox.setItems(FXCollections.observableArrayList("Java"));
             languageComboBox.getSelectionModel().select("Java");
             languageComboBox.setDisable(true);
-            if (lockIndicatorLabel != null) {
-                lockIndicatorLabel.setText("🔒 Khóa Java OOP");
-                lockIndicatorLabel.setVisible(true);
-                lockIndicatorLabel.setManaged(true);
-            }
             return;
         }
 
@@ -751,40 +751,33 @@ public class ProblemView extends BorderPane {
                 String trimmed = t.trim().toLowerCase();
                 if (trimmed.equals("c") && !filtered.contains("C"))
                     filtered.add("C");
-                else if (trimmed.equals("cpp") && !filtered.contains("C++"))
+                else if ((trimmed.equals("cpp") || trimmed.equals("c++")) && !filtered.contains("C++"))
                     filtered.add("C++");
                 else if (trimmed.equals("java") && !filtered.contains("Java"))
                     filtered.add("Java");
-                else if (trimmed.equals("python") && !filtered.contains("Python 3"))
+                else if ((trimmed.equals("python") || trimmed.equals("py") || trimmed.startsWith("python")) && !filtered.contains("Python 3"))
                     filtered.add("Python 3");
             }
             if (!filtered.isEmpty()) {
                 languageComboBox.setItems(FXCollections.observableArrayList(filtered));
-                languageComboBox.getSelectionModel().select(0);
+                if (currentVal != null && filtered.contains(currentVal)) {
+                    languageComboBox.getSelectionModel().select(currentVal);
+                } else {
+                    languageComboBox.getSelectionModel().select(0);
+                }
                 boolean singleLanguage = (filtered.size() == 1);
                 languageComboBox.setDisable(singleLanguage);
-                if (lockIndicatorLabel != null) {
-                    if (singleLanguage) {
-                        lockIndicatorLabel.setText("🔒 Khóa theo lớp: " + filtered.get(0));
-                        lockIndicatorLabel.setVisible(true);
-                        lockIndicatorLabel.setManaged(true);
-                    } else {
-                        lockIndicatorLabel.setText("");
-                        lockIndicatorLabel.setVisible(false);
-                        lockIndicatorLabel.setManaged(false);
-                    }
-                }
                 return;
             }
         }
 
         languageComboBox.setItems(FXCollections.observableArrayList(defaultLangs));
-        languageComboBox.getSelectionModel().select("C");
-        languageComboBox.setDisable(false);
-        if (lockIndicatorLabel != null) {
-            lockIndicatorLabel.setVisible(false);
-            lockIndicatorLabel.setManaged(false);
+        if (currentVal != null && defaultLangs.contains(currentVal)) {
+            languageComboBox.getSelectionModel().select(currentVal);
+        } else {
+            languageComboBox.getSelectionModel().select("C");
         }
+        languageComboBox.setDisable(false);
     }
 
     public void setProblemDetails(String description, String inputFormat, String outputFormat,

@@ -74,6 +74,9 @@ public class CreditClass {
     }
 
     public String getEffectiveAllowedLanguages() {
+        if (allowedLanguages != null && !allowedLanguages.isBlank() && !isDefaultAllLanguages(allowedLanguages)) {
+            return allowedLanguages.trim().toLowerCase();
+        }
         String eff = getEffectiveLanguage();
         if (eff != null) {
             if ("cpp".equalsIgnoreCase(eff)) {
@@ -82,6 +85,12 @@ public class CreditClass {
             return eff;
         }
         return getAllowedLanguages();
+    }
+
+    private boolean isDefaultAllLanguages(String langs) {
+        String s = langs.trim().toLowerCase();
+        return s.equals("c,cpp,java,python")
+                || (s.contains("c") && s.contains("cpp") && s.contains("java") && s.contains("python"));
     }
 
     public String getAllowedLanguages() {
@@ -95,7 +104,15 @@ public class CreditClass {
         if (lang == null) return false;
         String clean = lang.trim().toLowerCase();
         for (String item : getEffectiveAllowedLanguages().split(",")) {
-            if (item.trim().equalsIgnoreCase(clean)) return true;
+            String it = item.trim().toLowerCase();
+            if (it.equalsIgnoreCase(clean)
+                    || (it.equals("cpp") && (clean.equals("c++") || clean.equals("cpp")))
+                    || (it.equals("c++") && (clean.equals("cpp") || clean.equals("c++")))
+                    || (it.equals("python") && (clean.equals("python") || clean.startsWith("python") || clean.equals("py")))
+                    || (it.equals("c") && clean.equals("c"))
+                    || (it.equals("java") && clean.equals("java"))) {
+                return true;
+            }
         }
         return false;
     }

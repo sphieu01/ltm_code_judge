@@ -119,11 +119,16 @@ public class ProblemController {
             JsonObject data = response.getData().getAsJsonObject();
             Problem updated = GSON.fromJson(data, Problem.class);
             if (!updated.isActive()) { returnToDashboard(); return; }
-            updated.setClassId(current.getClassId());
-            updated.setClassName(current.getClassName());
             com.grading.client.model.CreditClass currentClass = sessionManager.getCurrentClass();
-            if (currentClass != null) updated.setClassName(currentClass.getName());
-            updated.setAllowedLanguages(currentClass != null ? currentClass.getEffectiveAllowedLanguages() : current.getAllowedLanguages());
+            if (currentClass != null) {
+                updated.setClassId(currentClass.getId());
+                updated.setClassName(currentClass.getName());
+                updated.setAllowedLanguages(currentClass.getEffectiveAllowedLanguages());
+            } else {
+                updated.setClassId(current.getClassId());
+                updated.setClassName(current.getClassName());
+                updated.setAllowedLanguages(current.getAllowedLanguages());
+            }
             view.refreshProblemMetadata(updated);
             String description = updated.getDescription() == null ? "" : updated.getDescription();
             String inputFormat = "Đầu vào chuẩn theo quy định bài toán.";
@@ -209,36 +214,9 @@ public class ProblemController {
         // Đã có kết nối -> Gửi request nộp bài qua SocketClient
         v.setBusy(true, "Đang nộp bài lên Server...");
 
-        Integer classId = (problem != null) ? problem.getClassId() : null;
-        if (classId == null && sessionManager.getCurrentClass() != null) {
-            classId = sessionManager.getCurrentClass().getId();
-        }
-
-        // Kiểm tra ngôn ngữ nộp có được phép trong lớp học / bài kiểm tra không
-        if (problem != null && problem.getAllowedLanguages() != null && !problem.getAllowedLanguages().isBlank()) {
-            String allowed = problem.getAllowedLanguages();
-            boolean matched = false;
-            String clean = lang.trim().toLowerCase();
-            for (String item : allowed.split(",")) {
-                String it = item.trim().toLowerCase();
-                if (it.equals(clean) || (it.equals("cpp") && clean.equals("c++")) || (it.equals("c++") && clean.equals("cpp"))) {
-                    matched = true;
-                    break;
-                }
-            }
-            if (!matched) {
-                v.setBusy(false, null);
-                v.showExecutionResult("Lỗi nộp bài: Bài thi yêu cầu nộp bằng ngôn ngữ: " + allowed.toUpperCase(), "LANGUAGE_NOT_ALLOWED", true);
-                return;
-            }
-        } else if (sessionManager.getCurrentClass() != null) {
-            com.grading.client.model.CreditClass cc = sessionManager.getCurrentClass();
-            if (!cc.isLanguageAllowed(lang)) {
-                v.setBusy(false, null);
-                v.showExecutionResult("Lỗi nộp bài: Lớp học (" + cc.getName() + ") yêu cầu nộp bằng ngôn ngữ: " + cc.getEffectiveAllowedLanguages().toUpperCase(), "LANGUAGE_NOT_ALLOWED", true);
-                return;
-            }
-        }
+        Integer classId = (sessionManager.getCurrentClass() != null)
+                ? sessionManager.getCurrentClass().getId()
+                : (problem != null ? problem.getClassId() : null);
 
         boolean isZip = v.isZipSubmission();
 

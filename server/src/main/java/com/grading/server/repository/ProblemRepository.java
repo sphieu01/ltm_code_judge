@@ -52,17 +52,17 @@ public class ProblemRepository {
 
     private static final String SQL_FIND_BY_CLASS =
             "SELECT DISTINCT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
-            "p.created_by, p.class_id, cl.name AS class_name, p.is_active, p.created_at, p.problem_type, p.oop_spec " +
+            "p.created_by, ? AS class_id, cl.name AS class_name, p.is_active, p.created_at, p.problem_type, p.oop_spec " +
             "FROM problems p " +
-            "LEFT JOIN classes cl ON p.class_id = cl.id " +
+            "LEFT JOIN classes cl ON cl.id = ? " +
             "LEFT JOIN class_problems cp ON p.id = cp.problem_id " +
-            "WHERE cp.class_id = ? OR p.class_id = ? ORDER BY p.id";
+            "WHERE (cp.class_id = ? OR p.class_id = ?) ORDER BY p.id";
 
     private static final String SQL_FIND_BY_CLASS_FOR_STUDENT =
             "SELECT DISTINCT p.id, p.title, p.description, p.time_limit_ms, p.memory_limit_kb, p.difficulty, " +
-            "p.created_by, p.class_id, cl.name AS class_name, p.is_active, p.created_at, p.problem_type, p.oop_spec " +
+            "p.created_by, ? AS class_id, cl.name AS class_name, p.is_active, p.created_at, p.problem_type, p.oop_spec " +
             "FROM problems p " +
-            "LEFT JOIN classes cl ON p.class_id = cl.id " +
+            "LEFT JOIN classes cl ON cl.id = ? " +
             "LEFT JOIN class_problems cp ON p.id = cp.problem_id " +
             "WHERE (cp.class_id = ? OR p.class_id = ?) " +
             "AND (p.is_active IS NULL OR p.is_active = TRUE) " +
@@ -122,6 +122,8 @@ public class ProblemRepository {
 
             stmt.setInt(1, classId);
             stmt.setInt(2, classId);
+            stmt.setInt(3, classId);
+            stmt.setInt(4, classId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     problems.add(mapProblemRow(rs));
@@ -159,6 +161,8 @@ public class ProblemRepository {
 
             stmt.setInt(1, classId);
             stmt.setInt(2, classId);
+            stmt.setInt(3, classId);
+            stmt.setInt(4, classId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     problems.add(mapProblemRow(rs));
@@ -260,6 +264,14 @@ public class ProblemRepository {
                 if (rs.next()) {
                     problem.setId(rs.getInt("id"));
                     problem.setCreatedAt(rs.getTimestamp("created_at").toString());
+                    if (problem.getClassId() != null && problem.getClassId() > 0) {
+                        try (PreparedStatement stmtCp = conn.prepareStatement(
+                                "INSERT INTO class_problems (class_id, problem_id) VALUES (?, ?) ON CONFLICT DO NOTHING")) {
+                            stmtCp.setInt(1, problem.getClassId());
+                            stmtCp.setInt(2, problem.getId());
+                            stmtCp.executeUpdate();
+                        } catch (SQLException ignored) {}
+                    }
                     logger.info("Created problem: id={}, title='{}', classId={}",
                             problem.getId(), problem.getTitle(), problem.getClassId());
                     return problem;

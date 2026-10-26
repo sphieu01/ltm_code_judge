@@ -1,5 +1,6 @@
 package com.grading.server.network;
 
+import com.google.gson.JsonObject;
 import com.grading.server.model.Submission;
 import com.grading.server.protocol.Message;
 import com.grading.server.protocol.MessageSerializer;
@@ -213,6 +214,19 @@ public class ConnectionRegistry {
         activeSessions.values().forEach(session -> {
             if ("TEACHER".equalsIgnoreCase(session.getRole())) {
                 sendMessage(session.getUserId(), session.getWriter(), message);
+            }
+        });
+    }
+
+    /** Sends an invalidation only; student clients fetch data through their authorized endpoints. */
+    public void broadcastStudentDataChanged(String scope, String changeType) {
+        JsonObject data = new JsonObject();
+        data.addProperty("scope", scope);
+        data.addProperty("changeType", changeType);
+        Message notification = Message.success(MessageType.DATA_CHANGED, null, "Dữ liệu đã thay đổi", data);
+        activeSessions.values().forEach(session -> {
+            if ("STUDENT".equalsIgnoreCase(session.getRole()) && session.getWriter() != null) {
+                sendMessage(session.getUserId(), session.getWriter(), notification);
             }
         });
     }

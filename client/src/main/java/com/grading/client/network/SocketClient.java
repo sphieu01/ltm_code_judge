@@ -54,6 +54,7 @@ public class SocketClient {
 
     // Callback cho cảnh báo giám sát gửi tới Giáo viên (PROCTOR_ALERT)
     private Consumer<Response> proctorAlertCallback;
+    private final CopyOnWriteArrayList<Consumer<Response>> dataChangedListeners = new CopyOnWriteArrayList<>();
 
     // Callback khi mất kết nối
     private Runnable onDisconnectCallback;
@@ -97,6 +98,7 @@ public class SocketClient {
      * Ngắt kết nối một cách an toàn và bất đồng bộ (không block UI thread).
      */
     public void disconnect() {
+        dataChangedListeners.clear();
         if (!connected && (socket == null || socket.isClosed())) {
             return;
         }
@@ -124,6 +126,7 @@ public class SocketClient {
 
     private void closeResources() {
         connected = false;
+        dataChangedListeners.clear();
         // ĐÓNG SOCKET TRƯỚC HẾT: unblock ngay lập tức lệnh reader.readLine()
         // đang chờ trên Listener Thread, tránh deadlock lock BufferedReader!
         try {
@@ -226,6 +229,7 @@ public class SocketClient {
             }
         } finally {
             connected = false;
+            dataChangedListeners.clear();
             if (onDisconnectCallback != null) {
                 onDisconnectCallback.run();
             }
@@ -238,6 +242,17 @@ public class SocketClient {
     private void dispatchResponse(Response response) {
         // 1. Nếu là push notification hoặc sự kiện giám sát
         MessageType type = response.getMessageType();
+
+        if (type == MessageType.DATA_CHANGED) {
+            for (Consumer<Response> listener : dataChangedListeners) {
+                try {
+                    listener.accept(response);
+                } catch (RuntimeException ex) {
+                    System.err.println("[Client] Data change listener failed: " + ex.getMessage());
+                }
+            }
+            return;
+        }
 
         if (type == MessageType.FORCE_LOGOUT) {
             connected = false;
@@ -472,7 +487,9 @@ public class SocketClient {
     }
 
     public void getStudentAssessments(Consumer<Response> callback) {
-        sendRequest(MessageType.GET_STUDENT_ASSESSMENTS, new JsonObject(), callback);
+        JsonObject data = new JsonObject();
+        data.addProperty("summariesOnly", true);
+        sendRequest(MessageType.GET_STUDENT_ASSESSMENTS, data, callback);
     }
 
     public void getClassAssessments(int classId, Consumer<Response> callback) {
@@ -570,6 +587,11 @@ public class SocketClient {
     }
 
     public void submitCode(int problemId, String language, String sourceCode, Integer classId, boolean isZip, Consumer<Response> callback) {
+        submitCode(problemId, language, sourceCode, classId, isZip, null, callback);
+    }
+
+    public void submitCode(int problemId, String language, String sourceCode, Integer classId, boolean isZip,
+                           Integer assessmentId, Consumer<Response> callback) {
         JsonObject data = new JsonObject();
         data.addProperty("problemId", problemId);
         data.addProperty("language", language);
@@ -578,6 +600,7 @@ public class SocketClient {
             data.addProperty("classId", classId);
         }
         data.addProperty("isZip", isZip);
+        if (assessmentId != null && assessmentId > 0) data.addProperty("assessmentId", assessmentId);
         sendRequest(MessageType.SUBMIT, data, callback);
     }
 
@@ -643,6 +666,15 @@ public class SocketClient {
      */
     public void setProctorAlertCallback(Consumer<Response> callback) {
         this.proctorAlertCallback = callback;
+    }
+
+    /** Called on the socket listener thread; UI subscribers must use Platform.runLater. */
+    public void addDataChangedListener(Consumer<Response> listener) {
+        if (listener != null) dataChangedListeners.addIfAbsent(listener);
+    }
+
+    public void removeDataChangedListener(Consumer<Response> listener) {
+        dataChangedListeners.remove(listener);
     }
 
     /**

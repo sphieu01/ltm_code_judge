@@ -91,6 +91,7 @@ public enum MessageType {
 
     // Notifications
     JUDGE_NOTIFICATION,
+    DATA_CHANGED,
     FORCE_LOGOUT,
     PROCTOR_EVENT,
     PROCTOR_EVENT_RESPONSE,

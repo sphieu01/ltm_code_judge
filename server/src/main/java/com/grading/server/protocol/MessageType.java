@@ -90,6 +90,7 @@ public enum MessageType {
 
     // ── Push Notification ─────────────────────────────────
     JUDGE_NOTIFICATION,     // Server → Client: kết quả chấm xong
+    DATA_CHANGED,           // Server → Student: dữ liệu giáo viên thay đổi, cần tải lại
 
     // ── Anti-Cheating & Proctoring ─────────────────────────
     FORCE_LOGOUT,               // Server → Client: đá khỏi phiên do đăng nhập nơi khác

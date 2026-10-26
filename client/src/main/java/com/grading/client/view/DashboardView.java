@@ -1,8 +1,10 @@
 package com.grading.client.view;
 
 import com.grading.client.model.CreditClass;
+import com.grading.client.model.AssessmentSchedule;
 import com.grading.client.model.Problem;
 import com.grading.client.model.User;
+import com.grading.client.network.SessionManager;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
@@ -14,6 +16,10 @@ import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -45,6 +51,8 @@ public class DashboardView extends BorderPane {
     private TableView<AssessmentSummary> assessmentTable;
     private Button completeAssessmentButton;
     private Label assessmentCountdownBadge;
+    private Label totalLabel;
+    private Label problemLoadStatus;
     private boolean assessmentMode;
     private boolean assessmentLobby;
 
@@ -52,6 +60,7 @@ public class DashboardView extends BorderPane {
     private TableView<Problem> problemTable;
     private ObservableList<Problem> problemList = FXCollections.observableArrayList();
     private FilteredList<Problem> filteredProblems;
+    private Runnable updateProblemFilter;
 
     // Handlers
     private Consumer<Problem> onSelectProblemHandler;
@@ -122,6 +131,16 @@ public class DashboardView extends BorderPane {
         assessmentCountdownBadge.setVisible(false);
         assessmentCountdownBadge.setManaged(false);
 
+        completeAssessmentButton = new Button("Kết thúc bài thi");
+        completeAssessmentButton.setId("complete-assessment-button");
+        completeAssessmentButton.getStyleClass().addAll("button", "btn-primary");
+        completeAssessmentButton.setVisible(false);
+        completeAssessmentButton.setManaged(false);
+        completeAssessmentButton.setOnAction(e -> {
+            if (onCompleteAssessmentHandler != null)
+                onCompleteAssessmentHandler.run();
+        });
+
         // Avatar Button theo chuẩn DESIGN.md Component 5
         avatarBtn = new Button("SV");
         avatarBtn.getStyleClass().add("avatar-btn");
@@ -135,6 +154,7 @@ public class DashboardView extends BorderPane {
                 historyBtn,
                 spacer,
                 assessmentCountdownBadge,
+                completeAssessmentButton,
                 themeToggleBtn,
                 avatarBtn);
         setTop(topBar);
@@ -152,17 +172,20 @@ public class DashboardView extends BorderPane {
         assessmentBanner.setManaged(false);
 
         assessmentOverview = new VBox(8);
+        assessmentOverview.setId("assessment-overview");
         assessmentOverview.setPadding(new Insets(12));
         assessmentOverview.setStyle("-fx-background-color: -bg-surface; -fx-border-color: -border-subtle; " +
                 "-fx-border-radius: 7; -fx-background-radius: 7;");
-        Label assessmentTitle = new Label("Bài kiểm tra của bạn");
+        Label assessmentTitle = new Label("Phòng chờ bài kiểm tra");
         assessmentTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: -text-bright;");
         Label assessmentDescription = new Label(
-                "Các bài kiểm tra được giáo viên giao sẽ xuất hiện tại đây. Khi đến giờ, hãy bấm “Bắt đầu làm bài” để vào danh sách câu hỏi.");
+                "Bài kiểm tra sắp bắt đầu. Khi đồng hồ đếm ngược kết thúc, bấm “Làm bài ngay” để vào làm và nộp bài.");
         assessmentDescription.setWrapText(true);
         assessmentDescription.getStyleClass().add("meta-item");
         assessmentTable = buildAssessmentTable();
-        assessmentTable.setPrefHeight(230);
+        assessmentTable.setMinHeight(200);
+        VBox.setVgrow(assessmentTable, Priority.ALWAYS);
+        VBox.setVgrow(assessmentOverview, Priority.ALWAYS);
         assessmentOverview.getChildren().addAll(assessmentTitle, assessmentDescription, assessmentTable);
         assessmentOverview.setVisible(false);
         assessmentOverview.setManaged(false);
@@ -170,23 +193,7 @@ public class DashboardView extends BorderPane {
         problemTable = buildProblemTable();
         VBox.setVgrow(problemTable, Priority.ALWAYS);
 
-        completeAssessmentButton = new Button("Hoàn thành bài thi");
-        completeAssessmentButton.getStyleClass().addAll("button", "btn-primary");
-        completeAssessmentButton.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-padding: 9px 22px;");
-        completeAssessmentButton.setOnAction(e -> {
-            if (onCompleteAssessmentHandler != null)
-                onCompleteAssessmentHandler.run();
-        });
-        HBox completeBar = new HBox(completeAssessmentButton);
-        completeBar.setAlignment(Pos.CENTER_RIGHT);
-        completeBar.setVisible(false);
-        completeBar.setManaged(false);
-        completeAssessmentButton.visibleProperty().addListener((obs, oldValue, visible) -> {
-            completeBar.setVisible(visible);
-            completeBar.setManaged(visible);
-        });
-
-        centerBox.getChildren().addAll(assessmentOverview, assessmentBanner, problemTable, completeBar);
+        centerBox.getChildren().addAll(assessmentOverview, assessmentBanner, problemTable);
         setCenter(centerBox);
 
         // 3. Bottom Status Bar
@@ -201,24 +208,24 @@ public class DashboardView extends BorderPane {
 
         Separator sp = new Separator(Orientation.VERTICAL);
 
-        Label totalLabel = new Label("Tổng số: 0 bài tập");
+        totalLabel = new Label("Tổng số: 0 bài tập");
         totalLabel.getStyleClass().add("status-bar-text");
         problemList.addListener((javafx.collections.ListChangeListener<Problem>) c -> {
-            totalLabel.setText("Tổng số: " + problemList.size() + " bài tập");
+            updateTotalLabel();
         });
 
         Region bSpacer = new Region();
         HBox.setHgrow(bSpacer, Priority.ALWAYS);
 
-        Label hintLabel = new Label("");
-        hintLabel.getStyleClass().add("meta-item");
+        problemLoadStatus = new Label("");
+        problemLoadStatus.getStyleClass().add("meta-item");
 
-        bottomBar.getChildren().addAll(srvDot, srvText, sp, totalLabel, bSpacer, hintLabel);
+        bottomBar.getChildren().addAll(srvDot, srvText, sp, totalLabel, bSpacer, problemLoadStatus);
         setBottom(bottomBar);
 
         // Event hooks
         classFilterCombo.setOnAction(e -> {
-            if (!assessmentMode && onSelectClassHandler != null) {
+            if (!assessmentMode && !assessmentLobby && onSelectClassHandler != null) {
                 onSelectClassHandler.accept(classFilterCombo.getSelectionModel().getSelectedItem());
             }
         });
@@ -385,32 +392,56 @@ public class DashboardView extends BorderPane {
 
     private TableView<AssessmentSummary> buildAssessmentTable() {
         TableView<AssessmentSummary> table = new TableView<>();
+        table.setId("assessment-table");
         table.setPlaceholder(new Label("Chưa có bài kiểm tra nào."));
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
         TableColumn<AssessmentSummary, String> title = new TableColumn<>("Bài kiểm tra");
         title.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().title()));
-        title.setPrefWidth(260);
+        title.setPrefWidth(240);
+        title.setMinWidth(150);
         TableColumn<AssessmentSummary, String> classCode = new TableColumn<>("Lớp");
         classCode.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().classCode()));
-        classCode.setPrefWidth(120);
-        TableColumn<AssessmentSummary, String> time = new TableColumn<>("Thời gian");
+        classCode.setPrefWidth(100);
+        classCode.setMinWidth(75);
+        TableColumn<AssessmentSummary, String> time = new TableColumn<>("Bắt đầu");
         time.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(
-                formatAssessmentTime(d.getValue().opensAt()) + " → " + formatAssessmentTime(d.getValue().closesAt())));
-        time.setPrefWidth(285);
+                formatAssessmentTime(d.getValue().opensAt())));
+        time.setPrefWidth(175);
+        time.setMinWidth(150);
+        TableColumn<AssessmentSummary, String> duration = new TableColumn<>("Thời lượng");
+        duration.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(
+                d.getValue().durationMinutes() + " phút"));
+        duration.setPrefWidth(95);
+        duration.setMinWidth(85);
+        TableColumn<AssessmentSummary, String> questionCount = new TableColumn<>("Số bài");
+        questionCount.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(
+                String.valueOf(d.getValue().problemCount())));
+        questionCount.setPrefWidth(75);
+        questionCount.setMinWidth(60);
         TableColumn<AssessmentSummary, String> status = new TableColumn<>("Trạng thái");
         status.setCellValueFactory(
                 d -> new javafx.beans.property.SimpleStringProperty(assessmentStatusText(d.getValue())));
-        status.setPrefWidth(240);
+        status.setPrefWidth(150);
+        status.setMinWidth(110);
+        TableColumn<AssessmentSummary, String> countdown = new TableColumn<>("Đếm ngược");
+        countdown.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(
+                assessmentCountdownText(d.getValue())));
+        countdown.setPrefWidth(135);
+        countdown.setMinWidth(110);
+        countdown.setStyle("-fx-alignment: CENTER; -fx-font-weight: bold;");
         TableColumn<AssessmentSummary, Void> action = new TableColumn<>("Thao tác");
         action.setPrefWidth(155);
+        action.setMinWidth(145);
         action.setCellFactory(col -> new TableCell<>() {
             private final Button button = new Button();
             {
                 button.getStyleClass().addAll("button", "btn-primary");
                 button.setOnAction(e -> {
+                    if (getIndex() < 0 || getIndex() >= getTableView().getItems().size())
+                        return;
                     AssessmentSummary row = getTableView().getItems().get(getIndex());
-                    if (onOpenAssessmentHandler != null)
+                    if (canStartAssessment(row) && onOpenAssessmentHandler != null)
                         onOpenAssessmentHandler.accept(row.id());
                 });
             }
@@ -418,32 +449,52 @@ public class DashboardView extends BorderPane {
             @Override
             protected void updateItem(Void item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty) {
+                setText(null);
+                if (empty || getIndex() < 0 || getIndex() >= getTableView().getItems().size()) {
                     setGraphic(null);
                     return;
                 }
                 AssessmentSummary row = getTableView().getItems().get(getIndex());
-                boolean active = "ACTIVE".equalsIgnoreCase(row.status());
-                button.setText(active ? (row.started() ? "Tiếp tục làm bài" : "Bắt đầu làm bài")
-                        : "COMPLETED".equalsIgnoreCase(row.status()) ? "Đã hoàn thành"
-                                : "EXPIRED".equalsIgnoreCase(row.status()) ? "Đã kết thúc" : "Chưa đến giờ");
-                button.setDisable(!active);
-                setGraphic(button);
+                button.setText(row.started() ? "Tiếp tục làm bài" : "Làm bài ngay");
+                setGraphic(canStartAssessment(row) ? button : null);
                 setAlignment(Pos.CENTER);
             }
         });
-        table.getColumns().addAll(title, classCode, time, status, action);
+        table.getColumns().addAll(title, classCode, time, duration, questionCount, status, countdown, action);
         return table;
+    }
+
+    private boolean canStartAssessment(AssessmentSummary assessment) {
+        return !"COMPLETED".equalsIgnoreCase(assessment.status())
+                && !"EXPIRED".equalsIgnoreCase(assessment.status())
+                && AssessmentSchedule.from(assessment.opensAt(), assessment.closesAt())
+                        .canStart(SessionManager.getInstance().getAssessmentNowEpochMs());
+    }
+
+    private String assessmentCountdownText(AssessmentSummary assessment) {
+        AssessmentSchedule schedule = AssessmentSchedule.from(assessment.opensAt(), assessment.closesAt());
+        if (!schedule.isValid())
+            return "—";
+        long remaining = schedule.secondsUntilOpen(SessionManager.getInstance().getAssessmentNowEpochMs());
+        return remaining > 0 ? AssessmentSchedule.formatCountdown(remaining)
+                : canStartAssessment(assessment) ? "Đã đến giờ" : "Đã kết thúc";
+    }
+
+    public void refreshAssessmentCountdowns() {
+        if (assessmentLobby && !assessmentMode)
+            assessmentTable.refresh();
     }
 
     private void setupFiltering() {
         filteredProblems = new FilteredList<>(problemList, p -> true);
 
-        Runnable updateFilter = () -> {
+        updateProblemFilter = () -> {
             String query = searchField.getText() == null ? "" : searchField.getText().trim().toLowerCase();
             String diff = difficultyFilterCombo.getSelectionModel().getSelectedItem();
 
             filteredProblems.setPredicate(problem -> {
+                if (assessmentMode)
+                    return true;
                 boolean matchesQuery = true;
                 if (!query.isEmpty()) {
                     matchesQuery = problem.getTitle().toLowerCase().contains(query)
@@ -459,8 +510,8 @@ public class DashboardView extends BorderPane {
             });
         };
 
-        searchField.textProperty().addListener((obs, o, n) -> updateFilter.run());
-        difficultyFilterCombo.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> updateFilter.run());
+        searchField.textProperty().addListener((obs, o, n) -> updateProblemFilter.run());
+        difficultyFilterCombo.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> updateProblemFilter.run());
 
         problemTable.setItems(filteredProblems);
         TableViewSupport.fitHeightToRows(problemTable, 12);
@@ -476,8 +527,10 @@ public class DashboardView extends BorderPane {
     public void setClasses(List<CreditClass> list) {
         CreditClass current = classFilterCombo.getSelectionModel().getSelectedItem();
         classFilterCombo.setItems(FXCollections.observableArrayList(list));
-        if (current != null) {
-            classFilterCombo.getSelectionModel().select(current);
+        CreditClass retained = current == null ? null : list.stream()
+                .filter(item -> item.getId() == current.getId()).findFirst().orElse(null);
+        if (retained != null) {
+            classFilterCombo.getSelectionModel().select(retained);
         } else if (!list.isEmpty()) {
             classFilterCombo.getSelectionModel().select(0);
         }
@@ -506,24 +559,32 @@ public class DashboardView extends BorderPane {
                         .toList());
     }
 
+    public void setProblemsLoading(boolean loading) {
+        problemLoadStatus.setText(loading ? "Đang tải bài luyện tập…" : "");
+        problemTable.setPlaceholder(new Label(loading ? "Đang tải bài luyện tập…" : "Chưa có bài tập nào."));
+    }
+
+    public void showProblemLoadError(String message) {
+        problemLoadStatus.setText(message);
+        problemTable.setPlaceholder(new Label(message));
+    }
+
     public void setAssessmentMode(boolean active, String title, String classCode,
             String closesAt, int durationMinutes) {
         assessmentMode = active;
-        updateAssessmentLayout();
+        if (active) setProblemsLoading(false);
         assessmentBanner.setVisible(active);
         assessmentBanner.setManaged(active);
-        completeAssessmentButton.setVisible(active);
         setAssessmentCountdownVisible(active);
         if (active) {
-            brandLabel.setText("Bài kiểm tra đang diễn ra");
             assessmentBanner.setText((title == null ? "Bài kiểm tra" : title)
                     + (classCode == null ? "" : " — " + classCode)
                     + "\nThời lượng: " + durationMinutes + " phút · Kết thúc: " + formatAssessmentTime(closesAt)
                     + "\nChỉ các bài do giáo viên giao được hiển thị trong thời gian này.");
         } else {
-            brandLabel.setText("Auto Grader");
             assessmentBanner.setText("");
         }
+        updateAssessmentLayout();
     }
 
     public void setAssessmentCountdownVisible(boolean visible) {
@@ -574,48 +635,70 @@ public class DashboardView extends BorderPane {
 
     public void setAssessmentLobby(boolean locked) {
         assessmentLobby = locked;
+        if (locked) setProblemsLoading(false);
         updateAssessmentLayout();
     }
 
     private void updateAssessmentLayout() {
         boolean locked = assessmentMode || assessmentLobby;
+        boolean waiting = assessmentLobby && !assessmentMode;
         for (Control control : List.of(classFilterCombo, difficultyFilterCombo, searchField, historyBtn)) {
             control.setVisible(!locked);
             control.setManaged(!locked);
         }
         problemTable.setVisible(!assessmentLobby || assessmentMode);
         problemTable.setManaged(!assessmentLobby || assessmentMode);
-        assessmentOverview.setVisible(!assessmentMode && !assessmentTable.getItems().isEmpty());
-        assessmentOverview.setManaged(!assessmentMode && !assessmentTable.getItems().isEmpty());
-        if (assessmentLobby && !assessmentMode)
-            brandLabel.setText("Bài kiểm tra đang chờ bạn");
+        assessmentOverview.setVisible(waiting);
+        assessmentOverview.setManaged(waiting);
+        completeAssessmentButton.setVisible(assessmentMode);
+        completeAssessmentButton.setManaged(assessmentMode);
+        brandLabel.setText(assessmentMode ? "Bài kiểm tra đang diễn ra"
+                : waiting ? "Phòng chờ bài kiểm tra" : "Auto Grader");
+        if (updateProblemFilter != null)
+            updateProblemFilter.run();
+        updateTotalLabel();
     }
 
     public void setAssessments(List<AssessmentSummary> assessments) {
-        assessmentTable.setItems(FXCollections.observableArrayList(assessments == null ? List.of() : assessments));
+        assessmentTable.setItems(FXCollections.observableArrayList(assessments == null ? List.of()
+                : assessments.stream().filter(assessment -> assessment != null
+                        && !"COMPLETED".equalsIgnoreCase(assessment.status())
+                        && !"EXPIRED".equalsIgnoreCase(assessment.status())).toList()));
         updateAssessmentLayout();
     }
 
+    private void updateTotalLabel() {
+        if (totalLabel == null)
+            return;
+        totalLabel.setText(assessmentLobby && !assessmentMode
+                ? "Bài kiểm tra: " + assessmentTable.getItems().size()
+                : assessmentMode ? "Bài thi: " + problemList.size() + " câu"
+                        : "Tổng số: " + problemList.size() + " bài tập");
+    }
+
     private String assessmentStatusText(AssessmentSummary assessment) {
-        if ("ACTIVE".equalsIgnoreCase(assessment.status())) {
-            return "Đang diễn ra · Kết thúc " + formatAssessmentTime(assessment.closesAt())
-                    + " · Đã nộp " + assessment.submittedCount() + "/" + assessment.problemCount() + " bài";
-        }
         if ("COMPLETED".equalsIgnoreCase(assessment.status())) {
-            return "Đã hoàn thành " + assessment.submittedCount() + "/" + assessment.problemCount() + " bài";
+            return "Đã hoàn thành";
         }
         if ("EXPIRED".equalsIgnoreCase(assessment.status()))
             return "Đã kết thúc";
-        return "Bắt đầu " + formatAssessmentTime(assessment.opensAt())
-                + " · Thời lượng " + assessment.durationMinutes() + " phút";
+        if (canStartAssessment(assessment))
+            return assessment.started() ? "Đang làm bài" : "Chưa làm bài";
+        return "Sắp bắt đầu";
     }
 
     private String formatAssessmentTime(String value) {
         if (value == null || value.isBlank())
             return "—";
+        String normalized = value.trim().replace(" ", "T");
+        DateTimeFormatter format = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
         try {
-            return java.time.LocalDateTime.parse(value)
-                    .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy"));
+            return OffsetDateTime.parse(normalized).atZoneSameInstant(ZoneId.systemDefault()).format(format);
+        } catch (Exception ignored) {
+            // Database timestamps without an offset use the local classroom time.
+        }
+        try {
+            return LocalDateTime.parse(normalized).format(format);
         } catch (Exception ignored) {
             return value;
         }

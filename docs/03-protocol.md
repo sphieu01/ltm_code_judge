@@ -26,6 +26,7 @@ Trường chung: `type`, `requestId`, `token`, `status`, `message`, `data`. Clie
 | Học vụ | `GET_COURSES`, `CREATE_COURSE`, `DELETE_COURSE`, `TOGGLE_COURSE_ACTIVE`, `GET_CLASSES`, `CREATE_CLASS`, `UPDATE_CLASS`, `DELETE_CLASS`, `GET_STUDENTS`, `IMPORT_STUDENTS`, `UPDATE_STUDENT`, `DELETE_STUDENT`, `GET_MY_CLASSES` | các `*_RESPONSE` tương ứng |
 | Chấm bài | `SUBMIT`, `GET_RESULT`, `GET_HISTORY` | `SUBMIT_RESPONSE`, `GET_RESULT_RESPONSE`, `GET_HISTORY_RESPONSE`, push `JUDGE_NOTIFICATION` |
 | Giám sát | `PROCTOR_EVENT`, `GET_PROCTOR_LOGS` | `PROCTOR_EVENT_RESPONSE`, `GET_PROCTOR_LOGS_RESPONSE`, push `PROCTOR_ALERT` |
+| Đồng bộ dữ liệu | Các thao tác thay đổi dữ liệu của giáo viên | push `DATA_CHANGED` tới sinh viên online |
 | Điều khiển | `PING`, `DISCONNECT` | `PONG`, `ERROR`, push `FORCE_LOGOUT` |
 
 ## Thông điệp quan trọng
@@ -35,6 +36,9 @@ Trường chung: `type`, `requestId`, `token`, `status`, `message`, `data`. Clie
 - `JUDGE_NOTIFICATION`: server chủ động gửi khi worker hoàn tất, chứa thông tin kết quả submission.
 - `PROCTOR_EVENT`: client gửi `problemId`, `problemTitle`, `eventType`, `detail`; server lưu/cộng vi phạm, phản hồi cảnh báo cho sinh viên và broadcast tới giáo viên online.
 - `FORCE_LOGOUT`: thông báo một phiên cũ khi cùng tài khoản được đăng ký lại trong registry.
+- `DATA_CHANGED`: push không có `requestId`, chỉ chứa `scope` và `changeType`. Dashboard sinh viên gom các thông báo sát nhau rồi tải lại dữ liệu; trang làm bài cập nhật đề mà giữ file mã nguồn đã chọn.
+- `GET_STUDENT_ASSESSMENTS` với `data.summariesOnly: true`: chỉ lấy lịch thi và tiến độ bằng một truy vấn, không tải toàn bộ câu hỏi. `GET_ACTIVE_ASSESSMENT` lấy đầy đủ đề của lượt thi đã bắt đầu.
+- `GET_PROBLEMS` trả thêm `status` luyện tập của sinh viên. Dashboard không cần tải toàn bộ `GET_HISTORY` trước khi hiển thị bài tập.
 
 ## Xử lý lỗi/cạnh tranh
 

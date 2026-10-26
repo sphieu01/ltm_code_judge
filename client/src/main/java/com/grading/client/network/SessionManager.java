@@ -19,6 +19,8 @@ public class SessionManager {
     private volatile com.grading.client.model.CreditClass currentClass;
     private volatile Integer activeAssessmentId;
     private volatile boolean assessmentCompleted;
+    private com.grading.client.model.CreditClass practiceClass;
+    private volatile long assessmentClockOffsetMs;
 
     private SessionManager() {}
 
@@ -58,6 +60,13 @@ public class SessionManager {
     private Long assessmentEndTimeEpochMs;
 
     public void setActiveAssessment(Integer assessmentId, boolean completed) {
+        boolean wasInAssessment = isAssessmentMode();
+        if (!wasInAssessment && assessmentId != null && !completed) {
+            practiceClass = currentClass;
+        } else if (wasInAssessment && (assessmentId == null || completed)) {
+            currentClass = practiceClass;
+            practiceClass = null;
+        }
         this.activeAssessmentId = assessmentId;
         this.assessmentCompleted = completed;
         if (assessmentId == null || completed) {
@@ -65,17 +74,41 @@ public class SessionManager {
         }
     }
 
+    public void synchronizeAssessmentClock(String serverTime) {
+        if (serverTime == null || serverTime.isBlank()) return;
+        try {
+            long serverEpochMs = parseAssessmentTimestamp(serverTime);
+            assessmentClockOffsetMs = serverEpochMs - System.currentTimeMillis();
+        } catch (java.time.format.DateTimeParseException ignored) {
+            // Keep the last valid server clock when a response lacks a valid timestamp.
+        }
+    }
+
+    public long getAssessmentNowEpochMs() {
+        return System.currentTimeMillis() + assessmentClockOffsetMs;
+    }
+
+    private long parseAssessmentTimestamp(String value) {
+        String timestamp = value.trim().replace(" ", "T");
+        try {
+            return java.time.OffsetDateTime.parse(timestamp).toInstant().toEpochMilli();
+        } catch (java.time.format.DateTimeParseException ignored) {
+            return java.time.LocalDateTime.parse(timestamp)
+                    .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+        }
+    }
+
     public void setAssessmentClosesAt(String closesAt, Long remainingSeconds) {
+        if (closesAt != null && !closesAt.isBlank()) {
+            try {
+                this.assessmentEndTimeEpochMs = parseAssessmentTimestamp(closesAt) - assessmentClockOffsetMs;
+                return;
+            } catch (java.time.format.DateTimeParseException ignored) {
+                // Fall back to the server's remaining duration for older responses.
+            }
+        }
         if (remainingSeconds != null && remainingSeconds >= 0) {
             this.assessmentEndTimeEpochMs = System.currentTimeMillis() + remainingSeconds * 1000L;
-        } else if (closesAt != null && !closesAt.isBlank()) {
-            try {
-                java.time.LocalDateTime ldt = java.time.LocalDateTime.parse(closesAt.replace(" ", "T"));
-                java.time.ZonedDateTime zdt = ldt.atZone(java.time.ZoneId.systemDefault());
-                this.assessmentEndTimeEpochMs = zdt.toInstant().toEpochMilli();
-            } catch (Exception ignored) {
-                this.assessmentEndTimeEpochMs = null;
-            }
         } else {
             this.assessmentEndTimeEpochMs = null;
         }
@@ -83,8 +116,8 @@ public class SessionManager {
 
     public long getRemainingAssessmentSeconds() {
         if (assessmentEndTimeEpochMs == null || !isAssessmentMode()) return 0;
-        long diff = (assessmentEndTimeEpochMs - System.currentTimeMillis()) / 1000L;
-        return Math.max(0, diff);
+        long remainingMs = assessmentEndTimeEpochMs - System.currentTimeMillis();
+        return remainingMs <= 0 ? 0 : (remainingMs + 999) / 1000L;
     }
 
     public String formatRemainingAssessmentTime() {
@@ -137,6 +170,8 @@ public class SessionManager {
         activeAssessmentId = null;
         assessmentCompleted = false;
         assessmentEndTimeEpochMs = null;
+        practiceClass = null;
+        assessmentClockOffsetMs = 0;
     }
 
     public String getToken() {

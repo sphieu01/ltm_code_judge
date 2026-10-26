@@ -851,13 +851,19 @@
 .table-row-cell:odd {
     -fx-background-color: -bg-main;
     -fx-border-color: transparent transparent #30363D transparent;
+.table-row-cell:filled {
+    -fx-border-color: transparent transparent #30363D transparent;
     -fx-border-width: 0 0 1px 0;
 }
-.table-row-cell:empty {
+.table-row-cell:empty,
+.table-row-cell:empty:hover,
+.table-row-cell:empty .table-cell {
     -fx-background-color: transparent;
     -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-table-cell-border-color: transparent;
 }
-.table-row-cell:hover {
+.table-row-cell:filled:hover {
     -fx-background-color: -bg-hover;
     -fx-border-color: transparent transparent #30363D transparent;
     -fx-border-width: 0 0 1px 0;

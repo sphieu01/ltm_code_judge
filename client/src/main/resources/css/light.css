@@ -837,13 +837,19 @@
 .table-row-cell:odd {
     -fx-background-color: #FFFFFF;
     -fx-border-color: transparent transparent #D0D7DE transparent;
+.table-row-cell:filled {
+    -fx-border-color: transparent transparent #D0D7DE transparent;
     -fx-border-width: 0 0 1px 0;
 }
-.table-row-cell:empty {
+.table-row-cell:empty,
+.table-row-cell:empty:hover,
+.table-row-cell:empty .table-cell {
     -fx-background-color: transparent;
     -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-table-cell-border-color: transparent;
 }
-.table-row-cell:hover {
+.table-row-cell:filled:hover {
     -fx-background-color: -bg-hover;
     -fx-border-color: transparent transparent #D0D7DE transparent;
     -fx-border-width: 0 0 1px 0;

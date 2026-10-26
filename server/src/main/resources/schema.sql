@@ -36,6 +36,9 @@ CREATE TABLE problems (
     difficulty      difficulty_level DEFAULT 'MEDIUM',
     created_by      INT,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_active       BOOLEAN   DEFAULT TRUE,
+    problem_type    VARCHAR(20) DEFAULT 'IO_MATCHING',
+    oop_spec        TEXT,
 
     FOREIGN KEY (created_by) REFERENCES users(id)
 );
@@ -73,7 +76,7 @@ CREATE TABLE submissions (
     source_code     TEXT         NOT NULL,
     language        VARCHAR(20)  NOT NULL,         -- 'java' | 'cpp' | 'python'
     verdict         verdict_type DEFAULT 'PENDING',
-    score           INT          DEFAULT 0,         -- 0–100
+    score           INT          DEFAULT 0,         -- 0-100
     passed_tests    INT          DEFAULT 0,
     total_tests     INT          DEFAULT 0,
     exec_time_ms    INT          DEFAULT 0,         -- thời gian chạy tối đa (ms)

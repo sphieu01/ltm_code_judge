@@ -538,6 +538,15 @@ public class AdminView extends BorderPane {
         colTitle.setMinWidth(240);
         colTitle.setPrefWidth(330);
 
+        TableColumn<Problem, String> colType = new TableColumn<>("Dạng bài");
+        colType.setCellValueFactory(data -> new SimpleStringProperty(
+                data.getValue().isJavaOop() ? "Java OOP" : "Thuật toán I/O"
+        ));
+        colType.setMinWidth(115);
+        colType.setPrefWidth(130);
+        colType.setMaxWidth(155);
+        colType.setStyle("-fx-alignment: CENTER;");
+
         TableColumn<Problem, String> colDiff = new TableColumn<>("Độ khó");
         colDiff.setCellValueFactory(new PropertyValueFactory<>("difficulty"));
         colDiff.setMinWidth(90);
@@ -545,14 +554,6 @@ public class AdminView extends BorderPane {
         colDiff.setMaxWidth(125);
         colDiff.setStyle("-fx-alignment: CENTER;");
 
-        TableColumn<Problem, String> colClass = new TableColumn<>("Lớp áp dụng");
-        colClass.setCellValueFactory(cellData -> {
-            String cName = cellData.getValue().getClassName();
-            return new SimpleStringProperty(cName != null ? cName : "Chung cho tất cả");
-        });
-        colClass.setMinWidth(145);
-        colClass.setPrefWidth(185);
-        colClass.setMaxWidth(230);
 
         // Cột Trạng thái có ô tick CheckBox cho từng bài tập
         TableColumn<Problem, Boolean> colStatus = new TableColumn<>("Trạng thái");
@@ -645,7 +646,7 @@ public class AdminView extends BorderPane {
                 setAlignment(Pos.CENTER);
             }
         });
-        problemTable.getColumns().addAll(colTitle, colDiff, colClass, colStatus, colTime, colMem, colActions);
+        problemTable.getColumns().addAll(colTitle, colType, colDiff, colStatus, colTime, colMem, colActions);
         problemTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         problemTable.setItems(problemList);
         TableViewSupport.fitHeightToRows(problemTable, 15);

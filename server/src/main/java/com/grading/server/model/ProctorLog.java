@@ -1,6 +1,7 @@
 package com.grading.server.model;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
 /**
@@ -51,8 +52,7 @@ public class ProctorLog {
         this.violationCount = violationCount;
         this.severity = severity;
         this.clientIp = clientIp;
-        this.timestamp = timestamp;
-        this.formattedTime = LocalDateTime.now().format(FORMATTER);
+        setTimestamp(timestamp);
     }
 
     public ProctorLog(int id, int userId, String username, String fullName,
@@ -159,6 +159,7 @@ public class ProctorLog {
 
     public void setTimestamp(long timestamp) {
         this.timestamp = timestamp;
+        this.formattedTime = Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()).format(FORMATTER);
     }
 
     public String getFormattedTime() {

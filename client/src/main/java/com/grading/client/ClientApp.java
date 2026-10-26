@@ -157,6 +157,7 @@ public class ClientApp extends Application {
         DashboardController dashboardController = new DashboardController(dashboardView, primaryStage);
 
         dashboardController.setOnSelectProblem(problem -> {
+            dashboardController.cleanup();
             showProblemView(problem);
         });
 

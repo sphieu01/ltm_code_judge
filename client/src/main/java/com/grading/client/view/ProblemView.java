@@ -34,6 +34,7 @@ public class ProblemView extends BorderPane {
     private Button backButton;
     private Label proctorBadge;
     private Label countdownTimerBadge;
+    private Button completeAssessmentButton;
     private Button themeToggleBtn;
     private boolean choosingFile = false;
 
@@ -75,6 +76,7 @@ public class ProblemView extends BorderPane {
     private Consumer<ProblemView> onSubmitCodeHandler;
     private Consumer<String> onLanguageChangeHandler;
     private Runnable onBackToDashboardHandler;
+    private Runnable onCompleteAssessmentHandler;
 
     private final List<SampleCaseData> sampleCases = new ArrayList<>();
 
@@ -161,6 +163,16 @@ public class ProblemView extends BorderPane {
         countdownTimerBadge.setVisible(false);
         countdownTimerBadge.setManaged(false);
 
+        completeAssessmentButton = new Button("Kết thúc bài thi");
+        completeAssessmentButton.setId("complete-assessment-button");
+        completeAssessmentButton.getStyleClass().addAll("button", "btn-primary");
+        completeAssessmentButton.setVisible(false);
+        completeAssessmentButton.setManaged(false);
+        completeAssessmentButton.setOnAction(e -> {
+            if (onCompleteAssessmentHandler != null)
+                onCompleteAssessmentHandler.run();
+        });
+
         themeToggleBtn = new Button(ThemeManager.getInstance().getToggleIconText());
         themeToggleBtn.getStyleClass().addAll("button", "btn-theme");
         themeToggleBtn.setStyle("-fx-font-size: 14px; -fx-padding: 4 10 4 10;");
@@ -169,7 +181,8 @@ public class ProblemView extends BorderPane {
             themeToggleBtn.setText(ThemeManager.getInstance().getToggleIconText());
         });
 
-        toolbar.getChildren().addAll(backButton, proctorBadge, spacer, countdownTimerBadge, themeToggleBtn);
+        toolbar.getChildren().addAll(backButton, proctorBadge, spacer, countdownTimerBadge,
+                completeAssessmentButton, themeToggleBtn);
         return toolbar;
     }
 
@@ -673,6 +686,16 @@ public class ProblemView extends BorderPane {
     // =========================================================================
 
     public void loadProblem(Problem problem) {
+        refreshProblemMetadata(problem);
+        if (problem == null) return;
+        clearSelectedFile();
+        updateProctorStatus(0, "INFO", null);
+        clearHistory();
+    }
+
+    /** Apply a teacher's edit without discarding the student's selected source file. */
+    public void refreshProblemMetadata(Problem problem) {
+        String selectedLanguage = languageComboBox.getValue();
         this.currentProblem = problem;
         if (problem == null)
             return;
@@ -697,10 +720,9 @@ public class ProblemView extends BorderPane {
         }
 
         updateLanguageOptions();
-
-        clearSelectedFile();
-        updateProctorStatus(0, "INFO", null);
-        clearHistory();
+        if (selectedLanguage != null && languageComboBox.getItems().contains(selectedLanguage)) {
+            languageComboBox.getSelectionModel().select(selectedLanguage);
+        }
     }
 
     public void setAllowedLanguages(String allowedLanguages) {
@@ -1052,6 +1074,16 @@ public class ProblemView extends BorderPane {
             countdownTimerBadge.setVisible(visible);
             countdownTimerBadge.setManaged(visible);
         }
+    }
+
+    public void setAssessmentMode(boolean active) {
+        completeAssessmentButton.setVisible(active);
+        completeAssessmentButton.setManaged(active);
+        setCountdownTimerVisible(active);
+    }
+
+    public void setOnCompleteAssessment(Runnable handler) {
+        this.onCompleteAssessmentHandler = handler;
     }
 
     public void updateCountdownTimer(long remainingSeconds, String formattedTime) {

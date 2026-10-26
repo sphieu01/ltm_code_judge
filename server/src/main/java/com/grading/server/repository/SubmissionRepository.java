@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Optional;
 
 /**
@@ -25,6 +27,8 @@ public class SubmissionRepository {
             stmt.executeUpdate("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_zip BOOLEAN DEFAULT FALSE");
             stmt.executeUpdate("CREATE INDEX IF NOT EXISTS idx_submissions_assessment " +
                     "ON submissions(assessment_id, user_id, problem_id, submitted_at)");
+            stmt.executeUpdate("CREATE INDEX IF NOT EXISTS idx_submissions_practice_status " +
+                    "ON submissions(user_id,problem_id,submitted_at DESC,id DESC) WHERE assessment_id IS NULL");
             stmt.executeUpdate("UPDATE submissions SET score = 0 WHERE total_tests = 0 AND score <> 0");
             try {
                 stmt.executeUpdate("ALTER TABLE submissions DROP CONSTRAINT IF EXISTS submissions_problem_id_fkey");
@@ -78,6 +82,27 @@ public class SubmissionRepository {
             "UPDATE submissions SET verdict = 'JUDGING'::verdict_type WHERE id = ?";
 
     // ─── Public Methods ───────────────────────────────────────────────────────
+
+    /** Small dashboard badges; source code and exam submissions never enter this response. */
+    public Map<Integer, String> findPracticeStatuses(int userId) throws SQLException {
+        try (Connection conn = DatabaseConfig.getConnection()) {
+            return readPracticeStatuses(conn, userId);
+        }
+    }
+
+    static Map<Integer, String> readPracticeStatuses(Connection conn, int userId) throws SQLException {
+        String sql = "SELECT problem_id,CASE WHEN BOOL_OR(verdict::text IN ('AC','ACCEPTED','PASSED')) THEN 'AC' " +
+                "ELSE (ARRAY_AGG(verdict::text ORDER BY submitted_at DESC,id DESC))[1] END AS verdict " +
+                "FROM submissions WHERE user_id=? AND assessment_id IS NULL GROUP BY problem_id";
+        Map<Integer, String> statuses = new HashMap<>();
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, userId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) statuses.put(rs.getInt("problem_id"), rs.getString("verdict"));
+            }
+        }
+        return statuses;
+    }
 
     /**
      * Lưu submission mới vào DB.

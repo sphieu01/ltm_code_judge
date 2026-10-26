@@ -94,3 +94,33 @@ CREATE INDEX idx_submissions_submitted  ON submissions(submitted_at DESC);
 COMMENT ON TABLE  submissions              IS 'Lịch sử nộp bài của students';
 COMMENT ON COLUMN submissions.verdict      IS 'PENDING→JUDGING→AC|WA|TLE|RE|CE';
 COMMENT ON COLUMN submissions.exec_time_ms IS 'Thời gian chạy tối đa qua tất cả test cases';
+
+-- Nhật ký giám sát giữ bản chụp thông tin, không xóa theo user/bài tập/bài thi.
+CREATE TABLE IF NOT EXISTS proctor_logs (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL,
+    username TEXT,
+    full_name TEXT,
+    problem_id INT NOT NULL,
+    assessment_id INT,
+    problem_title TEXT,
+    event_type VARCHAR(100) NOT NULL,
+    detail TEXT,
+    violation_count INT NOT NULL,
+    severity VARCHAR(20) NOT NULL,
+    client_ip TEXT,
+    occurred_at_ms BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS proctor_violation_counters (
+    user_id INT NOT NULL,
+    problem_id INT NOT NULL,
+    assessment_scope INT NOT NULL,
+    violation_count INT NOT NULL,
+    PRIMARY KEY (user_id, problem_id, assessment_scope)
+);
+
+CREATE INDEX IF NOT EXISTS idx_proctor_logs_assessment_time
+    ON proctor_logs(assessment_id, occurred_at_ms DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_proctor_logs_time
+    ON proctor_logs(occurred_at_ms DESC, id DESC);

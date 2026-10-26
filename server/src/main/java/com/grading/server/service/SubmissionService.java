@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -124,6 +125,10 @@ public class SubmissionService {
      */
     public List<Submission> getHistory(int userId) throws SQLException {
         return submissionRepository.findByUserId(userId);
+    }
+
+    public Map<Integer, String> getPracticeStatuses(int userId) throws SQLException {
+        return submissionRepository.findPracticeStatuses(userId);
     }
 
     /**

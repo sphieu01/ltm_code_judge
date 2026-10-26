@@ -312,11 +312,20 @@ public class ClientHandler implements Runnable {
                 }
             }
 
+            JsonArray problemRows = MessageSerializer.toJsonElement(problems).getAsJsonArray();
+            if (!isTeacher) {
+                java.util.Map<Integer, String> statuses = submissionService.getPracticeStatuses(authenticatedUserId);
+                for (var element : problemRows) {
+                    JsonObject row = element.getAsJsonObject();
+                    row.addProperty("status", statuses.getOrDefault(row.get("id").getAsInt(), ""));
+                }
+            }
+
             Message response = Message.success(
                     MessageType.GET_PROBLEMS_RESPONSE,
                     request.getRequestId(),
                     "OK",
-                    MessageSerializer.toJsonElement(problems)
+                    problemRows
             );
             send(response);
 
@@ -1021,25 +1030,30 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            // 2. Xác định bài thi (nếu đang trong giờ kiểm tra) và kiểm tra giới hạn ngôn ngữ
+            // 2. Chỉ gắn bài nộp với lượt thi đã được sinh viên bắt đầu rõ ràng.
             Integer assessmentId = null;
             Integer classId = data.has("classId") && !data.get("classId").isJsonNull()
                     ? data.get("classId").getAsInt() : null;
 
             if ("STUDENT".equalsIgnoreCase(authenticatedRole)) {
-                try {
-                    JsonObject activeAssessment = academicService.getActiveAssessment(authenticatedUserId, null);
-                    if (activeAssessment != null && activeAssessment.has("problemIds")) {
-                        for (var pid : activeAssessment.getAsJsonArray("problemIds")) {
-                            if (pid.getAsInt() == problemId) {
-                                assessmentId = activeAssessment.get("id").getAsInt();
-                                classId = activeAssessment.get("classId").getAsInt();
-                                break;
-                            }
+                Integer requestedAssessmentId = data.has("assessmentId") && !data.get("assessmentId").isJsonNull()
+                        ? data.get("assessmentId").getAsInt() : null;
+                JsonObject activeAssessment = academicService.getActiveAssessment(authenticatedUserId, null);
+                if (requestedAssessmentId != null && (activeAssessment == null
+                        || activeAssessment.get("id").getAsInt() != requestedAssessmentId)) {
+                    throw new IllegalArgumentException("Bài kiểm tra đã kết thúc hoặc chưa được bắt đầu.");
+                }
+                if (activeAssessment != null && activeAssessment.has("problemIds")) {
+                    for (var pid : activeAssessment.getAsJsonArray("problemIds")) {
+                        if (pid.getAsInt() == problemId) {
+                            assessmentId = activeAssessment.get("id").getAsInt();
+                            classId = activeAssessment.get("classId").getAsInt();
+                            break;
                         }
                     }
-                } catch (Exception ex) {
-                    logger.warn("Could not check active assessment for submission: {}", ex.getMessage());
+                }
+                if (requestedAssessmentId != null && assessmentId == null) {
+                    throw new IllegalArgumentException("Bài tập này không thuộc bài kiểm tra đang làm.");
                 }
 
                 if (assessmentId == null && (classId == null || classId <= 0)) {
@@ -1219,8 +1233,12 @@ public class ClientHandler implements Runnable {
             return;
         }
         try {
+            JsonObject data = request.getData() != null && request.getData().isJsonObject()
+                    ? request.getData().getAsJsonObject() : null;
+            boolean summariesOnly = data != null && data.has("summariesOnly") && data.get("summariesOnly").getAsBoolean();
             send(Message.success(MessageType.GET_STUDENT_ASSESSMENTS_RESPONSE, request.getRequestId(), "OK",
-                    academicService.getStudentAssessments(authenticatedUserId)));
+                    summariesOnly ? academicService.getStudentAssessmentSummaries(authenticatedUserId)
+                            : academicService.getStudentAssessments(authenticatedUserId)));
         } catch (Exception e) {
             logger.error("GetStudentAssessments error", e);
             sendError(request.getRequestId(), "Không thể tải danh sách bài kiểm tra.");
@@ -1273,7 +1291,7 @@ public class ClientHandler implements Runnable {
             int assessmentId = request.getData().getAsJsonObject().get("assessmentId").getAsInt();
             academicService.startAssessment(assessmentId, authenticatedUserId);
             send(Message.success(MessageType.START_ASSESSMENT_RESPONSE, request.getRequestId(),
-                    "Đã bắt đầu bài kiểm tra."));
+                    "Đã bắt đầu bài kiểm tra.", academicService.getActiveAssessment(authenticatedUserId, null)));
         } catch (IllegalArgumentException e) {
             sendError(request.getRequestId(), e.getMessage());
         } catch (Exception e) {
@@ -1373,7 +1391,7 @@ public class ClientHandler implements Runnable {
             alertData.addProperty("violationCount", result.violationCount());
             alertData.addProperty("severity", result.severity());
             alertData.addProperty("clientIp", clientIp);
-            alertData.addProperty("timestamp", System.currentTimeMillis());
+            alertData.addProperty("timestamp", result.log().getTimestamp());
             alertData.addProperty("formattedTime", result.log().getFormattedTime());
 
             String teacherMsg;
@@ -1501,9 +1519,27 @@ public class ClientHandler implements Runnable {
             if (writer.checkError()) {
                 logger.warn("Socket write error for userId={}", authenticatedUserId);
             }
+            if ("TEACHER".equalsIgnoreCase(authenticatedRole) && "SUCCESS".equalsIgnoreCase(message.getStatus())) {
+                String scope = studentDataChangeScope(message.getType());
+                if (scope != null) connectionRegistry.broadcastStudentDataChanged(scope, message.getType().name());
+            }
         } catch (Exception e) {
             logger.error("Error sending response", e);
         }
+    }
+
+    static String studentDataChangeScope(MessageType type) {
+        if (type == null) return null;
+        return switch (type) {
+            case CREATE_PROBLEM_RESPONSE, UPDATE_PROBLEM_RESPONSE, DELETE_PROBLEM_RESPONSE,
+                    TOGGLE_PROBLEM_ACTIVE_RESPONSE, ASSIGN_CLASS_PROBLEMS_RESPONSE, REMOVE_CLASS_PROBLEM_RESPONSE -> "PROBLEMS";
+            case CREATE_COURSE_RESPONSE, UPDATE_COURSE_RESPONSE, DELETE_COURSE_RESPONSE,
+                    TOGGLE_COURSE_ACTIVE_RESPONSE -> "COURSES";
+            case CREATE_CLASS_RESPONSE, UPDATE_CLASS_RESPONSE, DELETE_CLASS_RESPONSE -> "CLASSES";
+            case IMPORT_STUDENTS_RESPONSE, UPDATE_STUDENT_RESPONSE, DELETE_STUDENT_RESPONSE -> "ENROLLMENTS";
+            case CREATE_ASSESSMENT_RESPONSE -> "ASSESSMENTS";
+            default -> null;
+        };
     }
 
     /** Gửi ERROR response */

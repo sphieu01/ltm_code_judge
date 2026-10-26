@@ -3,23 +3,38 @@ package com.grading.server.repository;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.grading.server.config.DatabaseConfig;
+import com.grading.server.model.CreditClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.*;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 
 /** Persistence and reporting for published, timed class assessments. */
 public class AssessmentRepository {
     private static final Logger logger = LoggerFactory.getLogger(AssessmentRepository.class);
+    private final ConnectionProvider connections;
+    private final Clock clock;
+
+    @FunctionalInterface
+    interface ConnectionProvider {
+        Connection open() throws SQLException;
+    }
 
     public AssessmentRepository() {
+        this(DatabaseConfig::getConnection, Clock.systemDefaultZone());
         initSchemaIfNeeded();
     }
 
+    AssessmentRepository(ConnectionProvider connections, Clock clock) {
+        this.connections = connections;
+        this.clock = clock;
+    }
+
     private void initSchemaIfNeeded() {
-        try (Connection conn = DatabaseConfig.getConnection(); Statement stmt = conn.createStatement()) {
+        try (Connection conn = connections.open(); Statement stmt = conn.createStatement()) {
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS assessments (" +
                     "id SERIAL PRIMARY KEY, class_id INT NOT NULL REFERENCES classes(id) ON DELETE CASCADE," +
                     "title VARCHAR(200) NOT NULL, description TEXT, opens_at TIMESTAMP NOT NULL," +
@@ -50,7 +65,7 @@ public class AssessmentRepository {
 
     public int create(int classId, String title, LocalDateTime opensAt, LocalDateTime closesAt,
                       int durationMinutes, int teacherId, List<Integer> problemIds) throws SQLException {
-        try (Connection conn = DatabaseConfig.getConnection()) {
+        try (Connection conn = connections.open()) {
             conn.setAutoCommit(false);
             try {
                 String overlapSql = "SELECT 1 FROM assessments WHERE class_id=? AND is_published=TRUE " +
@@ -111,26 +126,88 @@ public class AssessmentRepository {
 
     /** Uses the application server clock so Neon/UTC cannot shift a Vietnam local schedule. */
     public JsonObject findActiveForStudent(int studentId, Integer requestedClassId) throws SQLException {
-        for (var element : findForStudent(studentId)) {
-            JsonObject assessment = element.getAsJsonObject();
-            if (!"ACTIVE".equals(assessment.get("status").getAsString())) continue;
-            if (requestedClassId != null && requestedClassId > 0
-                    && assessment.get("classId").getAsInt() != requestedClassId) continue;
-            return assessment;
+        LocalDateTime now = LocalDateTime.now(clock);
+        String sql = "SELECT a.id,a.class_id,a.title,a.opens_at,a.closes_at,a.duration_minutes,cl.class_code,cl.name class_name, " +
+                "cl.allowed_languages, co.language AS course_lang, co.name AS course_name,aa.started_at,aa.completed_at," +
+                "(SELECT COUNT(*) FROM assessment_problems apc WHERE apc.assessment_id=a.id) AS problem_count," +
+                "(SELECT COUNT(DISTINCT sc.problem_id) FROM submissions sc WHERE sc.assessment_id=a.id AND sc.user_id=ce.student_id) AS submitted_count " +
+                "FROM assessments a JOIN classes cl ON cl.id=a.class_id " +
+                "LEFT JOIN courses co ON cl.course_id=co.id " +
+                "JOIN class_enrollments ce ON ce.class_id=a.class_id " +
+                "JOIN assessment_attempts aa ON aa.assessment_id=a.id AND aa.student_id=ce.student_id " +
+                "WHERE ce.student_id=? AND a.is_published=TRUE AND aa.completed_at IS NULL " +
+                "AND (co.is_active IS NULL OR co.is_active=TRUE) " +
+                "AND a.opens_at<=? AND LEAST(a.closes_at,a.opens_at+a.duration_minutes*INTERVAL '1 minute')>? " +
+                (requestedClassId != null && requestedClassId > 0 ? "AND a.class_id=? " : "") +
+                "ORDER BY a.opens_at LIMIT 1";
+        try (Connection conn = connections.open(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, studentId);
+            stmt.setTimestamp(2, Timestamp.valueOf(now));
+            stmt.setTimestamp(3, Timestamp.valueOf(now));
+            if (requestedClassId != null && requestedClassId > 0) stmt.setInt(4, requestedClassId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (!rs.next()) return null;
+                Timestamp started = rs.getTimestamp("started_at");
+                Timestamp[] attempt = started == null ? null : new Timestamp[]{started, rs.getTimestamp("completed_at")};
+                JsonObject assessment = mapAssessmentHeader(rs, now, rs.getInt("problem_count"),
+                        rs.getInt("submitted_count"), attempt);
+                if (!"ACTIVE".equals(assessment.get("status").getAsString())
+                        || !assessment.get("started").getAsBoolean()) return null;
+                if (requestedClassId != null && requestedClassId > 0
+                        && assessment.get("classId").getAsInt() != requestedClassId) return null;
+                attachProblems(conn, assessment, rs.getInt("id"), studentId, true);
+                return assessment;
+            }
         }
-        return null;
+    }
+
+    /** A polling response needs schedule/progress only, never every question and submission. */
+    public JsonArray findSummariesForStudent(int studentId) throws SQLException {
+        String sql = "SELECT a.id,a.class_id,a.title,a.opens_at,a.closes_at,a.duration_minutes,cl.class_code,cl.name class_name, " +
+                "cl.allowed_languages,co.language AS course_lang,co.name AS course_name," +
+                "COALESCE(pc.problem_count,0) AS problem_count,COALESCE(sc.submitted_count,0) AS submitted_count," +
+                "aa.started_at,aa.completed_at " +
+                "FROM assessments a JOIN classes cl ON cl.id=a.class_id " +
+                "LEFT JOIN courses co ON cl.course_id=co.id " +
+                "JOIN class_enrollments ce ON ce.class_id=a.class_id " +
+                "LEFT JOIN assessment_attempts aa ON aa.assessment_id=a.id AND aa.student_id=ce.student_id " +
+                "LEFT JOIN (SELECT assessment_id,COUNT(*) AS problem_count FROM assessment_problems GROUP BY assessment_id) pc ON pc.assessment_id=a.id " +
+                "LEFT JOIN (SELECT assessment_id,COUNT(DISTINCT problem_id) AS submitted_count FROM submissions " +
+                "WHERE user_id=? AND assessment_id IS NOT NULL GROUP BY assessment_id) sc ON sc.assessment_id=a.id " +
+                "WHERE ce.student_id=? AND a.is_published=TRUE AND aa.completed_at IS NULL " +
+                "AND (co.is_active IS NULL OR co.is_active=TRUE) " +
+                "AND LEAST(a.closes_at,a.opens_at+a.duration_minutes*INTERVAL '1 minute')>? ORDER BY a.opens_at";
+        LocalDateTime now = LocalDateTime.now(clock);
+        JsonArray result = new JsonArray();
+        try (Connection conn = connections.open(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, studentId);
+            stmt.setInt(2, studentId);
+            stmt.setTimestamp(3, Timestamp.valueOf(now));
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    Timestamp started = rs.getTimestamp("started_at");
+                    Timestamp completed = rs.getTimestamp("completed_at");
+                    Timestamp[] attempt = started == null ? null : new Timestamp[]{started, completed};
+                    JsonObject item = mapAssessmentHeader(rs, now, rs.getInt("problem_count"),
+                            rs.getInt("submitted_count"), attempt);
+                    if (!"COMPLETED".equals(item.get("status").getAsString())
+                            && !"EXPIRED".equals(item.get("status").getAsString())) result.add(item);
+                }
+            }
+        }
+        return result;
     }
 
     public JsonArray findForStudent(int studentId) throws SQLException {
         String sql = "SELECT a.id,a.class_id,a.title,a.opens_at,a.closes_at,a.duration_minutes,cl.class_code,cl.name class_name, " +
-                "cl.allowed_languages, co.language AS course_lang " +
+                "cl.allowed_languages, co.language AS course_lang, co.name AS course_name " +
                 "FROM assessments a JOIN classes cl ON cl.id=a.class_id " +
                 "LEFT JOIN courses co ON cl.course_id=co.id " +
                 "JOIN class_enrollments ce ON ce.class_id=a.class_id " +
                 "WHERE ce.student_id=? AND a.is_published=TRUE ORDER BY a.opens_at DESC";
         JsonArray result = new JsonArray();
-        LocalDateTime now = LocalDateTime.now();
-        try (Connection conn = DatabaseConfig.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        try (Connection conn = connections.open(); PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, studentId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) result.add(mapAssessment(conn, rs, studentId, now, true));
@@ -141,14 +218,14 @@ public class AssessmentRepository {
 
     public JsonArray findByClass(int classId, int teacherId) throws SQLException {
         String sql = "SELECT a.id,a.class_id,a.title,a.opens_at,a.closes_at,a.duration_minutes,cl.class_code,cl.name class_name, " +
-                "cl.allowed_languages, co.language AS course_lang " +
+                "cl.allowed_languages, co.language AS course_lang, co.name AS course_name " +
                 "FROM assessments a JOIN classes cl ON cl.id=a.class_id " +
                 "LEFT JOIN courses co ON cl.course_id=co.id " +
                 "WHERE a.class_id=? AND (a.created_by=? OR cl.teacher_id=?) " +
                 "ORDER BY a.opens_at DESC";
         JsonArray result = new JsonArray();
-        LocalDateTime now = LocalDateTime.now();
-        try (Connection conn = DatabaseConfig.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        try (Connection conn = connections.open(); PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, classId);
             stmt.setInt(2, teacherId);
             stmt.setInt(3, teacherId);
@@ -168,18 +245,18 @@ public class AssessmentRepository {
 
     public JsonObject getMonitor(int assessmentId, int teacherId) throws SQLException {
         String sql = "SELECT a.id,a.class_id,a.title,a.opens_at,a.closes_at,a.duration_minutes,cl.class_code,cl.name class_name, " +
-                "cl.allowed_languages, co.language AS course_lang " +
+                "cl.allowed_languages, co.language AS course_lang, co.name AS course_name " +
                 "FROM assessments a JOIN classes cl ON cl.id=a.class_id " +
                 "LEFT JOIN courses co ON cl.course_id=co.id " +
                 "WHERE a.id=? AND (a.created_by=? OR cl.teacher_id=?)";
-        try (Connection conn = DatabaseConfig.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = connections.open(); PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, assessmentId);
             stmt.setInt(2, teacherId);
             stmt.setInt(3, teacherId);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (!rs.next()) throw new IllegalArgumentException("Không tìm thấy bài kiểm tra hoặc bạn không có quyền xem.");
                 int classId = rs.getInt("class_id");
-                JsonObject result = mapAssessment(conn, rs, null, LocalDateTime.now(), false);
+                JsonObject result = mapAssessment(conn, rs, null, LocalDateTime.now(clock), false);
                 result.add("progress", findProgress(conn, assessmentId, classId));
                 result.add("submissions", findSubmissions(conn, assessmentId));
                 return result;
@@ -208,11 +285,14 @@ public class AssessmentRepository {
     }
 
     public void start(int assessmentId, int studentId) throws SQLException {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
+        JsonObject active = findActiveForStudent(studentId, null);
+        if (active != null && active.get("id").getAsInt() != assessmentId)
+            throw new IllegalArgumentException("Hãy kết thúc bài kiểm tra hiện tại trước khi bắt đầu bài khác.");
         String find = "SELECT a.opens_at,a.closes_at,a.duration_minutes FROM assessments a " +
                 "JOIN class_enrollments ce ON ce.class_id=a.class_id " +
                 "WHERE a.id=? AND ce.student_id=? AND a.is_published=TRUE";
-        try (Connection conn = DatabaseConfig.getConnection()) {
+        try (Connection conn = connections.open()) {
             LocalDateTime opensAt;
             LocalDateTime closesAt;
             int duration;
@@ -252,19 +332,38 @@ public class AssessmentRepository {
     }
 
     public void complete(int assessmentId, int studentId) throws SQLException {
-        String sql = "UPDATE assessment_attempts SET completed_at=? " +
-                "WHERE assessment_id=? AND student_id=? AND completed_at IS NULL";
-        try (Connection conn = DatabaseConfig.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now()));
+        String sql = "UPDATE assessment_attempts SET completed_at=COALESCE(completed_at,?) " +
+                "WHERE assessment_id=? AND student_id=?";
+        try (Connection conn = connections.open(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now(clock)));
             stmt.setInt(2, assessmentId);
             stmt.setInt(3, studentId);
             if (stmt.executeUpdate() != 1)
-                throw new IllegalArgumentException("Bài kiểm tra chưa được bắt đầu hoặc đã hoàn thành.");
+                throw new IllegalArgumentException("Bài kiểm tra chưa được bắt đầu.");
         }
     }
 
     private JsonObject mapAssessment(Connection conn, ResultSet rs, Integer studentId,
                                      LocalDateTime now, boolean includeProblems) throws SQLException {
+        int id = rs.getInt("id");
+        JsonObject result = mapAssessmentHeader(rs, now, countProblems(conn, id),
+                studentId == null ? 0 : countSubmittedProblems(conn, id, studentId),
+                studentId == null ? null : findAttempt(conn, id, studentId));
+        attachProblems(conn, result, id, studentId, includeProblems);
+        return result;
+    }
+
+    private void attachProblems(Connection conn, JsonObject result, int id, Integer studentId,
+                                boolean includeProblems) throws SQLException {
+        JsonArray problems = findProblems(conn, id, studentId);
+        JsonArray ids = new JsonArray();
+        for (var problem : problems) ids.add(problem.getAsJsonObject().get("id").getAsInt());
+        result.add("problemIds", ids);
+        if (includeProblems) result.add("problems", problems);
+    }
+
+    private JsonObject mapAssessmentHeader(ResultSet rs, LocalDateTime now, int problemCount,
+                                           int submittedCount, Timestamp[] attempt) throws SQLException {
         int id = rs.getInt("id");
         LocalDateTime opensAt = rs.getTimestamp("opens_at").toLocalDateTime();
         LocalDateTime scheduledClose = rs.getTimestamp("closes_at").toLocalDateTime();
@@ -273,9 +372,6 @@ public class AssessmentRepository {
         if (scheduledClose.isBefore(effectiveClose)) effectiveClose = scheduledClose;
         long remainingSeconds = Math.max(0, java.time.Duration.between(now, effectiveClose).getSeconds());
 
-        int problemCount = countProblems(conn, id);
-        int submittedCount = studentId == null ? 0 : countSubmittedProblems(conn, id, studentId);
-        Timestamp[] attempt = studentId == null ? null : findAttempt(conn, id, studentId);
         boolean started = attempt != null;
         boolean completed = attempt != null && attempt[1] != null;
         String status = completed ? "COMPLETED"
@@ -288,18 +384,7 @@ public class AssessmentRepository {
         result.addProperty("classCode", rs.getString("class_code"));
         result.addProperty("className", rs.getString("class_name"));
 
-        String allowedLangs = null;
-        try { allowedLangs = rs.getString("allowed_languages"); } catch (Exception ignored) {}
-        if (allowedLangs == null || allowedLangs.isBlank()) {
-            try {
-                String courseLang = rs.getString("course_lang");
-                if (courseLang != null && !courseLang.isBlank()) {
-                    allowedLangs = courseLang.trim().toLowerCase();
-                }
-            } catch (Exception ignored) {}
-        }
-        if (allowedLangs == null || allowedLangs.isBlank()) allowedLangs = "c,cpp,java,python";
-        result.addProperty("allowedLanguages", allowedLangs);
+        result.addProperty("allowedLanguages", effectiveAllowedLanguages(rs));
 
         result.addProperty("title", rs.getString("title"));
         result.addProperty("opensAt", opensAt.toString());
@@ -307,6 +392,8 @@ public class AssessmentRepository {
         result.addProperty("scheduledClosesAt", scheduledClose.toString());
         result.addProperty("durationMinutes", duration);
         result.addProperty("remainingSeconds", remainingSeconds);
+        result.addProperty("startsInSeconds", Math.max(0, java.time.Duration.between(now, opensAt).getSeconds()));
+        result.addProperty("serverTime", now.toString());
         result.addProperty("status", status);
         result.addProperty("problemCount", problemCount);
         result.addProperty("submittedCount", submittedCount);
@@ -316,27 +403,27 @@ public class AssessmentRepository {
             result.addProperty("startedAt", attempt[0].toLocalDateTime().toString());
         if (attempt != null && attempt[1] != null)
             result.addProperty("completedAt", attempt[1].toLocalDateTime().toString());
-        JsonArray problems = findProblems(conn, id, studentId);
-        JsonArray ids = new JsonArray();
-        for (var problem : problems) ids.add(problem.getAsJsonObject().get("id").getAsInt());
-        result.add("problemIds", ids);
-        if (includeProblems) result.add("problems", problems);
         return result;
     }
 
     private JsonArray findProblems(Connection conn, int assessmentId, Integer studentId) throws SQLException {
         String sql = "SELECT p.id, p.title, p.description, p.difficulty, p.time_limit_ms, p.memory_limit_kb, " +
-                "a.class_id, cl.name AS class_name, cl.allowed_languages, co.language AS course_lang, " +
+                "a.class_id, cl.name AS class_name, cl.allowed_languages, co.language AS course_lang, co.name AS course_name, " +
                 "p.problem_type, p.oop_spec, ap.order_num " +
+                (studentId == null ? "" : ",latest.verdict AS latest_verdict,latest.score AS latest_score,latest.submitted_at AS last_submitted_at ") +
                 "FROM assessment_problems ap " +
                 "JOIN problems p ON p.id=ap.problem_id " +
                 "JOIN assessments a ON a.id=ap.assessment_id " +
                 "LEFT JOIN classes cl ON cl.id=a.class_id " +
                 "LEFT JOIN courses co ON cl.course_id=co.id " +
+                (studentId == null ? "" : "LEFT JOIN LATERAL (SELECT s.verdict::text AS verdict,s.score,s.submitted_at FROM submissions s " +
+                        "WHERE s.assessment_id=ap.assessment_id AND s.user_id=? AND s.problem_id=p.id " +
+                        "ORDER BY s.submitted_at DESC,s.id DESC LIMIT 1) latest ON TRUE ") +
                 "WHERE ap.assessment_id=? ORDER BY ap.order_num";
         JsonArray result = new JsonArray();
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, assessmentId);
+            if (studentId != null) stmt.setInt(1, studentId);
+            stmt.setInt(studentId == null ? 1 : 2, assessmentId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     JsonObject problem = new JsonObject();
@@ -352,28 +439,36 @@ public class AssessmentRepository {
                     String className = rs.getString("class_name");
                     if (className != null) problem.addProperty("className", className);
 
-                    String allowed = rs.getString("allowed_languages");
-                    if (allowed == null || allowed.isBlank()) {
-                        String courseLang = rs.getString("course_lang");
-                        if (courseLang != null && !courseLang.isBlank()) {
-                            allowed = courseLang.trim().toLowerCase();
-                        }
-                    }
-                    if (allowed != null && !allowed.isBlank()) {
-                        problem.addProperty("allowedLanguages", allowed);
-                    }
+                    problem.addProperty("allowedLanguages", effectiveAllowedLanguages(rs));
 
                     String pType = rs.getString("problem_type");
                     if (pType != null) problem.addProperty("problemType", pType);
                     String oopSpec = rs.getString("oop_spec");
                     if (oopSpec != null) problem.addProperty("oopSpec", oopSpec);
 
-                    if (studentId != null) addStudentProblemStatus(conn, problem, assessmentId, studentId, problemId);
+                    if (studentId != null) {
+                        Timestamp lastSubmitted = rs.getTimestamp("last_submitted_at");
+                        problem.addProperty("submitted", lastSubmitted != null);
+                        problem.addProperty("verdict", lastSubmitted == null ? "" : rs.getString("latest_verdict"));
+                        if (lastSubmitted != null) {
+                            problem.addProperty("score", rs.getInt("latest_score"));
+                            problem.addProperty("lastSubmittedAt", lastSubmitted.toLocalDateTime().toString());
+                        }
+                    }
                     result.add(problem);
                 }
             }
         }
         return result;
+    }
+
+    private String effectiveAllowedLanguages(ResultSet rs) throws SQLException {
+        CreditClass creditClass = new CreditClass();
+        creditClass.setName(rs.getString("class_name"));
+        creditClass.setCourseName(rs.getString("course_name"));
+        creditClass.setCourseLanguage(rs.getString("course_lang"));
+        creditClass.setAllowedLanguages(rs.getString("allowed_languages"));
+        return creditClass.getEffectiveAllowedLanguages();
     }
 
     private Timestamp[] findAttempt(Connection conn, int assessmentId, int studentId) throws SQLException {
@@ -383,28 +478,6 @@ public class AssessmentRepository {
             stmt.setInt(2, studentId);
             try (ResultSet rs = stmt.executeQuery()) {
                 return rs.next() ? new Timestamp[]{rs.getTimestamp(1), rs.getTimestamp(2)} : null;
-            }
-        }
-    }
-
-    private void addStudentProblemStatus(Connection conn, JsonObject problem, int assessmentId,
-                                         int studentId, int problemId) throws SQLException {
-        String sql = "SELECT verdict::text,score,submitted_at FROM submissions " +
-                "WHERE assessment_id=? AND user_id=? AND problem_id=? ORDER BY submitted_at DESC LIMIT 1";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, assessmentId);
-            stmt.setInt(2, studentId);
-            stmt.setInt(3, problemId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    problem.addProperty("submitted", true);
-                    problem.addProperty("verdict", rs.getString(1));
-                    problem.addProperty("score", rs.getInt(2));
-                    problem.addProperty("lastSubmittedAt", rs.getTimestamp(3).toLocalDateTime().toString());
-                } else {
-                    problem.addProperty("submitted", false);
-                    problem.addProperty("verdict", "");
-                }
             }
         }
     }

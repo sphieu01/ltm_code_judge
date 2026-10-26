@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.grading.client.model.CreditClass;
+import com.grading.client.model.AssessmentSchedule;
 import com.grading.client.model.Problem;
 import com.grading.client.model.User;
 import com.grading.client.network.SessionManager;
@@ -36,6 +37,26 @@ public class DashboardController {
     private Timeline countdownTicker;
     private Integer activeAssessmentId;
     private boolean assessmentStateKnown;
+    private boolean assessmentDataLoaded;
+    private boolean assessmentLobby;
+    private boolean assessmentTransitionInProgress;
+    private boolean refreshInFlight;
+    private boolean disposed;
+    private long assessmentStateVersion;
+    private long problemRequestVersion;
+    private boolean updatingClasses;
+    private boolean classesRefreshInFlight;
+    private boolean classesRefreshPending;
+    private boolean assessmentRefreshPending;
+    private boolean assessmentDetailsInFlight;
+    private final Consumer<Response> dataChangedListener = this::handleDataChanged;
+    private final javafx.animation.PauseTransition dataRefreshDebounce =
+            new javafx.animation.PauseTransition(Duration.millis(150));
+    private boolean refreshClassesOnChange;
+    private boolean refreshProblemsOnChange;
+    private boolean refreshAssessmentsOnChange;
+    private boolean practiceRequestStarted;
+    private boolean classesLoaded;
     private final List<CreditClass> cachedClasses = new ArrayList<>();
     private final java.util.Map<Integer, JsonObject> assessmentCache = new java.util.HashMap<>();
 
@@ -45,6 +66,9 @@ public class DashboardController {
         this.sessionManager = SessionManager.getInstance();
 
         initEvents();
+        SocketClient socketClient = sessionManager.getSocketClient();
+        if (socketClient != null) socketClient.addDataChangedListener(dataChangedListener);
+        dataRefreshDebounce.setOnFinished(event -> refreshChangedData());
         loadStudentClassesAndProblems();
         startAssessmentPolling();
     }
@@ -75,6 +99,7 @@ public class DashboardController {
         });
 
         view.setOnSelectClass(selectedClass -> {
+            if (updatingClasses || sessionManager.isAssessmentMode() || assessmentLobby) return;
             sessionManager.setCurrentClass(selectedClass);
             Integer classId = selectedClass != null ? selectedClass.getId() : null;
             loadProblems(classId);
@@ -82,7 +107,8 @@ public class DashboardController {
 
         view.setOnOpenAssessment(id -> {
             JsonObject assessment = assessmentCache.get(id);
-            if (assessment != null && "ACTIVE".equalsIgnoreCase(stringValue(assessment, "status"))) {
+            if (assessment != null && schedule(assessment).canStart(sessionManager.getAssessmentNowEpochMs())
+                    && !boolValue(assessment, "completed")) {
                 startAssessment(assessment);
             }
         });
@@ -90,6 +116,7 @@ public class DashboardController {
         view.setOnCompleteAssessment(this::completeAssessment);
 
         view.setOnLogout(() -> {
+            cleanup();
             sessionManager.clear();
             if (onLogout != null) onLogout.run();
         });
@@ -102,8 +129,19 @@ public class DashboardController {
     public void loadStudentClassesAndProblems() {
         SocketClient socketClient = sessionManager.getSocketClient();
         if (socketClient != null && socketClient.isConnected()) {
+            if (classesRefreshInFlight) {
+                classesRefreshPending = true;
+                return;
+            }
+            classesRefreshInFlight = true;
             socketClient.getMyClasses(response -> {
                 Platform.runLater(() -> {
+                    classesRefreshInFlight = false;
+                    if (disposed) return;
+                    if (!"SUCCESS".equalsIgnoreCase(response.getStatus())) {
+                        view.showProblemLoadError("Không thể tải lớp học. Vui lòng thử lại.");
+                        return;
+                    }
                     List<CreditClass> classes = new ArrayList<>();
                     if ("SUCCESS".equalsIgnoreCase(response.getStatus()) && response.getData() != null && response.getData().isJsonArray()) {
                         for (JsonElement el : response.getData().getAsJsonArray()) {
@@ -127,12 +165,28 @@ public class DashboardController {
                     }
                     cachedClasses.clear();
                     cachedClasses.addAll(classes);
+                    classesLoaded = true;
+                    CreditClass previousClass = sessionManager.isAssessmentMode()
+                            ? sessionManager.getCurrentClass() : view.getSelectedClass();
+                    if (previousClass == null) previousClass = sessionManager.getCurrentClass();
+                    updatingClasses = true;
                     view.setClasses(classes);
+                    if (previousClass != null) {
+                        int previousClassId = previousClass.getId();
+                        classes.stream().filter(c -> c.getId() == previousClassId).findFirst()
+                                .ifPresent(view::selectClass);
+                    }
+                    updatingClasses = false;
 
                     // Tải bài tập của lớp đang chọn
                     CreditClass selected = view.getSelectedClass();
-                    sessionManager.setCurrentClass(selected);
+                    if (!sessionManager.isAssessmentMode()) sessionManager.setCurrentClass(selected);
+                    loadProblems(selected != null ? selected.getId() : null);
                     refreshAssessments(selected != null ? selected.getId() : null);
+                    if (classesRefreshPending) {
+                        classesRefreshPending = false;
+                        loadStudentClassesAndProblems();
+                    }
                 });
             });
         } else {
@@ -149,6 +203,8 @@ public class DashboardController {
         assessmentPoller.play();
 
         countdownTicker = new Timeline(new KeyFrame(Duration.seconds(1), event -> {
+            applyAssessmentState(false);
+            view.refreshAssessmentCountdowns();
             if (sessionManager.isAssessmentMode()) {
                 view.setAssessmentCountdownVisible(true);
                 long remaining = sessionManager.getRemainingAssessmentSeconds();
@@ -163,72 +219,161 @@ public class DashboardController {
 
         view.sceneProperty().addListener((obs, oldScene, newScene) -> {
             if (oldScene != null && newScene == null) {
-                if (assessmentPoller != null) assessmentPoller.stop();
-                if (countdownTicker != null) countdownTicker.stop();
+                cleanup();
             }
         });
     }
 
     private void refreshAssessments(Integer selectedClassId) {
         SocketClient socketClient = sessionManager.getSocketClient();
-        if (socketClient == null || !socketClient.isConnected()) return;
+        if (disposed || socketClient == null || !socketClient.isConnected()) return;
+        if (refreshInFlight || assessmentTransitionInProgress) {
+            assessmentRefreshPending = true;
+            return;
+        }
+        refreshInFlight = true;
+        long stateVersion = assessmentStateVersion;
         socketClient.getStudentAssessments(response -> Platform.runLater(() -> {
+            refreshInFlight = false;
+            if (disposed || stateVersion != assessmentStateVersion) return;
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus())) return;
+            java.util.Map<Integer, JsonObject> previous = new java.util.HashMap<>(assessmentCache);
             assessmentCache.clear();
-            List<DashboardView.AssessmentSummary> summaries = new ArrayList<>();
-            JsonObject active = null;
+            assessmentDataLoaded = true;
             if (response.getData() != null && response.getData().isJsonArray()) {
                 for (JsonElement element : response.getData().getAsJsonArray()) {
                     if (!element.isJsonObject()) continue;
                     JsonObject item = element.getAsJsonObject();
                     int id = intValue(item, "id");
+                    JsonObject old = previous.get(id);
+                    if (!item.has("problems") && old != null && old.has("problems")) {
+                        item.add("problems", old.get("problems"));
+                        if (old.has("problemIds")) item.add("problemIds", old.get("problemIds"));
+                    }
                     assessmentCache.put(id, item);
-                    String status = stringValue(item, "status");
-                    summaries.add(new DashboardView.AssessmentSummary(id,
-                            stringValue(item, "title"), stringValue(item, "classCode"), status,
-                            stringValue(item, "opensAt"), stringValue(item, "closesAt"),
-                            intValue(item, "durationMinutes"), intValue(item, "submittedCount"),
-                            intValue(item, "problemCount"), boolValue(item, "started")));
-                    if (active == null && "ACTIVE".equalsIgnoreCase(status)) active = item;
+                    sessionManager.synchronizeAssessmentClock(stringValue(item, "serverTime"));
                 }
             }
-            view.setAssessments(summaries);
-            if (active != null) {
-                activeAssessmentId = intValue(active, "id");
-                assessmentStateKnown = true;
-                Integer sessionAssessmentId = sessionManager.getActiveAssessmentId();
-                if (sessionManager.isAssessmentMode() && sessionAssessmentId != null
-                        && sessionAssessmentId.equals(activeAssessmentId)) {
-                    enterAssessment(active);
-                } else {
-                    sessionManager.setActiveAssessment(null, false);
-                    view.setAssessmentMode(false, null, null, null, 0);
-                    view.setAssessmentLobby(true);
-                    view.setProblems(List.of());
-                }
-            } else {
-                boolean wasInAssessment = activeAssessmentId != null;
-                activeAssessmentId = null;
-                sessionManager.setActiveAssessment(null, false);
-                view.setAssessmentCountdownVisible(false);
-                view.setAssessmentLobby(false);
-                view.setAssessmentMode(false, null, null, null, 0);
-                if (!assessmentStateKnown || wasInAssessment) {
-                    assessmentStateKnown = true;
-                    loadProblems(selectedClassId);
-                }
+            applyAssessmentState(true);
+            if (assessmentRefreshPending) {
+                assessmentRefreshPending = false;
+                refreshAssessments(null);
             }
         }));
+    }
+
+    private void handleDataChanged(Response response) {
+        Platform.runLater(() -> {
+            if (disposed) return;
+            assessmentStateVersion++;
+            JsonObject data = response.getData() != null && response.getData().isJsonObject()
+                    ? response.getData().getAsJsonObject() : new JsonObject();
+            String scope = stringValue(data, "scope");
+            refreshClassesOnChange |= scope.isBlank() || List.of("CLASSES", "COURSES", "ENROLLMENTS").contains(scope);
+            refreshProblemsOnChange |= scope.isBlank() || !"ASSESSMENTS".equals(scope);
+            refreshAssessmentsOnChange = true;
+            if (sessionManager.isAssessmentMode()) {
+                JsonObject active = assessmentCache.get(sessionManager.getActiveAssessmentId());
+                if (active != null) {
+                    active.remove("problems");
+                    active.remove("problemIds");
+                }
+            }
+            dataRefreshDebounce.playFromStart();
+        });
+    }
+
+    private void refreshChangedData() {
+        if (disposed) return;
+        boolean reloadClasses = refreshClassesOnChange;
+        boolean reloadProblems = refreshProblemsOnChange;
+        boolean reloadAssessments = refreshAssessmentsOnChange;
+        refreshClassesOnChange = false;
+        refreshProblemsOnChange = false;
+        refreshAssessmentsOnChange = false;
+        if (reloadClasses) {
+            loadStudentClassesAndProblems();
+        } else {
+            if (reloadProblems) {
+                CreditClass selected = view.getSelectedClass();
+                loadProblems(selected != null ? selected.getId() : null);
+            }
+            if (reloadAssessments) refreshAssessments(null);
+        }
+    }
+
+    private AssessmentSchedule schedule(JsonObject assessment) {
+        return AssessmentSchedule.from(stringValue(assessment, "opensAt"), stringValue(assessment, "closesAt"));
+    }
+
+    private void applyAssessmentState(boolean refreshProblems) {
+        if (disposed || assessmentTransitionInProgress || !assessmentDataLoaded) return;
+        long now = sessionManager.getAssessmentNowEpochMs();
+        Integer sessionId = sessionManager.getActiveAssessmentId();
+        JsonObject active = sessionId == null ? null : assessmentCache.get(sessionId);
+        if (active != null && (boolValue(active, "completed") || !schedule(active).canStart(now))) active = null;
+        if (active == null && !sessionManager.isAssessmentMode()) {
+            active = assessmentCache.values().stream()
+                    .filter(a -> boolValue(a, "started") && !boolValue(a, "completed") && schedule(a).canStart(now))
+                    .findFirst().orElse(null);
+        }
+        if (active != null) {
+            if (refreshProblems || !sessionManager.isAssessmentMode() || activeAssessmentId == null) {
+                enterAssessment(active);
+            }
+            return;
+        }
+
+        boolean wasInAssessment = sessionManager.isAssessmentMode() || activeAssessmentId != null;
+        if (wasInAssessment) {
+            sessionManager.setActiveAssessment(null, false);
+            activeAssessmentId = null;
+            CreditClass restoredClass = sessionManager.getCurrentClass();
+            if (restoredClass != null) view.selectClass(restoredClass);
+        }
+
+        List<DashboardView.AssessmentSummary> pending = assessmentCache.values().stream()
+                .filter(a -> schedule(a).isLobbyEligible(stringValue(a, "status"), boolValue(a, "completed"), now))
+                .sorted(java.util.Comparator.comparingLong(a -> schedule(a).opensAtEpochMs()))
+                .map(a -> new DashboardView.AssessmentSummary(intValue(a, "id"), stringValue(a, "title"),
+                        stringValue(a, "classCode"), schedule(a).canStart(now) ? "ACTIVE" : "UPCOMING",
+                        stringValue(a, "opensAt"), stringValue(a, "closesAt"), intValue(a, "durationMinutes"),
+                        intValue(a, "submittedCount"), intValue(a, "problemCount"), boolValue(a, "started")))
+                .toList();
+        boolean wasLobby = assessmentLobby;
+        assessmentLobby = !pending.isEmpty();
+        view.setAssessmentMode(false, null, null, null, 0);
+        view.setAssessmentLobby(assessmentLobby);
+        view.setAssessments(pending);
+        if (assessmentLobby) {
+            if (!wasLobby || wasInAssessment) {
+                problemRequestVersion++;
+                view.setProblems(List.of());
+            }
+        } else if ((!assessmentStateKnown && !practiceRequestStarted) || wasLobby || wasInAssessment) {
+            CreditClass selected = view.getSelectedClass();
+            loadProblems(selected != null ? selected.getId() : null);
+        }
+        assessmentStateKnown = true;
     }
 
     private void startAssessment(JsonObject assessment) {
         SocketClient socketClient = sessionManager.getSocketClient();
         int id = intValue(assessment, "id");
-        if (socketClient == null || !socketClient.isConnected() || id <= 0) return;
+        if (disposed || assessmentTransitionInProgress || socketClient == null
+                || !socketClient.isConnected() || id <= 0) return;
+        assessmentTransitionInProgress = true;
+        assessmentStateVersion++;
         socketClient.startAssessment(id, response -> Platform.runLater(() -> {
+            assessmentTransitionInProgress = false;
+            if (disposed) return;
             if ("SUCCESS".equalsIgnoreCase(response.getStatus())) {
-                sessionManager.setActiveAssessment(id, false);
-                enterAssessment(assessment);
+                assessment.addProperty("started", true);
+                JsonObject started = response.getData() != null && response.getData().isJsonObject()
+                        ? response.getData().getAsJsonObject() : assessment;
+                assessmentCache.put(id, started);
+                enterAssessment(started);
+                refreshAssessments(null);
             } else {
                 javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
                         javafx.scene.control.Alert.AlertType.ERROR,
@@ -242,12 +387,18 @@ public class DashboardController {
     }
 
     private void enterAssessment(JsonObject assessment) {
+        if (!assessment.has("problems") || !assessment.get("problems").isJsonArray()) {
+            loadActiveAssessmentDetails(intValue(assessment, "id"));
+            return;
+        }
         int id = intValue(assessment, "id");
         activeAssessmentId = id;
         assessmentStateKnown = true;
+        assessmentLobby = false;
+        problemRequestVersion++;
         sessionManager.setActiveAssessment(id, false);
-        Long remainingSec = assessment.has("remainingSeconds") && !assessment.get("remainingSeconds").isJsonNull()
-                ? assessment.get("remainingSeconds").getAsLong() : null;
+        Long remainingSec = Math.max(0, (schedule(assessment).closesAtEpochMs()
+                - sessionManager.getAssessmentNowEpochMs() + 999) / 1000);
         sessionManager.setAssessmentClosesAt(stringValue(assessment, "closesAt"), remainingSec);
         int classId = intValue(assessment, "classId");
         CreditClass targetClass = null;
@@ -274,30 +425,65 @@ public class DashboardController {
         setAssessmentProblems(assessment);
     }
 
+    private void loadActiveAssessmentDetails(int assessmentId) {
+        SocketClient socketClient = sessionManager.getSocketClient();
+        if (assessmentDetailsInFlight || disposed || socketClient == null || !socketClient.isConnected()) return;
+        assessmentDetailsInFlight = true;
+        long version = assessmentStateVersion;
+        socketClient.getActiveAssessment(null, response -> Platform.runLater(() -> {
+            assessmentDetailsInFlight = false;
+            if (disposed || version != assessmentStateVersion || !"SUCCESS".equalsIgnoreCase(response.getStatus())) return;
+            JsonObject active = response.getData() != null && response.getData().isJsonObject()
+                    ? response.getData().getAsJsonObject() : null;
+            if (active != null && intValue(active, "id") == assessmentId && active.has("problems")) {
+                assessmentCache.put(assessmentId, active);
+                sessionManager.synchronizeAssessmentClock(stringValue(active, "serverTime"));
+                enterAssessment(active);
+            } else {
+                assessmentCache.remove(assessmentId);
+                sessionManager.setActiveAssessment(null, false);
+                activeAssessmentId = null;
+                assessmentStateKnown = false;
+                applyAssessmentState(false);
+                refreshAssessments(null);
+            }
+        }));
+    }
+
     private void completeAssessment() {
         Integer id = sessionManager.getActiveAssessmentId();
         JsonObject assessment = id == null ? null : assessmentCache.get(id);
-        if (id == null || assessment == null) return;
-        int submitted = intValue(assessment, "submittedCount");
-        int total = intValue(assessment, "problemCount");
+        if (disposed || assessmentTransitionInProgress || id == null) return;
+        int submitted = assessment == null ? 0 : intValue(assessment, "submittedCount");
+        int total = assessment == null ? 0 : intValue(assessment, "problemCount");
         javafx.scene.control.Alert confirm = new javafx.scene.control.Alert(
                 javafx.scene.control.Alert.AlertType.CONFIRMATION,
                 "Bạn đã nộp " + submitted + "/" + total + " bài. Sau khi hoàn thành, bạn không thể quay lại bài thi này.",
                 javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
         confirm.initOwner(stage);
-        confirm.setHeaderText("Hoàn thành và nộp bài thi?");
+        confirm.setHeaderText("Kết thúc bài thi?");
         if (confirm.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL)
                 != javafx.scene.control.ButtonType.OK) return;
 
         SocketClient socketClient = sessionManager.getSocketClient();
+        if (socketClient == null || !socketClient.isConnected()) return;
+        assessmentTransitionInProgress = true;
+        assessmentStateVersion++;
         socketClient.completeAssessment(id, response -> Platform.runLater(() -> {
+            assessmentTransitionInProgress = false;
+            if (disposed) return;
             if ("SUCCESS".equalsIgnoreCase(response.getStatus())) {
                 sessionManager.setActiveAssessment(null, true);
+                assessmentCache.remove(id);
                 activeAssessmentId = null;
                 assessmentStateKnown = false;
+                assessmentLobby = false;
                 view.setAssessmentCountdownVisible(false);
                 view.setAssessmentLobby(false);
                 view.setAssessmentMode(false, null, null, null, 0);
+                CreditClass restoredClass = sessionManager.getCurrentClass();
+                if (restoredClass != null) view.selectClass(restoredClass);
+                applyAssessmentState(false);
                 refreshAssessments(view.getSelectedClass() == null ? null : view.getSelectedClass().getId());
             } else {
                 javafx.scene.control.Alert error = new javafx.scene.control.Alert(
@@ -365,45 +551,23 @@ public class DashboardController {
      * Nạp danh sách bài tập theo lớp tín chỉ từ Server.
      */
     public void loadProblems(Integer classId) {
+        if (disposed || sessionManager.isAssessmentMode() || assessmentLobby) return;
+        practiceRequestStarted = true;
+        long requestVersion = ++problemRequestVersion;
+        if (classesLoaded && cachedClasses.isEmpty()) {
+            view.setProblemsLoading(false);
+            view.setProblems(List.of());
+            return;
+        }
         SocketClient socketClient = sessionManager.getSocketClient();
         if (socketClient != null && socketClient.isConnected()) {
-            // Tải submission history trước để cập nhật AC/WA badge
-            socketClient.getHistory(historyResp -> {
-                if (historyResp != null && "SUCCESS".equalsIgnoreCase(historyResp.getStatus())
-                        && historyResp.getData() != null && historyResp.getData().isJsonArray()) {
-                    JsonArray hist = historyResp.getData().getAsJsonArray();
-                    java.util.Map<Integer, String> mostRecent = new java.util.HashMap<>();
-                    java.util.Set<Integer> acSet = new java.util.HashSet<>();
-                    for (JsonElement el : hist) {
-                        if (!el.isJsonObject()) continue;
-                        JsonObject sub = el.getAsJsonObject();
-                        int pid = sub.has("problemId") ? sub.get("problemId").getAsInt() : 0;
-                        String verdict = sub.has("verdict") ? sub.get("verdict").getAsString() : "";
-                        if (pid > 0) {
-                            if (!mostRecent.containsKey(pid)) {
-                                mostRecent.put(pid, verdict);
-                            }
-                            String u = verdict.toUpperCase();
-                            if (u.equals("ACCEPTED") || u.equals("AC") || u.equals("PASSED")) {
-                                acSet.add(pid);
-                            }
-                        }
-                    }
-                    for (java.util.Map.Entry<Integer, String> entry : mostRecent.entrySet()) {
-                        int pid = entry.getKey();
-                        if (acSet.contains(pid)) {
-                            sessionManager.recordSubmission(pid, "AC");
-                        } else {
-                            sessionManager.recordSubmission(pid, entry.getValue());
-                        }
-                    }
-                }
-
-                // Tải bài tập theo lớp tín chỉ
-                socketClient.getProblems(classId, response -> {
-                    Platform.runLater(() -> handleProblemsResponse(response));
-                });
-            });
+            view.setProblemsLoading(true);
+            socketClient.getProblems(classId, response -> Platform.runLater(() -> {
+                if (disposed || requestVersion != problemRequestVersion
+                        || sessionManager.isAssessmentMode() || assessmentLobby) return;
+                view.setProblemsLoading(false);
+                handleProblemsResponse(response);
+            }));
         } else {
             view.setProblems(createDefaultProblems());
         }
@@ -428,16 +592,18 @@ public class DashboardController {
                         if (obj.has("className") && !obj.get("className").isJsonNull()) p.setClassName(obj.get("className").getAsString());
                         if (obj.has("problemType") && !obj.get("problemType").isJsonNull()) p.setProblemType(obj.get("problemType").getAsString());
                         if (obj.has("oopSpec") && !obj.get("oopSpec").isJsonNull()) p.setOopSpec(obj.get("oopSpec").getAsString());
-                        p.setStatus(sessionManager.getProblemStatus(p.getId()));
+                        p.setStatus(obj.has("status") && !obj.get("status").isJsonNull()
+                                ? com.grading.client.model.Submission.formatVerdict(obj.get("status").getAsString())
+                                : sessionManager.getProblemStatus(p.getId()));
                         list.add(p);
                     }
                 }
                 view.setProblems(list);
             } catch (Exception ex) {
-                view.setProblems(activeAssessmentId != null ? List.of() : createDefaultProblems());
+                view.showProblemLoadError("Không thể đọc danh sách bài tập.");
             }
         } else {
-            view.setProblems(activeAssessmentId != null ? List.of() : createDefaultProblems());
+            view.showProblemLoadError("Không thể tải bài tập. Vui lòng kiểm tra kết nối.");
         }
     }
 
@@ -470,5 +636,16 @@ public class DashboardController {
 
     public void setOnLogout(Runnable callback) {
         this.onLogout = callback;
+    }
+
+    public void cleanup() {
+        disposed = true;
+        assessmentStateVersion++;
+        problemRequestVersion++;
+        if (assessmentPoller != null) assessmentPoller.stop();
+        if (countdownTicker != null) countdownTicker.stop();
+        dataRefreshDebounce.stop();
+        SocketClient socketClient = sessionManager.getSocketClient();
+        if (socketClient != null) socketClient.removeDataChangedListener(dataChangedListener);
     }
 }

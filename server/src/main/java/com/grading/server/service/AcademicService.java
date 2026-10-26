@@ -158,6 +158,10 @@ public class AcademicService {
         return assessmentRepository.findForStudent(studentId);
     }
 
+    public JsonArray getStudentAssessmentSummaries(int studentId) throws SQLException {
+        return assessmentRepository.findSummariesForStudent(studentId);
+    }
+
     public JsonArray getClassAssessments(int classId, int teacherId) throws SQLException {
         if (classId <= 0) throw new IllegalArgumentException("Lớp tín chỉ không hợp lệ.");
         return assessmentRepository.findByClass(classId, teacherId);

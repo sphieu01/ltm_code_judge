@@ -10,10 +10,14 @@
 | `problems` | đề bài, giới hạn thời gian/bộ nhớ, độ khó, người tạo |
 | `test_cases` | input/output, sample/hidden, thứ tự chạy |
 | `submissions` | source, language, verdict, score, số test, runtime, compile output |
+| `proctor_logs` | log giám sát AI, thông tin sinh viên/bài thi tại thời điểm xảy ra và thời gian gốc |
+| `proctor_violation_counters` | bộ đếm vi phạm theo sinh viên, bài tập và bài thi |
 
 Các enum: `user_role`, `difficulty_level`, `verdict_type`. `seed.sql` tạo tài khoản giáo viên mẫu, học phần/lớp mẫu và 5 bài: Hello World, Tổng Hai Số, Kiểm Tra Số Nguyên Tố, Sắp Xếp Mảng, Fibonacci Mod. Test case mẫu nằm trong `test_codes/` cho Java/C++/Python, bao phủ AC/WA/TLE/CE/RE.
 
 `AcademicRepository` có logic `CREATE TABLE IF NOT EXISTS`/migration cho `courses`, `classes`, quan hệ sinh viên-lớp và các cột active; do đó schema file chưa phản ánh đầy đủ tất cả bảng học vụ. Xem phần lưu ý.
+
+`ProctorLogRepository` tự tạo hai bảng giám sát và index khi server khởi động nếu database cũ chưa có. Log và bộ đếm được ghi trong cùng transaction trước khi trả thành công hoặc gửi cảnh báo cho giáo viên; lịch sử còn sau khi restart. Các log chỉ từng tồn tại trong RAM ở phiên bản cũ không thể khôi phục nếu server đã tắt.
 
 ## Biến môi trường server
 

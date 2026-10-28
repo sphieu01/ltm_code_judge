@@ -214,44 +214,56 @@ Môi trường thực nghiệm được triển khai trên hệ thống máy tí
 
 Máy chủ socket vận hành trên cổng dịch vụ TCP 9999. Hàng đợi bài nộp được cấu hình sức chứa tối đa 100 phần tử. Giới hạn thời gian thực thi cho mỗi bài nộp được thiết lập mặc định ở ngưỡng 1000 mili-giây và giới hạn bộ nhớ tối đa là 512 megabyte. Môi trường thực thi kích hoạt cơ chế cách ly tiến trình cục bộ có luồng hẹn giờ giám sát chặt chẽ.
 
-10.3. Tập dữ liệu kiểm thử và các kịch bản thực nghiệm
+10.3. Phương pháp luận và thiết kế các bộ thực nghiệm
 
-Tập dữ liệu thực nghiệm bao gồm bài toán tính toán với 5 bộ kiểm thử độc lập. Tập mã nguồn thử nghiệm gồm 5 dạng bài nộp đại diện cho các hành vi thực tế của người học: bài làm chính xác đạt điểm tối đa, bài làm sai đáp số, bài làm rơi vào vòng lặp vô hạn gây quá thời gian, bài làm phát sinh lỗi ngoại lệ chia cho số 0, và bài làm mắc lỗi cú pháp biên dịch.
+Nhằm bảo đảm tính khách quan và khoa học, quá trình đo đạc áp dụng nguyên tắc kiểm soát biến độc lập: mỗi bộ thực nghiệm chỉ thay đổi duy nhất một tham số kỹ thuật trong khi giữ cố định toàn bộ các điều kiện môi trường còn lại. Dữ liệu đầu vào sử dụng bài toán tính toán với 5 bộ kiểm thử độc lập và tập 5 mẫu mã nguồn đại diện cho đầy đủ các tình huống: đạt điểm tối đa, sai kết quả, lặp vô hạn, lỗi ngoại lệ thời gian chạy và lỗi cú pháp biên dịch.
 
-Hệ thống thiết lập 4 kịch bản thực nghiệm nhằm đánh giá toàn diện năng lực mạng:
+Hệ thống được chia thành hai bộ thực nghiệm độc lập:
 
-Kịch bản S1 kiểm thử đơn lẻ với 1 máy khách nộp 10 bài liên tiếp để xác định độ trễ cơ sở của hệ thống.
+Bộ thực nghiệm 1 đánh giá khả năng mở rộng theo số lượng luồng chấm. Biến kiểm soát được giữ cố định là áp lực tải gồm 20 bài nộp gửi đến đồng thời từ 5 máy khách song song. Biến độc lập duy nhất thay đổi là số lượng công nhân chấm điểm trên máy chủ, nhận các giá trị lần lượt là 1 công nhân đại diện cho mô hình cơ sở tuần tự, 2 công nhân, 4 công nhân đại diện cho mô hình đề xuất và 8 công nhân để kiểm tra ngưỡng bão hòa.
 
-Kịch bản S2 kiểm thử tải trung bình với 5 máy khách gửi đồng thời 4 bài nộp mỗi máy, tổng cộng 20 bài nộp lên máy chủ sử dụng 4 luồng công nhân.
-
-Kịch bản S3 kiểm thử tải cao với 10 máy khách gửi đồng thời 4 bài nộp mỗi máy, tổng cộng 40 bài nộp lên máy chủ sử dụng 4 luồng công nhân.
-
-Kịch bản S4 đối sánh trực diện giữa mô hình cơ sở vận hành 1 luồng chấm tuần tự và mô hình đề xuất vận hành 4 luồng chấm song song kết hợp hàng đợi đệm, cùng xử lý 20 bài nộp ngẫu nhiên gửi đến đồng thời.
+Bộ thực nghiệm 2 đánh giá năng lực chịu tải theo quy mô bài nộp. Biến kiểm soát được giữ cố định là cấu hình máy chủ gồm 4 công nhân chấm song song theo kiến trúc đề xuất. Biến độc lập duy nhất thay đổi là số lượng bài nộp dồn dập vào hệ thống, nhận các giá trị lần lượt là 10 bài đại diện cho tải nhẹ, 20 bài đại diện cho tải trung bình, 40 bài đại diện cho tải cao và 60 bài đại diện cho kịch bản tải nặng kiểm tra sức chịu đựng của hàng đợi.
 
 11. KẾT QUẢ THỰC NGHIỆM
 
-11.1. Bảng số liệu đo lường thực tế các kịch bản tải
+11.1. Ảnh hưởng của số lượng luồng chấm đến hiệu năng hệ thống
 
-Kết quả đo đạc thực nghiệm tự động ghi nhận các chỉ số hiệu năng thực tế được tổng hợp như sau:
+Bảng 1 tổng hợp các chỉ số đo lường thực tế trên bộ thực nghiệm 1 khi giữ cố định 20 bài nộp và thay đổi số lượng công nhân chấm điểm:
 
-Kịch bản S1 (Đơn lẻ, 1 công nhân, 10 bài nộp): thời gian hoàn thành 8.27 giây; thông lượng xử lý đạt 72.5 bài trên phút; thời gian chờ trong hàng đợi trung bình 4707.2 mili-giây; thời gian chờ tối đa 8270 mili-giây.
+Bảng 1: Ảnh hưởng của số lượng công nhân đến hiệu năng xử lý khi cố định 20 bài nộp
 
-Kịch bản S2 (Tải trung bình, 4 công nhân, 20 bài nộp): thời gian hoàn thành 6.14 giây; thông lượng xử lý đạt 195.4 bài trên phút; thời gian chờ trong hàng đợi trung bình 3261.9 mili-giây; thời gian chờ tối đa 5867 mili-giây.
+| Kịch bản thực nghiệm | Số công nhân | Số bài nộp | Thời gian hoàn thành (giây) | Thông lượng (bài/phút) | Thời gian chờ TB (ms) | Thời gian chờ Max (ms) | Hệ số tăng tốc |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| Kịch bản A1 (Cơ sở tuần tự) | 1 | 20 | 31.36 | 38.3 | 16544.9 | 30983 | 1.00x |
+| Kịch bản A2 | 2 | 20 | 13.98 | 85.8 | 7174.2 | 13601 | 2.24x |
+| Kịch bản A3 (Mô hình đề xuất) | 4 | 20 | 7.81 | 153.6 | 4227.2 | 7480 | 4.01x |
+| Kịch bản A4 | 8 | 20 | 6.69 | 179.4 | 3965.8 | 6372 | 4.69x |
 
-Kịch bản S3 (Tải cao, 4 công nhân, 40 bài nộp): thời gian hoàn thành 13.01 giây; thông lượng xử lý đạt 184.5 bài trên phút; thời gian chờ trong hàng đợi trung bình 6706.1 mili-giây; thời gian chờ tối đa 12772 mili-giây.
+Số liệu tại Bảng 1 phản ánh rõ nét hiệu quả của việc phân tách xử lý song song. Khi chuyển đổi từ mô hình cơ sở 1 công nhân tuần tự sang mô hình đề xuất 4 công nhân, tổng thời gian hoàn thành 20 bài nộp giảm mạnh từ 31.36 giây xuống chỉ còn 7.81 giây, đạt hệ số tăng tốc nhanh hơn 4.01 lần. Thông lượng xử lý của máy chủ tăng vọt từ 38.3 bài trên phút lên 153.6 bài trên phút, tương ứng mức cải thiện 301.0 phần trăm.
 
-11.2. So sánh hiệu năng giữa mô hình cơ sở và mô hình đề xuất
+Thời gian chờ đợi trong hàng đợi ghi nhận mức cải thiện vượt bậc: thời gian chờ trung bình của người học giảm tới 74.5 phần trăm, từ 16544.9 mili-giây xuống còn 4227.2 mili-giây. Đặc biệt, thời gian chờ tối đa của bài nộp cuối cùng giảm từ 30983 mili-giây xuống 7480 mili-giây, cắt giảm được hơn 23 giây chờ đợi đỉnh điểm. Khi tiếp tục tăng số công nhân lên 8, hiệu năng tiếp tục cải thiện lên 179.4 bài trên phút nhưng tốc độ tăng bắt đầu chậm lại do tiệm cận giới hạn số lượng lõi thực của bộ vi xử lý máy tính. Do đó, mức cấu hình 4 công nhân là điểm cân bằng tối ưu giữa năng lực phần cứng và hiệu quả thực thi.
 
-Dưới cùng kịch bản tải 20 bài nộp đồng thời, sự khác biệt giữa mô hình cơ sở tuần tự và mô hình đề xuất đa công nhân được ghi nhận cụ thể:
+11.2. Năng lực chịu tải và độ ổn định khi tăng quy mô bài nộp
 
-Về tổng thời gian hoàn thành toàn bộ bài nộp: mô hình cơ sở mất 16.08 giây, trong khi mô hình đề xuất chỉ mất 6.62 giây, đạt tỷ lệ tăng tốc nhanh hơn 2.43 lần.
+Bảng 2 tổng hợp kết quả đo đạc trên bộ thực nghiệm 2 khi giữ cố định mô hình đề xuất 4 công nhân và tăng dần số lượng bài nộp từ 10 đến 60 bài:
 
-Về thông lượng xử lý hệ thống: mô hình cơ sở chỉ đạt 74.6 bài trên một phút, trong khi mô hình đề xuất đạt tới 181.2 bài trên một phút, tương ứng mức cải thiện thông lượng tăng 142.7 phần trăm.
+Bảng 2: Ảnh hưởng của quy mô tải bài nộp khi cố định cấu hình máy chủ 4 công nhân
 
-Về thời gian chờ đợi trung bình trong hàng đợi: mô hình cơ sở ghi nhận mức chờ trung bình lên tới 8446.7 mili-giây, trong khi mô hình đề xuất giảm mạnh xuống còn 3090.0 mili-giây, tương đương mức cắt giảm 63.4 phần trăm thời gian chờ đợi của người học.
+| Kịch bản thực nghiệm | Cấu hình máy chủ | Số bài nộp | Thời gian hoàn thành (giây) | Thông lượng (bài/phút) | Thời gian chờ TB (ms) | Thời gian chờ Max (ms) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| Kịch bản B1 (Tải nhẹ) | 4 công nhân | 10 | 4.20 | 142.8 | 2399.4 | 3913 |
+| Kịch bản B2 (Tải trung bình) | 4 công nhân | 20 | 8.68 | 138.2 | 4882.8 | 8376 |
+| Kịch bản B3 (Tải cao) | 4 công nhân | 40 | 15.11 | 158.8 | 7993.3 | 14728 |
+| Kịch bản B4 (Tải nặng) | 4 công nhân | 60 | 23.66 | 152.1 | 11992.0 | 23356 |
 
-Về thời gian chờ đợi tối đa của bài nộp cuối cùng: mô hình cơ sở ghi nhận mức chờ cao nhất là 15857 mili-giây, trong khi mô hình đề xuất giới hạn mức chờ tối đa ở ngưỡng 6370 mili-giây, rút ngắn độ trễ đỉnh điểm được 9487 mili-giây.
+Số liệu tại Bảng 2 chứng minh khả năng chịu tải vượt trội của hệ thống khi đối mặt với lượng truy cập dồn dập. Mặc dù số lượng bài nộp tăng gấp 6 lần từ 10 lên 60 bài, thông lượng xử lý của hệ thống vẫn duy trì ổn định quanh ngưỡng 138 đến 158 bài trên một phút mà không xuất hiện dấu hiệu suy thoái hiệu năng hay nghẽn luồng.
 
-11.3. Phân tích độ trễ hàng đợi và mức độ tiêu thụ băng thông
+Tổng thời gian xử lý toàn bộ bài nộp tăng dần theo quan hệ tuyến tính từ 4.20 giây lên 23.66 giây. Cấu trúc hàng đợi LinkedBlockingQueue đóng vai trò bộ đệm hấp thụ xung lực hoàn hảo: toàn bộ 60 bài nộp gửi đến gần như tức thời đều được tiếp nhận an toàn vào bộ nhớ tạm trong vài mili-giây, bảo đảm kết nối socket mạng không bao giờ bị nghẽn hay từ chối phục vụ. Nhóm 4 công nhân liên tục lấy bài ra chấm độc lập trên các thư mục cách ly, bảo đảm 100 phần trăm bài nộp đều được trả kết quả chính xác về cho người dùng.
 
-Số liệu thực nghiệm phản ánh rõ nét bản chất của hiện tượng nghẽn cổ chai trong mô hình chấm tuần tự: khi một bài nộp gặp sự cố vòng lặp vô hạn chiếm dụng toàn bộ 1000 mili-giây giới hạn, toàn bộ các bài nộp phía sau đều bị ứ đọng, đẩy thời gian chờ tối đa lên gần 16 giây. Ngược lại, kiến trúc hàng đợi đệm kết hợp 4 luồng công nhân độc lập giúp cô lập hoàn toàn bài nộp quá hạn trong 1 luồng riêng biệt, 3 luồng còn lại tiếp tục tiêu thụ các bài nộp khác trong hàng đợi mà không làm tê liệt hệ thống. Đồng thời, cơ chế kết nối socket bền vững và thông báo đẩy giúp hệ thống tiết kiệm hoàn toàn lưu lượng mạng dư thừa so với kỹ thuật thăm dò HTTP, giữ độ trễ truyền tin từ thời điểm chấm xong đến khi người học nhận được kết quả ở mức dưới 10 mili-giây.
+11.3. Đánh giá tính ưu việt của kiến trúc đề xuất so với mô hình cơ sở
+
+Các kết quả thực nghiệm khẳng định ưu thế tuyệt đối của kiến trúc đề xuất so với phương thức chấm tuần tự truyền thống:
+
+Thứ nhất, việc giải quyết triệt để sự cố nghẽn do bài nộp chạy quá thời gian giới hạn. Trong mô hình cơ sở tuần tự, chỉ cần một bài nộp rơi vào vòng lặp vô hạn là toàn bộ hàng chục bài nộp phía sau đều bị đóng băng suốt 1000 mili-giây, dẫn đến thời gian chờ tối đa vọt lên hơn 30 giây. Trong mô hình đề xuất, bài nộp quá hạn chỉ chiếm dụng duy nhất một luồng công nhân độc lập, 3 luồng công nhân còn lại vẫn liên tục tiếp nhận và hoàn tất các bài nộp khác, giữ cho dòng xử lý luôn lưu thông thông suốt.
+
+Thứ hai, việc kết hợp cơ chế đẩy thông báo chủ động qua kết nối socket TCP bền vững giúp loại bỏ hoàn toàn các yêu cầu thăm dò liên tục từ máy khách. Ngay khi luồng công nhân hoàn thành việc chấm điểm và ghi nhận vào cơ sở dữ liệu, máy chủ lập tức đóng gói kết quả và đẩy trực tiếp về kênh truyền tương ứng của máy khách. Độ trễ từ thời điểm kết thúc chấm bài đến khi giao diện sinh viên hiển thị kết quả được duy trì ở mức dưới 10 mili-giây, đồng thời triệt tiêu hoàn toàn lưu lượng băng thông lãng phí trên đường truyền mạng.

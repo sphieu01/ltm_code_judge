@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit;
  *
  * Tiêu chuẩn bảo mật:
  * - Cô lập 100% mạng: --network none
- * - Giới hạn bộ nhớ:   --memory 256m
+ * - Giới hạn bộ nhớ:   --memory 512m
  * - Giới hạn CPU:      --cpus 1.0
  * - Filesystem an toàn: Mount ở chế độ Read-Only (--ro) khi chạy
  * - Tự hủy container:  --rm
@@ -156,7 +156,7 @@ public class DockerSandboxRunner {
         cmd.add("--network");
         cmd.add("none");                    // CẮT 100% KẾT NỐI MẠNG
         cmd.add("--memory");
-        cmd.add("256m");                    // GIỚI HẠN RAM 256MB
+        cmd.add("512m");                    // GIỚI HẠN RAM 512MB
         cmd.add("--cpus");
         cmd.add("1.0");                     // GIỚI HẠN 1 CORE CPU
         cmd.add("-v");

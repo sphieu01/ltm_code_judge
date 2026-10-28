@@ -245,8 +245,8 @@ public class ProblemRepository {
 
             stmt.setString(1, problem.getTitle());
             stmt.setString(2, problem.getDescription());
-            stmt.setInt(3, problem.getTimeLimitMs() > 0 ? problem.getTimeLimitMs() : 2000);
-            stmt.setInt(4, problem.getMemoryLimitKb() > 0 ? problem.getMemoryLimitKb() : 262144);
+            stmt.setInt(3, problem.getTimeLimitMs() > 0 ? problem.getTimeLimitMs() : 1000);
+            stmt.setInt(4, problem.getMemoryLimitKb() > 0 ? problem.getMemoryLimitKb() : 524288);
             stmt.setString(5, problem.getDifficulty() != null ? problem.getDifficulty() : "MEDIUM");
             stmt.setInt(6, problem.getCreatedBy());
             stmt.setString(7, problem.getProblemType());

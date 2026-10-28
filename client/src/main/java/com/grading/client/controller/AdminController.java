@@ -63,11 +63,7 @@ public class AdminController {
         view.setOnEditStudent(this::handleEditStudent);
         view.setOnDeleteStudent(this::handleDeleteStudent);
 
-        // Tab 4: Bài tập theo lớp
-        view.getProblemFilterClassCombo().setOnAction(e -> {
-            CreditClass sel = view.getProblemFilterClassCombo().getSelectionModel().getSelectedItem();
-            loadProblems(sel != null ? sel.getId() : null);
-        });
+        // Tab 4: Bài tập
         view.getAddProblemBtn().setOnAction(e -> handleAddProblem());
         view.setOnToggleProblemActive((problem, isChecked) -> handleToggleProblemActive(problem, isChecked));
         view.setOnEditProblem(this::handleEditProblem);
@@ -136,8 +132,7 @@ public class AdminController {
                     alert.setHeaderText("Không thể cập nhật trạng thái bài tập");
                     alert.setContentText(response.getMessage());
                     alert.showAndWait();
-                    CreditClass sel = view.getProblemFilterClassCombo().getSelectionModel().getSelectedItem();
-                    loadProblems(sel != null ? sel.getId() : null);
+                    loadProblems(null);
                 }
             });
         });
@@ -479,8 +474,7 @@ public class AdminController {
     }
 
     private void handleAddProblem() {
-        CreditClass currentSelected = view.getProblemFilterClassCombo().getSelectionModel().getSelectedItem();
-        TeacherProblemDialog dialog = new TeacherProblemDialog(stage, cachedClasses, currentSelected);
+        TeacherProblemDialog dialog = new TeacherProblemDialog(stage);
         Optional<Problem> result = dialog.showAndWait();
 
         result.ifPresent(problem -> {
@@ -495,7 +489,7 @@ public class AdminController {
                 client.createProblem(data, response -> {
                     Platform.runLater(() -> {
                         if ("SUCCESS".equalsIgnoreCase(response.getStatus())) {
-                            loadProblems(problem.getClassId());
+                            loadProblems(null);
                         } else {
                             showError("Không thể tạo bài tập", response.getMessage());
                         }
@@ -522,8 +516,7 @@ public class AdminController {
                 }
                 JsonObject data = response.getData().getAsJsonObject();
                 Problem detail = problemFromJson(data, problem);
-                TeacherProblemDialog dialog = new TeacherProblemDialog(stage, cachedClasses,
-                        view.getProblemFilterClassCombo().getSelectionModel().getSelectedItem());
+                TeacherProblemDialog dialog = new TeacherProblemDialog(stage);
                 dialog.loadForEditing(detail, data.has("testCases") && data.get("testCases").isJsonArray()
                         ? data.getAsJsonArray("testCases") : new JsonArray());
                 dialog.showAndWait().ifPresent(updated -> {
@@ -531,7 +524,7 @@ public class AdminController {
                     payload.addProperty("id", problem.getId());
                     client.updateProblem(payload, updateResponse -> Platform.runLater(() -> {
                         if ("SUCCESS".equalsIgnoreCase(updateResponse.getStatus())) {
-                            loadProblems(updated.getClassId());
+                            loadProblems(null);
                             Alert notice = new Alert(Alert.AlertType.INFORMATION,
                                     "Đã cập nhật bài tập thành công.");
                             notice.initOwner(stage);
@@ -612,8 +605,7 @@ public class AdminController {
         SocketClient client = sessionManager.getSocketClient();
         if (client != null && client.isConnected()) client.deleteProblem(problem.getId(), response -> Platform.runLater(() -> {
             if ("SUCCESS".equalsIgnoreCase(response.getStatus())) {
-                CreditClass selected = view.getProblemFilterClassCombo().getSelectionModel().getSelectedItem();
-                loadProblems(selected == null ? null : selected.getId());
+                loadProblems(null);
             } else showError("Không thể xóa bài tập", response.getMessage());
         }));
     }

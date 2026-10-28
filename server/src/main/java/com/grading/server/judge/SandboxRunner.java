@@ -35,7 +35,7 @@ public class SandboxRunner {
     private static final Logger logger = LoggerFactory.getLogger(SandboxRunner.class);
 
     /** Timeout mặc định cho mỗi lần chạy test case (ms) */
-    public static final long DEFAULT_TIME_LIMIT_MS = 2000L;
+    public static final long DEFAULT_TIME_LIMIT_MS = 1000L;
 
     /** Thư mục temp để chứa code của mỗi submission (sử dụng thư mục cục bộ của ứng dụng để tránh Windows App Control policy 4551) */
     private static final String TEMP_DIR = resolveBaseTempDir();
@@ -69,7 +69,7 @@ public class SandboxRunner {
                 logger.info("================================================================================");
                 logger.info("🛡️ [SANDBOX ENGINE] ACTIVE MODE: DOCKER CONTAINER SANDBOX (Production Standard)");
                 logger.info("    -> Container Image: {}", com.grading.server.judge.docker.DockerSandboxRunner.DOCKER_IMAGE);
-                logger.info("    -> Security Limits:  --network none | --memory 256m | --cpus 1.0 | Read-Only Mount");
+                logger.info("    -> Security Limits:  --network none | --memory 512m | --cpus 1.0 | Read-Only Mount");
                 logger.info("================================================================================");
             } else {
                 logger.warn("================================================================================");

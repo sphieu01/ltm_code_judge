@@ -408,20 +408,10 @@ public class TeacherProblemDialog extends Dialog<Problem> {
     private TextArea outputFormatArea;
     private TextArea constraintsArea;
 
-    private ComboBox<CreditClass> classCombo;
-    private List<CreditClass> availableClasses;
-    private CreditClass defaultClass;
-
     private VBox testCasesContainer;
     private final List<TestCaseItem> testCaseItems = new ArrayList<>();
 
     public TeacherProblemDialog(Stage owner) {
-        this(owner, null, null);
-    }
-
-    public TeacherProblemDialog(Stage owner, List<CreditClass> classes, CreditClass defaultClass) {
-        this.availableClasses = classes;
-        this.defaultClass = defaultClass;
         initOwner(owner);
         initModality(Modality.APPLICATION_MODAL);
         setTitle("Thêm bài tập mới - Dành cho Giáo viên");
@@ -464,7 +454,7 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         VBox form = new VBox(12);
         form.setPadding(new Insets(16));
 
-        // 1. Phân loại bài tập & Lớp tín chỉ áp dụng
+        // 1. Phân loại bài tập
         HBox topRow = new HBox(16);
         topRow.setAlignment(Pos.CENTER_LEFT);
 
@@ -476,39 +466,11 @@ public class TeacherProblemDialog extends Dialog<Problem> {
                 "JAVA_OOP (Lập trình Hướng đối tượng Java)"
         ));
         problemTypeCombo.getSelectionModel().select(0);
-        problemTypeCombo.setPrefWidth(300);
+        problemTypeCombo.setPrefWidth(350);
         problemTypeCombo.setOnAction(e -> toggleProblemTypeView());
         typeBox.getChildren().addAll(typeLabel, problemTypeCombo);
 
-        VBox classBox = new VBox(4);
-        Label classLabel = new Label("Gán cho Lớp tín chỉ (Tùy chọn)");
-        classLabel.getStyleClass().add("meta-item");
-        classCombo = new ComboBox<>();
-        List<CreditClass> comboList = new ArrayList<>();
-        // Item rỗng đại diện cho kho chung
-        CreditClass unassigned = new CreditClass();
-        unassigned.setId(0);
-        unassigned.setName("- Kho bài tập chung (Chưa gán lớp) -");
-        comboList.add(unassigned);
-        if (availableClasses != null && !availableClasses.isEmpty()) {
-            comboList.addAll(availableClasses);
-        }
-        classCombo.setItems(FXCollections.observableArrayList(comboList));
-        if (defaultClass != null) {
-            for (CreditClass c : comboList) {
-                if (c.getId() == defaultClass.getId()) {
-                    classCombo.getSelectionModel().select(c);
-                    break;
-                }
-            }
-        }
-        if (classCombo.getSelectionModel().isEmpty()) {
-            classCombo.getSelectionModel().select(0);
-        }
-        classCombo.setPrefWidth(350);
-        classBox.getChildren().addAll(classLabel, classCombo);
-
-        topRow.getChildren().addAll(typeBox, classBox);
+        topRow.getChildren().addAll(typeBox);
 
         // 2. Tiêu đề & Thông số
         Label titleLabel = new Label("Tiêu đề bài tập (*)");
@@ -529,13 +491,13 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         VBox timeBox = new VBox(4);
         Label timeLabel = new Label("Thời gian tối đa (ms)");
         timeLabel.getStyleClass().add("meta-item");
-        timeLimitField = new TextField("2000");
+        timeLimitField = new TextField("1000");
         timeBox.getChildren().addAll(timeLabel, timeLimitField);
 
         VBox memBox = new VBox(4);
         Label memLabel = new Label("Bộ nhớ tối đa (KB)");
         memLabel.getStyleClass().add("meta-item");
-        memoryLimitField = new TextField("262144"); // 256MB
+        memoryLimitField = new TextField("524288"); // 512MB
         memBox.getChildren().addAll(memLabel, memoryLimitField);
 
         metaRow.getChildren().addAll(diffBox, timeBox, memBox);
@@ -692,24 +654,16 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         try {
             problem.setTimeLimitMs(Integer.parseInt(timeLimitField.getText().trim()));
         } catch (NumberFormatException e) {
-            problem.setTimeLimitMs(2000);
+            problem.setTimeLimitMs(1000);
         }
         try {
             problem.setMemoryLimitKb(Integer.parseInt(memoryLimitField.getText().trim()));
         } catch (NumberFormatException e) {
-            problem.setMemoryLimitKb(262144);
+            problem.setMemoryLimitKb(524288);
         }
 
-        if (classCombo != null) {
-            CreditClass selClass = classCombo.getSelectionModel().getSelectedItem();
-            if (selClass != null && selClass.getId() > 0) {
-                problem.setClassId(selClass.getId());
-                problem.setClassName(selClass.getName());
-            } else {
-                problem.setClassId(null);
-                problem.setClassName(null);
-            }
-        }
+        problem.setClassId(null);
+        problem.setClassName(null);
 
         boolean isOop = problemTypeCombo.getSelectionModel().getSelectedIndex() == 1;
         if (isOop) {
@@ -810,19 +764,6 @@ public class TeacherProblemDialog extends Dialog<Problem> {
             } catch (Exception ignored) {}
         }
 
-        // Chọn lớp
-        if (classCombo != null) {
-            if (problem.getClassId() != null && problem.getClassId() > 0) {
-                for (CreditClass c : classCombo.getItems()) {
-                    if (c.getId() == problem.getClassId()) {
-                        classCombo.getSelectionModel().select(c);
-                        break;
-                    }
-                }
-            } else {
-                classCombo.getSelectionModel().select(0); // Kho chung
-            }
-        }
 
         // Test cases
         testCaseItems.clear();

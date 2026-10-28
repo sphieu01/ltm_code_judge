@@ -28,6 +28,8 @@ IF %ERRORLEVEL% EQU 0 (
     SET "MVN_CMD=mvn"
 ) ELSE IF EXIST "%USERPROFILE%\.m2\wrapper\dists\apache-maven-3.9.12-bin\5nmfsn99br87k5d4ajlekdq10k\apache-maven-3.9.12\bin\mvn.cmd" (
     SET "MVN_CMD=%USERPROFILE%\.m2\wrapper\dists\apache-maven-3.9.12-bin\5nmfsn99br87k5d4ajlekdq10k\apache-maven-3.9.12\bin\mvn.cmd"
+) ELSE IF EXIST "C:\Program Files\Apache NetBeans\java\maven\bin\mvn.cmd" (
+    SET "MVN_CMD=C:\Program Files\Apache NetBeans\java\maven\bin\mvn.cmd"
 ) ELSE IF EXIST "C:\Users\ADMIN\maven\apache-maven-3.9.6\bin\mvn.cmd" (
     SET "MVN_CMD=C:\Users\ADMIN\maven\apache-maven-3.9.6\bin\mvn.cmd"
 ) ELSE IF EXIST "%USERPROFILE%\.m2\wrapper\dists\apache-maven-3.9.16-bin\5grr65jo27hi51sujmtcldfovl\apache-maven-3.9.16\bin\mvn.cmd" (
@@ -49,28 +51,17 @@ echo.
 set "CLIENT_DIR=%~dp0"
 set "CLIENT_JAR=%CLIENT_DIR%target\grading-client-1.0-SNAPSHOT.jar"
 
-REM Uu tien chay JAR da build de co the mo nhieu client cung luc.
+echo [INFO] Dang kiem tra va dong goi code moi nhat...
+call "%MVN_CMD%" package -DskipTests
+
 IF EXIST "%CLIENT_JAR%" (
     echo [INFO] Dang khoi chay Client UI...
     start "Auto Grader Client" /D "%CLIENT_DIR%" "%JAVAW_CMD%" -jar "%CLIENT_JAR%"
     echo [INFO] Da mo Client thanh cong.
     exit /b 0
-)
-
-echo [INFO] Client JAR not found. Building it first...
-REM Khong dung "clean": mot client dang chay co the khoa file JAR tren Windows.
-call "%MVN_CMD%" package -DskipTests
-
-IF NOT ERRORLEVEL 1 (
-    echo [INFO] Dang khoi chay Client UI...
-    start "Auto Grader Client" /D "%CLIENT_DIR%" "%JAVAW_CMD%" -jar "%CLIENT_JAR%"
-    echo [INFO] Da mo Client thanh cong.
-    exit /b 0
-)
-
-IF ERRORLEVEL 1 (
+) ELSE (
     echo.
-    echo [ERROR] Ung dung Client gap loi khi khoi dong.
+    echo [ERROR] Khong the build hoac khong tim thay file JAR Client.
+    pause
+    exit /b 1
 )
-
-pause

@@ -349,8 +349,8 @@ public class ClientHandler implements Runnable {
             p.setTitle(data.get("title").getAsString());
             p.setDescription(data.get("description").getAsString());
             p.setDifficulty(data.has("difficulty") ? data.get("difficulty").getAsString() : "MEDIUM");
-            p.setTimeLimitMs(data.has("timeLimitMs") ? data.get("timeLimitMs").getAsInt() : 2000);
-            p.setMemoryLimitKb(data.has("memoryLimitKb") ? data.get("memoryLimitKb").getAsInt() : 262144);
+            p.setTimeLimitMs(data.has("timeLimitMs") ? data.get("timeLimitMs").getAsInt() : 1000);
+            p.setMemoryLimitKb(data.has("memoryLimitKb") ? data.get("memoryLimitKb").getAsInt() : 524288);
             p.setCreatedBy(authenticatedUserId);
             if (data.has("classId") && !data.get("classId").isJsonNull()) {
                 p.setClassId(data.get("classId").getAsInt());
@@ -433,8 +433,8 @@ public class ClientHandler implements Runnable {
             p.setTitle(data.get("title").getAsString().trim());
             p.setDescription(data.get("description").getAsString());
             p.setDifficulty(data.has("difficulty") ? data.get("difficulty").getAsString() : "MEDIUM");
-            p.setTimeLimitMs(data.has("timeLimitMs") ? data.get("timeLimitMs").getAsInt() : 2000);
-            p.setMemoryLimitKb(data.has("memoryLimitKb") ? data.get("memoryLimitKb").getAsInt() : 262144);
+            p.setTimeLimitMs(data.has("timeLimitMs") ? data.get("timeLimitMs").getAsInt() : 1000);
+            p.setMemoryLimitKb(data.has("memoryLimitKb") ? data.get("memoryLimitKb").getAsInt() : 524288);
             if (data.has("classId") && !data.get("classId").isJsonNull()) p.setClassId(data.get("classId").getAsInt());
             if (data.has("problemType") && !data.get("problemType").isJsonNull()) {
                 p.setProblemType(data.get("problemType").getAsString());

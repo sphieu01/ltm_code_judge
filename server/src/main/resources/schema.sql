@@ -31,8 +31,8 @@ CREATE TABLE problems (
     id              SERIAL PRIMARY KEY,
     title           VARCHAR(200)       NOT NULL,
     description     TEXT               NOT NULL,
-    time_limit_ms   INT       DEFAULT 2000,       -- 2 giây
-    memory_limit_kb INT       DEFAULT 262144,     -- 256 MB
+    time_limit_ms   INT       DEFAULT 1000,       -- 1 giây
+    memory_limit_kb INT       DEFAULT 524288,     -- 512 MB
     difficulty      difficulty_level DEFAULT 'MEDIUM',
     created_by      INT,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

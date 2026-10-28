@@ -819,6 +819,10 @@
     -fx-border-color: -border-subtle;
     -fx-border-width: 1px;
     -fx-effect: null;
+    -fx-selection-bar: #094771;
+    -fx-selection-bar-non-focused: #1F2937;
+    -fx-selection-bar-text: -text-bright;
+    -fx-selection-bar-text-non-focused: -text-primary;
 }
 .table-view .column-header-background {
     -fx-background-color: -bg-surface;
@@ -851,6 +855,8 @@
 .table-row-cell:odd {
     -fx-background-color: -bg-main;
     -fx-border-color: transparent transparent #30363D transparent;
+    -fx-border-width: 0 0 1px 0;
+}
 .table-row-cell:filled {
     -fx-border-color: transparent transparent #30363D transparent;
     -fx-border-width: 0 0 1px 0;
@@ -870,23 +876,19 @@
 }
 .table-row-cell:filled:selected,
 .table-row-cell:filled:focused,
-.table-row-cell:filled:selected:focused {
-    -fx-background-color: -bg-main;
+.table-row-cell:filled:selected:focused,
+.table-row-cell:odd:filled:selected,
+.table-row-cell:odd:filled:focused,
+.table-row-cell:odd:filled:selected:focused {
+    -fx-background-color: #094771;
     -fx-border-color: transparent transparent #30363D transparent;
     -fx-border-width: 0 0 1px 0;
     -fx-table-cell-border-color: transparent;
     -fx-background-insets: 0;
 }
-.table-row-cell:odd:filled:selected,
-.table-row-cell:odd:filled:focused,
-.table-row-cell:odd:filled:selected:focused {
-    -fx-background-color: -bg-main;
-    -fx-border-color: transparent transparent #30363D transparent;
-    -fx-border-width: 0 0 1px 0;
-}
 .table-row-cell:filled:selected:hover,
 .table-row-cell:odd:filled:selected:hover {
-    -fx-background-color: -bg-hover;
+    -fx-background-color: #0E568A;
     -fx-border-color: transparent transparent #30363D transparent;
     -fx-border-width: 0 0 1px 0;
 }
@@ -895,6 +897,15 @@
     -fx-padding: 0 12 0 12;
     -fx-font-size: 13px;
     -fx-alignment: CENTER-LEFT;
+}
+.table-cell:selected,
+.table-row-cell:selected .table-cell,
+.table-row-cell:filled:selected .text,
+.table-row-cell:odd:filled:selected .text,
+.table-row-cell:filled:selected:focused .text,
+.table-row-cell:odd:filled:selected:focused .text {
+    -fx-text-fill: -text-bright;
+    -fx-fill: -text-bright;
 }
 .table-cell:focused {
     -fx-background-color: transparent;

@@ -517,21 +517,14 @@ public class AdminView extends BorderPane {
         HBox toolbar = new HBox(12);
         toolbar.setAlignment(Pos.CENTER_LEFT);
 
-        Label filterLbl = new Label("Lớp tín chỉ:");
-        filterLbl.getStyleClass().add("meta-item");
-
-        problemFilterClassCombo = new ComboBox<>();
-        problemFilterClassCombo.setPromptText("Tất cả bài tập");
-        problemFilterClassCombo.setPrefWidth(260);
-
-        addProblemBtn = new Button("+ Thêm bài tập cho lớp");
+        addProblemBtn = new Button("+ Thêm bài tập mới");
         addProblemBtn.getStyleClass().addAll("button", "btn-primary");
 
-        toolbar.getChildren().addAll(filterLbl, problemFilterClassCombo, addProblemBtn);
+        toolbar.getChildren().addAll(addProblemBtn);
 
         problemTable = new TableView<>();
         problemTable.getStyleClass().add("table-view");
-        problemTable.setPlaceholder(new Label("Chưa có bài tập nào cho lớp này"));
+        problemTable.setPlaceholder(new Label("Chưa có bài tập nào trong kho bài tập"));
 
         TableColumn<Problem, String> colTitle = new TableColumn<>("Tiêu đề bài tập");
         colTitle.setCellValueFactory(new PropertyValueFactory<>("title"));
@@ -709,15 +702,10 @@ public class AdminView extends BorderPane {
     public void setClasses(List<CreditClass> list) {
         classList.setAll(list);
 
-        // Cập nhật các ComboBox lọc
+        // Cập nhật ComboBox lọc sinh viên
         CreditClass currentStudentSel = studentFilterClassCombo.getSelectionModel().getSelectedItem();
-        CreditClass currentProblemSel = problemFilterClassCombo.getSelectionModel().getSelectedItem();
-
         studentFilterClassCombo.setItems(FXCollections.observableArrayList(list));
-        problemFilterClassCombo.setItems(FXCollections.observableArrayList(list));
-
         if (currentStudentSel != null) studentFilterClassCombo.getSelectionModel().select(currentStudentSel);
-        if (currentProblemSel != null) problemFilterClassCombo.getSelectionModel().select(currentProblemSel);
     }
 
     private void updateStudentPageView() {

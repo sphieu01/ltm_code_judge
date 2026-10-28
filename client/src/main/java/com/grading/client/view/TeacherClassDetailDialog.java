@@ -224,7 +224,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         typeCol.setStyle("-fx-alignment: CENTER;");
 
         TableColumn<Problem, String> diffCol = new TableColumn<>("Độ khó");
-        diffCol.setCellValueFactory(new PropertyValueFactory<>("difficulty"));
+        diffCol.setCellValueFactory(new PropertyValueFactory<>("formattedDifficulty"));
         diffCol.setMinWidth(100);
         diffCol.setMaxWidth(130);
         diffCol.setStyle("-fx-alignment: CENTER;");
@@ -353,7 +353,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         typeCol.setStyle("-fx-alignment: CENTER;");
 
         TableColumn<Problem, String> diffCol = new TableColumn<>("Độ khó");
-        diffCol.setCellValueFactory(new PropertyValueFactory<>("difficulty"));
+        diffCol.setCellValueFactory(new PropertyValueFactory<>("formattedDifficulty"));
         diffCol.setMinWidth(90);
         diffCol.setMaxWidth(110);
         diffCol.setStyle("-fx-alignment: CENTER;");
@@ -466,7 +466,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         problemTitle.setMinWidth(360);
         problemTitle.setPrefWidth(520);
         TableColumn<Problem, String> difficulty = new TableColumn<>("Độ khó");
-        difficulty.setCellValueFactory(new PropertyValueFactory<>("difficulty"));
+        difficulty.setCellValueFactory(new PropertyValueFactory<>("formattedDifficulty"));
         difficulty.setMinWidth(110);
         difficulty.setMaxWidth(150);
         difficulty.setStyle("-fx-alignment: CENTER;");
@@ -655,7 +655,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
             statement.setEditable(false);
             statement.setWrapText(true);
             statement.setPrefSize(680, 430);
-            Label meta = new Label("Độ khó: " + problem.getDifficulty());
+            Label meta = new Label("Độ khó: " + problem.getFormattedDifficulty());
             dialog.getDialogPane().setContent(new VBox(10, meta, statement));
             dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
             dialog.showAndWait();

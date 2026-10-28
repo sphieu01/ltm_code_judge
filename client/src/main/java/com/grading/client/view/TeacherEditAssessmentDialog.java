@@ -108,7 +108,7 @@ public class TeacherEditAssessmentDialog extends Dialog<Boolean> {
         colTitle.setMinWidth(320);
 
         TableColumn<Problem, String> colDiff = new TableColumn<>("Độ khó");
-        colDiff.setCellValueFactory(new PropertyValueFactory<>("difficulty"));
+        colDiff.setCellValueFactory(new PropertyValueFactory<>("formattedDifficulty"));
         colDiff.setMinWidth(90);
         colDiff.setMaxWidth(130);
         colDiff.setStyle("-fx-alignment: CENTER;");

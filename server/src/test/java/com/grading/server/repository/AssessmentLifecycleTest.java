@@ -253,7 +253,7 @@ class AssessmentLifecycleTest {
             if (sql.startsWith("SELECT verdict::text")) return List.of();
             if (sql.contains("FROM assessment_problems ap ")) {
                 return List.of(row("id", 42, "title", "Sum", "description", "Compute a sum",
-                        "difficulty", "EASY", "time_limit_ms", 2000, "memory_limit_kb", 262144,
+                        "difficulty", "1", "time_limit_ms", 2000, "memory_limit_kb", 262144,
                         "class_id", 5, "class_name", "Class 5", "course_name", "Programming",
                         "allowed_languages", "c,cpp,java,python", "course_lang", courseLanguage,
                         "last_submitted_at", lastSubmittedAt, "latest_verdict", "WA", "latest_score", 0,

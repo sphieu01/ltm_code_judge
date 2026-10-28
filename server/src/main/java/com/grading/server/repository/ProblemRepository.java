@@ -86,7 +86,7 @@ public class ProblemRepository {
 
     private static final String SQL_INSERT_PROBLEM =
             "INSERT INTO problems (title, description, time_limit_ms, memory_limit_kb, difficulty, created_by, problem_type, oop_spec) " +
-            "VALUES (?, ?, ?, ?, ?::difficulty_level, ?, ?, ?) RETURNING id, created_at";
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, created_at";
 
     private static final String SQL_INSERT_TEST_CASE =
             "INSERT INTO test_cases (problem_id, input_data, expected_output, is_sample, order_num) " +
@@ -247,7 +247,7 @@ public class ProblemRepository {
             stmt.setString(2, problem.getDescription());
             stmt.setInt(3, problem.getTimeLimitMs() > 0 ? problem.getTimeLimitMs() : 1000);
             stmt.setInt(4, problem.getMemoryLimitKb() > 0 ? problem.getMemoryLimitKb() : 524288);
-            stmt.setString(5, problem.getDifficulty() != null ? problem.getDifficulty() : "MEDIUM");
+            stmt.setInt(5, parseDifficulty(problem.getDifficulty()));
             stmt.setInt(6, problem.getCreatedBy());
             stmt.setString(7, problem.getProblemType());
             stmt.setString(8, problem.getOopSpec());
@@ -308,13 +308,13 @@ public class ProblemRepository {
         try (Connection conn = DatabaseConfig.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                String update = "UPDATE problems SET title=?, description=?, time_limit_ms=?, memory_limit_kb=?, difficulty=?::difficulty_level, problem_type=?, oop_spec=? WHERE id=?";
+                String update = "UPDATE problems SET title=?, description=?, time_limit_ms=?, memory_limit_kb=?, difficulty=?, problem_type=?, oop_spec=? WHERE id=?";
                 try (PreparedStatement stmt = conn.prepareStatement(update)) {
                     stmt.setString(1, problem.getTitle());
                     stmt.setString(2, problem.getDescription());
                     stmt.setInt(3, problem.getTimeLimitMs());
                     stmt.setInt(4, problem.getMemoryLimitKb());
-                    stmt.setString(5, problem.getDifficulty());
+                    stmt.setInt(5, parseDifficulty(problem.getDifficulty()));
                     stmt.setString(6, problem.getProblemType());
                     stmt.setString(7, problem.getOopSpec());
                     stmt.setInt(8, problem.getId());
@@ -461,6 +461,29 @@ public class ProblemRepository {
         }
     }
 
+
+    public static int parseDifficulty(String diff) {
+        if (diff == null || diff.isBlank()) return 1;
+        String clean = diff.trim().toUpperCase().replace("MỨC", "").replace("MUC", "").trim();
+        switch (clean) {
+            case "1": return 1;
+            case "2": return 2;
+            case "3": return 3;
+            case "4": return 4;
+            case "5": return 5;
+            case "6": return 6;
+            case "EASY": return 1;
+            case "MEDIUM": return 3;
+            case "HARD": return 5;
+            default:
+                try {
+                    int val = Integer.parseInt(clean);
+                    return Math.max(1, Math.min(6, val));
+                } catch (Exception e) {
+                    return 1;
+                }
+        }
+    }
 
     private TestCase mapTestCaseRow(ResultSet rs) throws SQLException {
         TestCase tc = new TestCase();

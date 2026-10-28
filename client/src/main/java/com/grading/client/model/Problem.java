@@ -62,6 +62,18 @@ public class Problem {
     public void setMemoryLimitKb(int memoryLimitKb) { this.memoryLimitKb = memoryLimitKb; }
 
     public String getDifficulty() { return difficulty; }
+
+    public String getFormattedDifficulty() {
+        if (difficulty == null || difficulty.isBlank()) return "Mức 1";
+        String num = difficulty.replaceAll("[^0-9]", "");
+        if (num.isEmpty()) {
+            if ("EASY".equalsIgnoreCase(difficulty)) num = "1";
+            else if ("MEDIUM".equalsIgnoreCase(difficulty)) num = "3";
+            else if ("HARD".equalsIgnoreCase(difficulty)) num = "5";
+            else num = "1";
+        }
+        return "Mức " + num;
+    }
     public void setDifficulty(String difficulty) { this.difficulty = difficulty; }
 
     public Integer getClassId() { return classId; }

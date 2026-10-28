@@ -165,12 +165,64 @@ public class OopReflectionGrader {
                                             + "' phải có kiểu dữ liệu là '" + fieldSpec.getType() + "' (hiện tại là '" + actualType + "').");
                                 }
                             }
+                            // Tự động kiểm tra Getters / Setters theo chuẩn Đóng gói (Encapsulation)
+                            String fieldName = fieldSpec.getName().trim();
+                            String capitalized = Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+                            String getterName = "get" + capitalized;
+                            String booleanGetterName = "is" + capitalized;
+                            boolean isBool = "boolean".equalsIgnoreCase(fieldSpec.getType());
+
+                            // 1. Phải có Getter cho mọi field private
+                            boolean hasGetter = false;
+                            for (Method m : clazz.getDeclaredMethods()) {
+                                if ((m.getName().equals(getterName) || (isBool && m.getName().equals(booleanGetterName)))
+                                        && m.getParameterCount() == 0) {
+                                    hasGetter = true;
+                                    break;
+                                }
+                            }
+                            // Chỉ ép buộc nếu modifier là private và field không phải hằng số static final
+                            if (!hasGetter && "private".equalsIgnoreCase(expectedMod)) {
+                                return OopCheckResult.fail("Class '" + classSpec.getName() + "' thiếu getter cho thuộc tính '"
+                                        + fieldName + "' (" + (isBool ? booleanGetterName : getterName) + "()).");
+                            }
+
+                            // 2. Kiểm tra Setter theo tính Mutable
+                            boolean hasSetter = false;
+                            for (Method m : clazz.getDeclaredMethods()) {
+                                if (m.getName().equals("set" + capitalized) && m.getParameterCount() == 1) {
+                                    hasSetter = true;
+                                    break;
+                                }
+                            }
+
+                            if (!fieldSpec.isMutable()) {
+                                // Nếu là immutable (isMutable = false), CẤM có setter
+                                if (hasSetter) {
+                                    return OopCheckResult.fail("Thuộc tính '" + fieldName + "' trong class '" + classSpec.getName()
+                                            + "' được định nghĩa là immutable (không đổi), không được phép có setter ('set" + capitalized + "').");
+                                }
+                            } else if ("private".equalsIgnoreCase(expectedMod) && fieldSpec.getMutable() != null && fieldSpec.getMutable()) {
+                                // Nếu được chỉ định rõ ràng là mutable = true, bắt buộc phải có setter
+                                if (!hasSetter) {
+                                    return OopCheckResult.fail("Thuộc tính mutable '" + fieldName + "' trong class '" + classSpec.getName()
+                                            + "' bắt buộc phải có setter ('set" + capitalized + "(...)').");
+                                }
+                            }
                         }
                     }
 
                     // 6. Kiểm tra Constructors
                     if (classSpec.getConstructors() != null && !classSpec.getConstructors().isEmpty()) {
                         Constructor<?>[] constructors = clazz.getDeclaredConstructors();
+
+                        // Kiểm tra số lượng constructor: Không được viết thừa constructor rác
+                        if (constructors.length != classSpec.getConstructors().size()) {
+                            return OopCheckResult.fail("Class '" + classSpec.getName() + "' phải có chính xác "
+                                    + classSpec.getConstructors().size() + " constructor theo quy chuẩn thiết kế (hiện có "
+                                    + constructors.length + " constructor).");
+                        }
+
                         for (OopSpec.ConstructorSpec ctorSpec : classSpec.getConstructors()) {
                             List<String> expectedParams = ctorSpec.getParameterTypes();
                             boolean ctorFound = false;

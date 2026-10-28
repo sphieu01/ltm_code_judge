@@ -53,6 +53,12 @@ public class OopSpec {
         private String name;
         private String type; // e.g. "String", "int", "double"
         private String modifier = "private"; // "private", "public", "protected"
+        private Boolean mutable; // null hoặc true: có setter; false: immutable, cấm setter
+        private Boolean optional; // true: thuộc tính tùy chọn; false/null: bắt buộc
+        private String defaultValue; // Giá trị mặc định khi khởi tạo (dạng String)
+        private Double min; // Giá trị nhỏ nhất (cho số)
+        private Double max; // Giá trị lớn nhất (cho số)
+        private Integer maxLength; // Độ dài tối đa (cho String)
 
         public FieldSpec() {}
         public FieldSpec(String name, String type, String modifier) {
@@ -69,6 +75,26 @@ public class OopSpec {
 
         public String getModifier() { return modifier != null ? modifier : "private"; }
         public void setModifier(String modifier) { this.modifier = modifier; }
+
+        public boolean isMutable() { return mutable == null || mutable; }
+        public Boolean getMutable() { return mutable; }
+        public void setMutable(Boolean mutable) { this.mutable = mutable; }
+
+        public boolean isOptional() { return optional != null && optional; }
+        public Boolean getOptional() { return optional; }
+        public void setOptional(Boolean optional) { this.optional = optional; }
+
+        public String getDefaultValue() { return defaultValue; }
+        public void setDefaultValue(String defaultValue) { this.defaultValue = defaultValue; }
+
+        public Double getMin() { return min; }
+        public void setMin(Double min) { this.min = min; }
+
+        public Double getMax() { return max; }
+        public void setMax(Double max) { this.max = max; }
+
+        public Integer getMaxLength() { return maxLength; }
+        public void setMaxLength(Integer maxLength) { this.maxLength = maxLength; }
     }
 
     public static class ConstructorSpec {

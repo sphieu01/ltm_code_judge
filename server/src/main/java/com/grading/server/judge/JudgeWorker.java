@@ -8,6 +8,7 @@ import com.grading.server.repository.SubmissionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
@@ -231,9 +232,12 @@ public class JudgeWorker implements Runnable {
             if (problemRepository != null) {
                 java.util.Optional<com.grading.server.model.Problem> probOpt = problemRepository.findById(submission.getProblemId());
                 if (probOpt.isPresent() && probOpt.get().isJavaOop()) {
+                    File workDir = new File(sandboxRunner.getWorkDir(submission.getId()));
+
+                    // Tầng 1: Kiểm tra cấu trúc tĩnh, file riêng biệt, đóng gói và constructor count
                     com.grading.server.judge.oop.OopCheckResult oopResult =
                             com.grading.server.judge.oop.OopReflectionGrader.check(
-                                    new java.io.File(sandboxRunner.getWorkDir(submission.getId())),
+                                    workDir,
                                     probOpt.get().getOopSpec()
                             );
                     if (!oopResult.isPassed()) {
@@ -243,6 +247,23 @@ public class JudgeWorker implements Runnable {
                         submission.setScore(0);
                         submission.setPassedTests(0);
                         submission.setCompileOutput("[OOP_VIOLATION] " + oopResult.getErrorMessage());
+                        finalizeSubmission(submission);
+                        return;
+                    }
+
+                    // Tầng 2: Kiểm thử động đối tượng (Default values, Validators, Dynamic Methods)
+                    com.grading.server.judge.oop.OopCheckResult dynamicResult =
+                            com.grading.server.judge.oop.OopDynamicTester.test(
+                                    workDir,
+                                    probOpt.get().getOopSpec()
+                            );
+                    if (!dynamicResult.isPassed()) {
+                        logger.warn("Worker-{} submission id={} vi phạm kiểm thử động OOP: {}",
+                                workerId, submission.getId(), dynamicResult.getErrorMessage());
+                        submission.setVerdict(Submission.VERDICT_CE);
+                        submission.setScore(0);
+                        submission.setPassedTests(0);
+                        submission.setCompileOutput("[OOP_VIOLATION] " + dynamicResult.getErrorMessage());
                         finalizeSubmission(submission);
                         return;
                     }

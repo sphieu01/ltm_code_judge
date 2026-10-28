@@ -92,32 +92,92 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         final ComboBox<String> modifierCombo = new ComboBox<>(FXCollections.observableArrayList(
                 "private", "protected", "public"
         ));
-        final HBox row = new HBox(8);
+        final CheckBox mutableCheck = new CheckBox("Mutable (Có setter)");
+        final CheckBox optionalCheck = new CheckBox("Optional");
+        final TextField defValField = new TextField();
+        final TextField minField = new TextField();
+        final TextField maxField = new TextField();
+        final TextField maxLenField = new TextField();
 
-        FieldItemUI(String name, String type, String modifier, Runnable onDelete) {
+        final VBox row = new VBox(4);
+
+        FieldItemUI(String name, String type, String modifier, Boolean mutable, Boolean optional,
+                    String defaultValue, Double min, Double max, Integer maxLength, Runnable onDelete) {
             nameField.setPromptText("Tên thuộc tính (e.g. name, gpa)");
             nameField.setText(name != null ? name : "");
-            nameField.setPrefWidth(160);
+            nameField.setPrefWidth(140);
 
             typeCombo.setEditable(true);
             typeCombo.setValue(type != null && !type.isBlank() ? type : "String");
-            typeCombo.setPrefWidth(120);
+            typeCombo.setPrefWidth(100);
 
             modifierCombo.setValue(modifier != null && !modifier.isBlank() ? modifier : "private");
-            modifierCombo.setPrefWidth(110);
+            modifierCombo.setPrefWidth(90);
+
+            mutableCheck.setSelected(mutable == null || mutable);
+            optionalCheck.setSelected(optional != null && optional);
+
+            defValField.setPromptText("Mặc định (VD: 0.0)");
+            defValField.setText(defaultValue != null ? defaultValue : "");
+            defValField.setPrefWidth(110);
+
+            minField.setPromptText("Min");
+            minField.setText(min != null ? String.valueOf(min) : "");
+            minField.setPrefWidth(60);
+
+            maxField.setPromptText("Max");
+            maxField.setText(max != null ? String.valueOf(max) : "");
+            maxField.setPrefWidth(60);
+
+            maxLenField.setPromptText("MaxLen");
+            maxLenField.setText(maxLength != null ? String.valueOf(maxLength) : "");
+            maxLenField.setPrefWidth(65);
 
             Button delBtn = new Button("✕");
             delBtn.getStyleClass().addAll("button", "btn-secondary");
             delBtn.setStyle("-fx-text-fill: -status-wa; -fx-padding: 2 6 2 6;");
             delBtn.setOnAction(e -> onDelete.run());
 
-            row.setAlignment(Pos.CENTER_LEFT);
-            row.getChildren().addAll(
+            Region sp = new Region();
+            HBox.setHgrow(sp, Priority.ALWAYS);
+
+            HBox line1 = new HBox(8);
+            line1.setAlignment(Pos.CENTER_LEFT);
+            line1.getChildren().addAll(
                     new Label("Tên:"), nameField,
                     new Label("Kiểu:"), typeCombo,
                     new Label("Quyền:"), modifierCombo,
+                    mutableCheck,
+                    optionalCheck,
+                    sp,
                     delBtn
             );
+
+            HBox line2 = new HBox(8);
+            line2.setAlignment(Pos.CENTER_LEFT);
+            line2.setStyle("-fx-padding: 2 0 2 0;");
+            Label constraintLabel = new Label("↳ Ràng buộc:");
+            constraintLabel.setStyle("-fx-text-fill: -text-muted; -fx-font-size: 11px;");
+
+            Label defLabel = new Label("Default:");
+            defLabel.setStyle("-fx-font-size: 11px;");
+            Label minLabel = new Label("Min:");
+            minLabel.setStyle("-fx-font-size: 11px;");
+            Label maxLabel = new Label("Max:");
+            maxLabel.setStyle("-fx-font-size: 11px;");
+            Label lenLabel = new Label("MaxLen:");
+            lenLabel.setStyle("-fx-font-size: 11px;");
+
+            line2.getChildren().addAll(
+                    constraintLabel,
+                    defLabel, defValField,
+                    minLabel, minField,
+                    maxLabel, maxField,
+                    lenLabel, maxLenField
+            );
+
+            row.setStyle("-fx-background-color: -bg-surface; -fx-border-color: -border-subtle; -fx-border-width: 1px; -fx-border-radius: 4px; -fx-background-radius: 4px; -fx-padding: 6px;");
+            row.getChildren().addAll(line1, line2);
         }
     }
 
@@ -308,8 +368,13 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         }
 
         void addField(String name, String type, String modifier) {
+            addField(name, type, modifier, true, false, null, null, null, null);
+        }
+
+        void addField(String name, String type, String modifier, Boolean mutable, Boolean optional,
+                      String defaultValue, Double min, Double max, Integer maxLength) {
             FieldItemUI[] holder = new FieldItemUI[1];
-            holder[0] = new FieldItemUI(name, type, modifier, () -> {
+            holder[0] = new FieldItemUI(name, type, modifier, mutable, optional, defaultValue, min, max, maxLength, () -> {
                 fieldItems.remove(holder[0]);
                 fieldsContainer.getChildren().remove(holder[0].row);
             });
@@ -357,7 +422,24 @@ public class TeacherProblemDialog extends Dialog<Problem> {
             for (FieldItemUI fi : fieldItems) {
                 String fn = fi.nameField.getText().trim();
                 if (!fn.isEmpty()) {
-                    cs.getFields().add(new OopSpec.FieldSpec(fn, fi.typeCombo.getValue(), fi.modifierCombo.getValue()));
+                    OopSpec.FieldSpec f = new OopSpec.FieldSpec(fn, fi.typeCombo.getValue(), fi.modifierCombo.getValue());
+                    f.setMutable(fi.mutableCheck.isSelected());
+                    f.setOptional(fi.optionalCheck.isSelected());
+                    String defVal = fi.defValField.getText().trim();
+                    f.setDefaultValue(defVal.isEmpty() ? null : defVal);
+                    String minStr = fi.minField.getText().trim();
+                    if (!minStr.isEmpty()) {
+                        try { f.setMin(Double.parseDouble(minStr)); } catch (Exception ignored) {}
+                    }
+                    String maxStr = fi.maxField.getText().trim();
+                    if (!maxStr.isEmpty()) {
+                        try { f.setMax(Double.parseDouble(maxStr)); } catch (Exception ignored) {}
+                    }
+                    String maxLenStr = fi.maxLenField.getText().trim();
+                    if (!maxLenStr.isEmpty()) {
+                        try { f.setMaxLength(Integer.parseInt(maxLenStr)); } catch (Exception ignored) {}
+                    }
+                    cs.getFields().add(f);
                 }
             }
 
@@ -746,7 +828,9 @@ public class TeacherProblemDialog extends Dialog<Problem> {
                         ClassCardUI card = addClassCard(cs.getName(), cs.getClassType(), cs.getSuperClass(), cs.getInterfaces());
                         if (cs.getFields() != null) {
                             for (OopSpec.FieldSpec f : cs.getFields()) {
-                                card.addField(f.getName(), f.getType(), f.getModifier());
+                                card.addField(f.getName(), f.getType(), f.getModifier(),
+                                        f.getMutable(), f.getOptional(),
+                                        f.getDefaultValue(), f.getMin(), f.getMax(), f.getMaxLength());
                             }
                         }
                         if (cs.getConstructors() != null) {

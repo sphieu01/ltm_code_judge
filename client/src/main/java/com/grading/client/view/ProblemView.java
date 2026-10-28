@@ -416,32 +416,24 @@ public class ProblemView extends BorderPane {
         uploadRow.setAlignment(Pos.CENTER_RIGHT);
 
         // 1.5. Hiển thị file đã chọn (nếu có)
-        selectedFileBox = new HBox(8);
-        selectedFileBox.setAlignment(Pos.CENTER_RIGHT);
-        selectedFileBox.setPrefWidth(Region.USE_COMPUTED_SIZE);
-        selectedFileBox.setMaxWidth(460);
+        selectedFileBox = new HBox(6);
+        selectedFileBox.setAlignment(Pos.CENTER_LEFT);
+        selectedFileBox.setPrefWidth(BTN_WIDTH);
+        selectedFileBox.setMaxWidth(BTN_WIDTH);
         selectedFileBox.setVisible(false);
         selectedFileBox.setManaged(false);
 
         selectedFileLabel = new Label("📄 Chưa chọn file");
         selectedFileLabel.getStyleClass().add("upload-file-pill");
-        selectedFileLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
-        selectedFileLabel.setMaxWidth(260);
         HBox.setHgrow(selectedFileLabel, Priority.ALWAYS);
 
         changeFileBtn = new Button("...");
         changeFileBtn.getStyleClass().addAll("button", "btn-secondary");
-        changeFileBtn.setStyle("-fx-font-size: 11.5px; -fx-padding: 3 8 3 8; -fx-cursor: hand;");
-        changeFileBtn.setMinWidth(Region.USE_PREF_SIZE);
-        changeFileBtn.setTooltip(new Tooltip("Chọn file mã nguồn khác"));
+        changeFileBtn.setStyle("-fx-font-size: 11px; -fx-padding: 2 6 2 6;");
 
         removeFileBtn = new Button("x");
         removeFileBtn.getStyleClass().addAll("button", "btn-secondary");
-        removeFileBtn.setStyle(
-                "-fx-font-size: 12px; -fx-font-weight: bold; -fx-padding: 3 8 3 8; -fx-text-fill: -status-wa; -fx-cursor: hand;");
-        removeFileBtn.setMinWidth(Region.USE_PREF_SIZE);
-        removeFileBtn.setPrefWidth(28);
-        removeFileBtn.setTooltip(new Tooltip("Bỏ chọn file"));
+        removeFileBtn.setStyle("-fx-font-size: 11px; -fx-padding: 2 6 2 6; -fx-text-fill: -status-wa;");
 
         selectedFileBox.getChildren().addAll(selectedFileLabel, changeFileBtn, removeFileBtn);
 

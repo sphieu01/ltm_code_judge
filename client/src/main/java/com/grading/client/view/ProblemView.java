@@ -429,15 +429,16 @@ public class ProblemView extends BorderPane {
         selectedFileLabel.setMaxWidth(260);
         HBox.setHgrow(selectedFileLabel, Priority.ALWAYS);
 
-        changeFileBtn = new Button("Đổi file");
+        changeFileBtn = new Button("...");
         changeFileBtn.getStyleClass().addAll("button", "btn-secondary");
         changeFileBtn.setStyle("-fx-font-size: 11.5px; -fx-padding: 3 8 3 8; -fx-cursor: hand;");
         changeFileBtn.setMinWidth(Region.USE_PREF_SIZE);
         changeFileBtn.setTooltip(new Tooltip("Chọn file mã nguồn khác"));
 
-        removeFileBtn = new Button("✕");
+        removeFileBtn = new Button("x");
         removeFileBtn.getStyleClass().addAll("button", "btn-secondary");
-        removeFileBtn.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-padding: 3 8 3 8; -fx-text-fill: -status-wa; -fx-cursor: hand;");
+        removeFileBtn.setStyle(
+                "-fx-font-size: 12px; -fx-font-weight: bold; -fx-padding: 3 8 3 8; -fx-text-fill: -status-wa; -fx-cursor: hand;");
         removeFileBtn.setMinWidth(Region.USE_PREF_SIZE);
         removeFileBtn.setPrefWidth(28);
         removeFileBtn.setTooltip(new Tooltip("Bỏ chọn file"));
@@ -693,13 +694,16 @@ public class ProblemView extends BorderPane {
 
     public void loadProblem(Problem problem) {
         refreshProblemMetadata(problem);
-        if (problem == null) return;
+        if (problem == null)
+            return;
         clearSelectedFile();
         updateProctorStatus(0, "INFO", null);
         clearHistory();
     }
 
-    /** Apply a teacher's edit without discarding the student's selected source file. */
+    /**
+     * Apply a teacher's edit without discarding the student's selected source file.
+     */
     public void refreshProblemMetadata(Problem problem) {
         String selectedLanguage = languageComboBox.getValue();
         this.currentProblem = problem;
@@ -764,7 +768,8 @@ public class ProblemView extends BorderPane {
                     filtered.add("C++");
                 else if (trimmed.equals("java") && !filtered.contains("Java"))
                     filtered.add("Java");
-                else if ((trimmed.equals("python") || trimmed.equals("py") || trimmed.startsWith("python")) && !filtered.contains("Python 3"))
+                else if ((trimmed.equals("python") || trimmed.equals("py") || trimmed.startsWith("python"))
+                        && !filtered.contains("Python 3"))
                     filtered.add("Python 3");
             }
             if (!filtered.isEmpty()) {

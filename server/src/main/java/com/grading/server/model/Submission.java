@@ -114,6 +114,15 @@ public class Submission {
         return queuedAt > 0 ? System.currentTimeMillis() - queuedAt : 0;
     }
 
+    private transient java.util.List<com.grading.server.model.TestCase> testCases;
+    private transient com.grading.server.judge.model.SubmissionTask standaloneTask;
+
+    public java.util.List<com.grading.server.model.TestCase> getTestCases() { return testCases; }
+    public void setTestCases(java.util.List<com.grading.server.model.TestCase> testCases) { this.testCases = testCases; }
+
+    public com.grading.server.judge.model.SubmissionTask getStandaloneTask() { return standaloneTask; }
+    public void setStandaloneTask(com.grading.server.judge.model.SubmissionTask standaloneTask) { this.standaloneTask = standaloneTask; }
+
     @Override
     public String toString() {
         return "Submission{id=" + id + ", userId=" + userId + ", problemId=" + problemId

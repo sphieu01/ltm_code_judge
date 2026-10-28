@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -136,8 +137,10 @@ public class JudgeWorker implements Runnable {
                 workerId, submission.getId(), submission.getLanguage(), sandboxModeStr, queueWaitMs);
 
         try {
-            // 1. Cập nhật trạng thái JUDGING trong DB
-            submissionRepository.markAsJudging(submission.getId());
+            // 1. Cập nhật trạng thái JUDGING trong DB nếu có repository
+            if (submissionRepository != null) {
+                submissionRepository.markAsJudging(submission.getId());
+            }
             submission.setVerdict(Submission.VERDICT_JUDGING);
 
             // 1.5. Quét bảo mật tĩnh (SecurityScanner - Tầng 1)
@@ -153,17 +156,26 @@ public class JudgeWorker implements Runnable {
                     submission.setVerdict(Submission.VERDICT_SV);
                     submission.setScore(0);
                     submission.setPassedTests(0);
-                    submission.setTotalTests(problemRepository != null ? problemRepository.findAllTestCases(submission.getProblemId()).size() : 0);
+                    int totalCases = submission.getTestCases() != null ? submission.getTestCases().size() :
+                            (problemRepository != null ? problemRepository.findAllTestCases(submission.getProblemId()).size() : 0);
+                    submission.setTotalTests(totalCases);
                     submission.setCompileOutput(secResult.reason());
                     finalizeSubmission(submission);
                     return;
                 }
             }
 
-            // 2. Lấy tất cả test cases
-            List<TestCase> testCases = problemRepository.findAllTestCases(submission.getProblemId());
+            // 2. Lấy tất cả test cases (từ submission nếu có hoặc từ repository)
+            List<TestCase> testCases;
+            if (submission.getTestCases() != null && !submission.getTestCases().isEmpty()) {
+                testCases = submission.getTestCases();
+            } else if (problemRepository != null) {
+                testCases = problemRepository.findAllTestCases(submission.getProblemId());
+            } else {
+                testCases = Collections.emptyList();
+            }
+
             if (testCases.isEmpty()) {
-                // Không có test case — trả AC (edge case)
                 submission.setVerdict(Submission.VERDICT_RE);
                 submission.setScore(0);
                 submission.setPassedTests(0);
@@ -308,11 +320,15 @@ public class JudgeWorker implements Runnable {
 
     private void finalizeSubmission(Submission submission) {
         try {
-            // Cập nhật DB
-            submissionRepository.updateVerdict(submission);
+            // Cập nhật DB nếu có repository
+            if (submissionRepository != null) {
+                submissionRepository.updateVerdict(submission);
+            }
 
-            // Push JUDGE_NOTIFICATION về client (nếu vẫn online)
-            connectionRegistry.sendJudgeNotification(submission);
+            // Push JUDGE_NOTIFICATION về client (nếu có connectionRegistry)
+            if (connectionRegistry != null) {
+                connectionRegistry.sendJudgeNotification(submission);
+            }
 
             logger.info("Submission id={} judged: verdict={}, score={}, passed={}/{}",
                     submission.getId(), submission.getVerdict(), submission.getScore(),
@@ -321,6 +337,32 @@ public class JudgeWorker implements Runnable {
         } catch (SQLException e) {
             logger.error("Failed to update verdict for submission id={}", submission.getId(), e);
         }
+
+        // Báo callback cho standalone listener (phục vụ ExperimentRunner / Demo)
+        if (_standaloneListener != null && submission.getStandaloneTask() != null) {
+            com.grading.server.judge.model.VerdictType vt = mapVerdict(submission.getVerdict());
+            com.grading.server.judge.model.JudgeResult res = new com.grading.server.judge.model.JudgeResult(
+                    vt,
+                    submission.getScore(),
+                    submission.getPassedTests(),
+                    submission.getTotalTests(),
+                    submission.getExecTimeMs(),
+                    submission.getCompileOutput()
+            );
+            _standaloneListener.onCompleted(submission.getStandaloneTask(), res);
+        }
+    }
+
+    private com.grading.server.judge.model.VerdictType mapVerdict(String verdict) {
+        if (verdict == null) return com.grading.server.judge.model.VerdictType.RE;
+        return switch (verdict) {
+            case Submission.VERDICT_AC -> com.grading.server.judge.model.VerdictType.AC;
+            case Submission.VERDICT_WA -> com.grading.server.judge.model.VerdictType.WA;
+            case Submission.VERDICT_TLE -> com.grading.server.judge.model.VerdictType.TLE;
+            case Submission.VERDICT_CE -> com.grading.server.judge.model.VerdictType.CE;
+            case Submission.VERDICT_SV -> com.grading.server.judge.model.VerdictType.SECURITY_VIOLATION;
+            default -> com.grading.server.judge.model.VerdictType.RE;
+        };
     }
 
     /** Truncate chuỗi để không lưu quá dài vào DB */

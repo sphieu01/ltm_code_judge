@@ -116,6 +116,19 @@ public class JudgeQueue {
         s.setSourceCode(task.getSourceCode());
         s.setLanguage("java");
         s.setVerdict(Submission.VERDICT_PENDING);
+        s.setQueuedAt(task.getSubmittedAt());
+        if (task.getTestCases() != null) {
+            java.util.List<com.grading.server.model.TestCase> modelCases = new java.util.ArrayList<>();
+            for (com.grading.server.judge.model.TestCase tc : task.getTestCases()) {
+                com.grading.server.model.TestCase mc = new com.grading.server.model.TestCase();
+                mc.setId(tc.getId());
+                mc.setInputData(tc.getInput());
+                mc.setExpectedOutput(tc.getExpectedOutput());
+                modelCases.add(mc);
+            }
+            s.setTestCases(modelCases);
+        }
+        s.setStandaloneTask(task);
         return s;
     }
 

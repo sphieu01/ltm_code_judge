@@ -484,8 +484,8 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         VBox diffBox = new VBox(4);
         Label diffLabel = new Label("Độ khó");
         diffLabel.getStyleClass().add("meta-item");
-        difficultyCombo = new ComboBox<>(FXCollections.observableArrayList("Mức 1", "Mức 2", "Mức 3", "Mức 4", "Mức 5", "Mức 6"));
-        difficultyCombo.getSelectionModel().select("Mức 1");
+        difficultyCombo = new ComboBox<>(FXCollections.observableArrayList("1", "2", "3", "4", "5", "6"));
+        difficultyCombo.getSelectionModel().select("1");
         diffBox.getChildren().addAll(diffLabel, difficultyCombo);
 
         VBox timeBox = new VBox(4);
@@ -730,7 +730,7 @@ public class TeacherProblemDialog extends Dialog<Problem> {
             else if ("HARD".equalsIgnoreCase(problem.getDifficulty())) diffVal = "5";
             else diffVal = "1";
         }
-        difficultyCombo.getSelectionModel().select("Mức " + diffVal);
+        difficultyCombo.getSelectionModel().select(diffVal);
         timeLimitField.setText(String.valueOf(problem.getTimeLimitMs()));
         memoryLimitField.setText(String.valueOf(problem.getMemoryLimitKb()));
         descriptionArea.setText(problem.getDescription() == null ? "" : problem.getDescription());

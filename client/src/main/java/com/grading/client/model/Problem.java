@@ -64,7 +64,7 @@ public class Problem {
     public String getDifficulty() { return difficulty; }
 
     public String getFormattedDifficulty() {
-        if (difficulty == null || difficulty.isBlank()) return "Mức 1";
+        if (difficulty == null || difficulty.isBlank()) return "1";
         String num = difficulty.replaceAll("[^0-9]", "");
         if (num.isEmpty()) {
             if ("EASY".equalsIgnoreCase(difficulty)) num = "1";
@@ -72,7 +72,7 @@ public class Problem {
             else if ("HARD".equalsIgnoreCase(difficulty)) num = "5";
             else num = "1";
         }
-        return "Mức " + num;
+        return num;
     }
     public void setDifficulty(String difficulty) { this.difficulty = difficulty; }
 

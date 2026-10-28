@@ -98,7 +98,7 @@ public class DashboardView extends BorderPane {
 
         // Lọc theo độ khó
         difficultyFilterCombo = new ComboBox<>(FXCollections.observableArrayList(
-                "Tất cả mức độ", "Mức 1", "Mức 2", "Mức 3", "Mức 4", "Mức 5", "Mức 6"));
+                "Tất cả mức độ", "1", "2", "3", "4", "5", "6"));
         difficultyFilterCombo.getSelectionModel().select(0);
         difficultyFilterCombo.setPrefWidth(175);
 
@@ -282,7 +282,7 @@ public class DashboardView extends BorderPane {
 
         // 3. Cột Độ khó. Lớp đang chọn đã hiển thị trên thanh trên.
         TableColumn<Problem, String> diffCol = new TableColumn<>("Độ khó");
-        diffCol.setCellValueFactory(new PropertyValueFactory<>("difficulty"));
+        diffCol.setCellValueFactory(new PropertyValueFactory<>("formattedDifficulty"));
         diffCol.setMinWidth(110);
         diffCol.setPrefWidth(130);
         diffCol.setMaxWidth(160);
@@ -295,16 +295,9 @@ public class DashboardView extends BorderPane {
                     setGraphic(null);
                     setText(null);
                 } else {
-                    renderDifficultyBadge(this, item);
-
-
-
-
-
-
-
-
-                    setText(null);
+                    setText(item);
+                    setGraphic(null);
+                    setStyle("-fx-alignment: CENTER; -fx-font-size: 13px; -fx-font-weight: bold;");
                 }
             }
         });
@@ -744,28 +737,5 @@ public class DashboardView extends BorderPane {
 
     public void setOnCompleteAssessment(Runnable handler) {
         this.onCompleteAssessmentHandler = handler;
-    }
-
-    private void renderDifficultyBadge(TableCell<Problem, String> cell, String item) {
-        String level = (item == null) ? "1" : item.replaceAll("[^0-9]", "");
-        if (level.isEmpty()) {
-            if ("EASY".equalsIgnoreCase(item)) level = "1";
-            else if ("MEDIUM".equalsIgnoreCase(item)) level = "3";
-            else if ("HARD".equalsIgnoreCase(item)) level = "5";
-            else level = "1";
-        }
-        Label badge = new Label("Mức " + level);
-        badge.setStyle("-fx-padding: 3 10 3 10; -fx-font-size: 11.5px;");
-        int lvl = 1;
-        try { lvl = Integer.parseInt(level); } catch (Exception ignored) {}
-        if (lvl <= 2) {
-            badge.getStyleClass().add("badge-easy");
-        } else if (lvl <= 4) {
-            badge.getStyleClass().add("badge-medium");
-        } else {
-            badge.getStyleClass().add("badge-hard");
-        }
-        cell.setGraphic(badge);
-        cell.setText(null);
     }
 }

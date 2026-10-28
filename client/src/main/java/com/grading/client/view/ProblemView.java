@@ -148,6 +148,8 @@ public class ProblemView extends BorderPane {
         backButton.getStyleClass().addAll("button", "btn-secondary");
 
         proctorBadge = new Label("🛡️ Giám sát: Bình thường (Cho phép IDE)");
+        proctorBadge.setVisible(false);
+        proctorBadge.setManaged(false);
         proctorBadge.setTooltip(new Tooltip(
                 "Hệ thống cho phép chuyển sang IDE ngoài (VS Code, CLion, Dev-C++...) để code.\nNghiêm cấm mở ChatGPT, Gemini hoặc các công cụ AI trợ giúp."));
         proctorBadge.setStyle(
@@ -833,7 +835,7 @@ public class ProblemView extends BorderPane {
             inHeader.getStyleClass().add("sample-table-header-cell");
             inHeader.setMaxWidth(Double.MAX_VALUE);
             inHeader.setStyle(
-                    "-fx-border-color: transparent -border-subtle transparent transparent; -fx-border-width: 0 1 0 0;");
+                    "-fx-border-color: transparent -border-subtle -border-subtle transparent; -fx-border-width: 0 1 1 0;");
 
             Label outHeader = new Label("Output");
             outHeader.getStyleClass().add("sample-table-header-cell");
@@ -1071,6 +1073,8 @@ public class ProblemView extends BorderPane {
     }
 
     public void setAssessmentMode(boolean active) {
+        proctorBadge.setVisible(active);
+        proctorBadge.setManaged(active);
         completeAssessmentButton.setVisible(active);
         completeAssessmentButton.setManaged(active);
         setCountdownTimerVisible(active);

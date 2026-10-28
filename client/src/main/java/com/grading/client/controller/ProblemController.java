@@ -492,6 +492,9 @@ public class ProblemController {
             }
         });
 
+        // Luyện tập chỉ cần listener dọn dẹp khi rời trang, không bật giám sát.
+        if (!sessionManager.isAssessmentMode()) return;
+
         if (view.getScene() != null && view.getScene().getWindow() != null) {
             attachWindowFocusListener(view.getScene().getWindow());
         }
@@ -505,6 +508,7 @@ public class ProblemController {
     }
 
     private void attachWindowFocusListener(javafx.stage.Window window) {
+        if (disposed || !sessionManager.isAssessmentMode()) return;
         if (trackedWindow == window) {
             return;
         }

@@ -66,6 +66,12 @@ public class ServerApp {
         SubmissionRepository submissionRepository = new SubmissionRepository();
         com.grading.server.repository.AcademicRepository academicRepository = new com.grading.server.repository.AcademicRepository();
 
+        // ── 1.1. MinIO Object Storage & Auto-Sync ─────────────────────────────
+        com.grading.server.storage.minio.MinioService minioService = com.grading.server.storage.minio.MinioService.getInstance();
+        if (minioService.isAvailable()) {
+            minioService.syncMissingSubmissionsAsync(submissionRepository);
+        }
+
         // ── 2. Judge infrastructure ───────────────────────────────────────────
         JudgeQueue judgeQueue = new JudgeQueue();
         ConnectionRegistry connectionRegistry = ConnectionRegistry.getInstance();

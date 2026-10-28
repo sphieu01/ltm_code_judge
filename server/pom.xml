@@ -25,6 +25,7 @@
         <slf4j.version>2.0.12</slf4j.version>
         <logback.version>1.5.3</logback.version>
         <junit.version>5.10.2</junit.version>
+        <minio.version>8.5.17</minio.version>
     </properties>
 
     <dependencies>
@@ -78,6 +79,13 @@
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
             <version>${logback.version}</version>
+        </dependency>
+
+        <!-- Object Storage — MinIO SDK -->
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+            <version>${minio.version}</version>
         </dependency>
 
         <!-- Testing -->

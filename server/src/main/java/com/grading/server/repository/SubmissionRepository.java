@@ -72,6 +72,12 @@ public class SubmissionRepository {
             "LEFT JOIN problems p ON s.problem_id = p.id " +
             "WHERE s.user_id = ? AND s.problem_id = ? AND s.assessment_id = ? ORDER BY s.submitted_at DESC";
 
+    private static final String SQL_FIND_ALL =
+            "SELECT s.id, s.user_id, s.problem_id, s.assessment_id, p.title AS problem_title, s.source_code, s.language, s.is_zip, s.verdict, s.score, " +
+            "s.passed_tests, s.total_tests, s.exec_time_ms, s.memory_used_kb, s.compile_output, " +
+            "s.submitted_at, s.judged_at FROM submissions s " +
+            "LEFT JOIN problems p ON s.problem_id = p.id ORDER BY s.id ASC";
+
     private static final String SQL_UPDATE_VERDICT =
             "UPDATE submissions SET verdict = ?::verdict_type, score = ?, " +
             "passed_tests = ?, total_tests = ?, exec_time_ms = ?, memory_used_kb = ?, " +
@@ -216,6 +222,24 @@ public class SubmissionRepository {
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) list.add(mapRow(rs));
             }
+        }
+        return list;
+    }
+
+    /**
+     * Lấy toàn bộ submissions từ database để phục vụ đồng bộ MinIO.
+     */
+    public List<Submission> findAll() throws SQLException {
+        List<Submission> list = new ArrayList<>();
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(SQL_FIND_ALL);
+             ResultSet rs = stmt.executeQuery()) {
+            while (rs.next()) {
+                list.add(mapRow(rs));
+            }
+        } catch (SQLException e) {
+            logger.error("Error fetching all submissions", e);
+            throw e;
         }
         return list;
     }

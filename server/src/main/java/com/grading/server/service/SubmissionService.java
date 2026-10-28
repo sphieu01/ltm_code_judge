@@ -79,6 +79,9 @@ public class SubmissionService {
         submission.setZip(isZip);
         submission = submissionRepository.save(submission);
 
+        // Lưu bản sao tệp mã nguồn lên MinIO Object Storage nếu MinIO online (bất đồng bộ)
+        com.grading.server.storage.minio.MinioService.getInstance().uploadSubmissionAsync(submission);
+
         // Đánh dấu thời điểm vào queue (dùng để tính queue waiting time)
         submission.setQueuedAt(System.currentTimeMillis());
 

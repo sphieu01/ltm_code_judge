@@ -479,11 +479,11 @@ public class ProblemView extends BorderPane {
         selectedFileLabel.getStyleClass().add("upload-file-pill");
         HBox.setHgrow(selectedFileLabel, Priority.ALWAYS);
 
-        changeFileBtn = new Button("Đổi");
+        changeFileBtn = new Button("...");
         changeFileBtn.getStyleClass().addAll("button", "btn-secondary");
         changeFileBtn.setStyle("-fx-font-size: 11px; -fx-padding: 2 6 2 6;");
 
-        removeFileBtn = new Button("✕");
+        removeFileBtn = new Button("x");
         removeFileBtn.getStyleClass().addAll("button", "btn-secondary");
         removeFileBtn.setStyle("-fx-font-size: 11px; -fx-padding: 2 6 2 6; -fx-text-fill: -status-wa;");
 
@@ -738,13 +738,16 @@ public class ProblemView extends BorderPane {
 
     public void loadProblem(Problem problem) {
         refreshProblemMetadata(problem);
-        if (problem == null) return;
+        if (problem == null)
+            return;
         clearSelectedFile();
         updateProctorStatus(0, "INFO", null);
         clearHistory();
     }
 
-    /** Apply a teacher's edit without discarding the student's selected source file. */
+    /**
+     * Apply a teacher's edit without discarding the student's selected source file.
+     */
     public void refreshProblemMetadata(Problem problem) {
         String selectedLanguage = languageComboBox.getValue();
         this.currentProblem = problem;
@@ -809,7 +812,8 @@ public class ProblemView extends BorderPane {
                     filtered.add("C++");
                 else if (trimmed.equals("java") && !filtered.contains("Java"))
                     filtered.add("Java");
-                else if ((trimmed.equals("python") || trimmed.equals("py") || trimmed.startsWith("python")) && !filtered.contains("Python 3"))
+                else if ((trimmed.equals("python") || trimmed.equals("py") || trimmed.startsWith("python"))
+                        && !filtered.contains("Python 3"))
                     filtered.add("Python 3");
             }
             if (!filtered.isEmpty()) {

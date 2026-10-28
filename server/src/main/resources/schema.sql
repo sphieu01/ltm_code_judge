@@ -6,7 +6,7 @@
 
 -- Custom ENUM types
 CREATE TYPE user_role AS ENUM ('STUDENT', 'TEACHER');
-CREATE TYPE difficulty_level AS ENUM ('EASY', 'MEDIUM', 'HARD');
+-- Difficulty levels: 1 (de nhat) den 6 (kho nhat)
 CREATE TYPE verdict_type AS ENUM ('PENDING', 'JUDGING', 'AC', 'WA', 'TLE', 'RE', 'CE', 'SECURITY_VIOLATION');
 
 -- ──────────────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ CREATE TABLE problems (
     description     TEXT               NOT NULL,
     time_limit_ms   INT       DEFAULT 1000,       -- 1 giây
     memory_limit_kb INT       DEFAULT 524288,     -- 512 MB
-    difficulty      difficulty_level DEFAULT 'MEDIUM',
+    difficulty      INT DEFAULT 1 CHECK (difficulty >= 1 AND difficulty <= 6),
     created_by      INT,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_active       BOOLEAN   DEFAULT TRUE,

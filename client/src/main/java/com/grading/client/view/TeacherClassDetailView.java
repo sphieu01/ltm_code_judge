@@ -224,7 +224,7 @@ public class TeacherClassDetailView extends BorderPane {
         typeCol.setStyle("-fx-alignment: CENTER;");
 
         TableColumn<Problem, String> diffCol = new TableColumn<>("Độ khó");
-        diffCol.setCellValueFactory(new PropertyValueFactory<>("difficulty"));
+        diffCol.setCellValueFactory(new PropertyValueFactory<>("formattedDifficulty"));
         diffCol.setMinWidth(100);
         diffCol.setMaxWidth(130);
         diffCol.setStyle("-fx-alignment: CENTER;");
@@ -353,7 +353,7 @@ public class TeacherClassDetailView extends BorderPane {
         typeCol.setStyle("-fx-alignment: CENTER;");
 
         TableColumn<Problem, String> diffCol = new TableColumn<>("Độ khó");
-        diffCol.setCellValueFactory(new PropertyValueFactory<>("difficulty"));
+        diffCol.setCellValueFactory(new PropertyValueFactory<>("formattedDifficulty"));
         diffCol.setMinWidth(90);
         diffCol.setMaxWidth(110);
         diffCol.setStyle("-fx-alignment: CENTER;");
@@ -468,7 +468,7 @@ public class TeacherClassDetailView extends BorderPane {
         problemTitle.setMinWidth(360);
         problemTitle.setPrefWidth(520);
         TableColumn<Problem, String> difficulty = new TableColumn<>("Độ khó");
-        difficulty.setCellValueFactory(new PropertyValueFactory<>("difficulty"));
+        difficulty.setCellValueFactory(new PropertyValueFactory<>("formattedDifficulty"));
         difficulty.setMinWidth(110);
         difficulty.setMaxWidth(150);
         difficulty.setStyle("-fx-alignment: CENTER;");

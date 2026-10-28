@@ -40,7 +40,7 @@ INSERT INTO problems (title, description, time_limit_ms, memory_limit_kb, diffic
 VALUES (
     'Hello World',
     'In ra "Hello, World!" (không có dấu ngoặc kép).\n\n**Input:** Không có input.\n\n**Output:** Một dòng duy nhất: `Hello, World!`',
-    2000, 262144, 'EASY',
+    2000, 262144, 1,
     (SELECT id FROM users WHERE username = 'teacher01')
 );
 
@@ -55,7 +55,7 @@ INSERT INTO problems (title, description, time_limit_ms, memory_limit_kb, diffic
 VALUES (
     'Tổng Hai Số',
     'Cho hai số nguyên a và b, hãy in ra tổng của chúng.\n\n**Input:** Một dòng chứa hai số nguyên a và b (−10^9 ≤ a, b ≤ 10^9).\n\n**Output:** In ra một số nguyên duy nhất là a + b.',
-    2000, 262144, 'EASY',
+    2000, 262144, 1,
     (SELECT id FROM users WHERE username = 'teacher01')
 );
 
@@ -72,7 +72,7 @@ INSERT INTO problems (title, description, time_limit_ms, memory_limit_kb, diffic
 VALUES (
     'Kiểm Tra Số Nguyên Tố',
     'Cho một số nguyên dương n, hãy kiểm tra xem n có phải số nguyên tố hay không.\n\n**Input:** Một dòng chứa số nguyên dương n (2 ≤ n ≤ 10^6).\n\n**Output:** In ra "YES" nếu n là số nguyên tố, "NO" nếu không phải.',
-    2000, 262144, 'MEDIUM',
+    2000, 262144, 3,
     (SELECT id FROM users WHERE username = 'teacher01')
 );
 
@@ -89,7 +89,7 @@ INSERT INTO problems (title, description, time_limit_ms, memory_limit_kb, diffic
 VALUES (
     'Sắp Xếp Mảng',
     'Cho một mảng gồm n số nguyên, hãy sắp xếp mảng theo thứ tự tăng dần.\n\n**Input:**\n- Dòng 1: Số nguyên n (1 ≤ n ≤ 10^5)\n- Dòng 2: n số nguyên cách nhau bởi dấu cách\n\n**Output:** n số nguyên đã được sắp xếp, cách nhau bởi dấu cách.',
-    2000, 262144, 'MEDIUM',
+    2000, 262144, 3,
     (SELECT id FROM users WHERE username = 'teacher01')
 );
 
@@ -107,7 +107,7 @@ INSERT INTO problems (title, description, time_limit_ms, memory_limit_kb, diffic
 VALUES (
     'Fibonacci Mod',
     'Tính số Fibonacci thứ n, kết quả lấy modulo 10^9+7.\n\nDãy Fibonacci: F(1) = 1, F(2) = 1, F(n) = F(n-1) + F(n-2).\n\n**Input:** Một dòng chứa số nguyên n (1 ≤ n ≤ 10^18).\n\n**Output:** F(n) mod (10^9+7).',
-    3000, 262144, 'HARD',
+    3000, 262144, 5,
     (SELECT id FROM users WHERE username = 'teacher01')
 );
 

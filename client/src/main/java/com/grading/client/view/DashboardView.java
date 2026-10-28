@@ -98,7 +98,7 @@ public class DashboardView extends BorderPane {
 
         // Lọc theo độ khó
         difficultyFilterCombo = new ComboBox<>(FXCollections.observableArrayList(
-                "Tất cả độ khó", "EASY", "MEDIUM", "HARD"));
+                "Tất cả mức độ", "1", "2", "3", "4", "5", "6"));
         difficultyFilterCombo.getSelectionModel().select(0);
         difficultyFilterCombo.setPrefWidth(175);
 
@@ -282,7 +282,7 @@ public class DashboardView extends BorderPane {
 
         // 3. Cột Độ khó. Lớp đang chọn đã hiển thị trên thanh trên.
         TableColumn<Problem, String> diffCol = new TableColumn<>("Độ khó");
-        diffCol.setCellValueFactory(new PropertyValueFactory<>("difficulty"));
+        diffCol.setCellValueFactory(new PropertyValueFactory<>("formattedDifficulty"));
         diffCol.setMinWidth(110);
         diffCol.setPrefWidth(130);
         diffCol.setMaxWidth(160);
@@ -295,16 +295,9 @@ public class DashboardView extends BorderPane {
                     setGraphic(null);
                     setText(null);
                 } else {
-                    Label badge = new Label(item);
-                    badge.setStyle("-fx-padding: 3 10 3 10; -fx-font-size: 11.5px;");
-                    if ("EASY".equalsIgnoreCase(item))
-                        badge.getStyleClass().add("badge-easy");
-                    else if ("MEDIUM".equalsIgnoreCase(item))
-                        badge.getStyleClass().add("badge-medium");
-                    else
-                        badge.getStyleClass().add("badge-hard");
-                    setGraphic(badge);
-                    setText(null);
+                    setText(item);
+                    setGraphic(null);
+                    setStyle("-fx-alignment: CENTER; -fx-font-size: 13px; -fx-font-weight: bold;");
                 }
             }
         });
@@ -512,8 +505,16 @@ public class DashboardView extends BorderPane {
                 }
 
                 boolean matchesDiff = true;
-                if (diff != null && !diff.equals("Tất cả độ khó")) {
-                    matchesDiff = diff.equalsIgnoreCase(problem.getDifficulty());
+                if (diff != null && !diff.equals("Tất cả mức độ") && !diff.equals("Tất cả độ khó")) {
+                    String selectedLevel = diff.replaceAll("[^0-9]", "");
+                    String probDiff = problem.getDifficulty() == null ? "" : problem.getDifficulty();
+                    String probLevel = probDiff.replaceAll("[^0-9]", "");
+                    if (probLevel.isEmpty()) {
+                        if ("EASY".equalsIgnoreCase(probDiff)) probLevel = "1";
+                        else if ("MEDIUM".equalsIgnoreCase(probDiff)) probLevel = "3";
+                        else if ("HARD".equalsIgnoreCase(probDiff)) probLevel = "5";
+                    }
+                    matchesDiff = selectedLevel.equals(probLevel);
                 }
 
                 return matchesQuery && matchesDiff;

@@ -860,8 +860,8 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         VBox diffBox = new VBox(4);
         Label diffLabel = new Label("Độ khó");
         diffLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: -text-secondary; -fx-font-weight: bold;");
-        difficultyCombo = new ComboBox<>(FXCollections.observableArrayList("EASY", "MEDIUM", "HARD"));
-        difficultyCombo.getSelectionModel().select("EASY");
+        difficultyCombo = new ComboBox<>(FXCollections.observableArrayList("1", "2", "3", "4", "5", "6"));
+        difficultyCombo.getSelectionModel().select("1");
         difficultyCombo.setPrefWidth(120);
         diffBox.getChildren().addAll(diffLabel, difficultyCombo);
 
@@ -1103,7 +1103,8 @@ public class TeacherProblemDialog extends Dialog<Problem> {
     private Problem extractProblemFromForm() {
         Problem problem = new Problem();
         problem.setTitle(titleField.getText().trim().isEmpty() ? "Bài tập mới" : titleField.getText().trim());
-        problem.setDifficulty(difficultyCombo.getSelectionModel().getSelectedItem());
+        String selDiff = difficultyCombo.getSelectionModel().getSelectedItem();
+        problem.setDifficulty(selDiff != null ? selDiff.replaceAll("[^0-9]", "") : "1");
         try {
             problem.setTimeLimitMs(Integer.parseInt(timeLimitField.getText().trim()));
         } catch (NumberFormatException e) {
@@ -1175,7 +1176,14 @@ public class TeacherProblemDialog extends Dialog<Problem> {
         if (problem == null) return;
         setTitle("Chỉnh sửa bài tập");
         titleField.setText(problem.getTitle() == null ? "" : problem.getTitle());
-        difficultyCombo.getSelectionModel().select(problem.getDifficulty());
+        String diffVal = problem.getDifficulty() == null ? "1" : problem.getDifficulty().replaceAll("[^0-9]", "");
+        if (diffVal.isEmpty()) {
+            if ("EASY".equalsIgnoreCase(problem.getDifficulty())) diffVal = "1";
+            else if ("MEDIUM".equalsIgnoreCase(problem.getDifficulty())) diffVal = "3";
+            else if ("HARD".equalsIgnoreCase(problem.getDifficulty())) diffVal = "5";
+            else diffVal = "1";
+        }
+        difficultyCombo.getSelectionModel().select(diffVal);
         timeLimitField.setText(String.valueOf(problem.getTimeLimitMs()));
         memoryLimitField.setText(String.valueOf(problem.getMemoryLimitKb()));
         descriptionArea.setText(problem.getDescription() == null ? "" : problem.getDescription());

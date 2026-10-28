@@ -1,5 +1,8 @@
 package com.grading.client.view;
 
+import atlantafx.base.theme.PrimerDark;
+import atlantafx.base.theme.PrimerLight;
+import javafx.application.Application;
 import javafx.scene.Scene;
 import java.net.URL;
 import java.util.ArrayList;
@@ -36,7 +39,8 @@ public class ThemeManager {
     private static final double MAX_ZOOM = 1.40;
     private static final double ZOOM_STEP = 0.10;
 
-    private ThemeManager() {}
+    private ThemeManager() {
+    }
 
     public static synchronized ThemeManager getInstance() {
         if (instance == null) {
@@ -71,7 +75,14 @@ public class ThemeManager {
     }
 
     public void applyTheme(Scene scene) {
-        if (scene == null) return;
+        // 1. Áp dụng AtlantaFX theme làm User Agent Stylesheet toàn hệ thống
+        if (currentTheme == Theme.DARK) {
+            Application.setUserAgentStylesheet(new PrimerDark().getUserAgentStylesheet());
+        } else {
+            Application.setUserAgentStylesheet(new PrimerLight().getUserAgentStylesheet());
+        }
+        if (scene == null)
+            return;
         String cssPath = (currentTheme == Theme.LIGHT) ? "/css/light.css" : "/css/dark.css";
         URL res = getClass().getResource(cssPath);
         if (res != null) {
@@ -112,17 +123,20 @@ public class ThemeManager {
         zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM,
                 Math.round(value * 10.0) / 10.0));
         for (javafx.stage.Window window : javafx.stage.Window.getWindows()) {
-            if (window.getScene() != null) applyZoom(window.getScene());
+            if (window.getScene() != null)
+                applyZoom(window.getScene());
         }
     }
 
     public void applyCurrentZoom(javafx.scene.Parent root) {
-        if (root == null) return;
+        if (root == null)
+            return;
         applyZoomStyle(root);
     }
 
     private void applyZoom(Scene scene) {
-        if (scene == null || scene.getRoot() == null) return;
+        if (scene == null || scene.getRoot() == null)
+            return;
         applyZoomStyle(scene.getRoot());
     }
 

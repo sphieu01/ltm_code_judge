@@ -541,7 +541,7 @@ public class AdminView extends BorderPane {
         colType.setStyle("-fx-alignment: CENTER;");
 
         TableColumn<Problem, String> colDiff = new TableColumn<>("Độ khó");
-        colDiff.setCellValueFactory(new PropertyValueFactory<>("difficulty"));
+        colDiff.setCellValueFactory(new PropertyValueFactory<>("formattedDifficulty"));
         colDiff.setMinWidth(90);
         colDiff.setPrefWidth(105);
         colDiff.setMaxWidth(125);

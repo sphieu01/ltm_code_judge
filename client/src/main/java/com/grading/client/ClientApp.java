@@ -37,6 +37,7 @@ public class ClientApp extends Application {
     @Override
     public void start(Stage stage) {
         this.primaryStage = stage;
+        com.grading.client.view.ThemeManager.getInstance().applyTheme(null);
 
         URL css = getClass().getResource("/css/style.css");
         if (css != null) {

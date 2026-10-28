@@ -610,7 +610,7 @@ public class DashboardController {
         Problem p1 = new Problem();
         p1.setId(1);
         p1.setTitle("Hello World");
-        p1.setDifficulty("EASY");
+        p1.setDifficulty("1");
         p1.setTimeLimitMs(2000);
         p1.setMemoryLimitKb(262144);
         p1.setDescription("In ra 'Hello, World!' (không có dấu ngoặc kép).\n\n**Input:** Không có input.\n\n**Output:** Một dòng duy nhất: `Hello, World!`");
@@ -619,7 +619,7 @@ public class DashboardController {
         Problem p2 = new Problem();
         p2.setId(2);
         p2.setTitle("Tổng hai số");
-        p2.setDifficulty("EASY");
+        p2.setDifficulty("1");
         p2.setTimeLimitMs(2000);
         p2.setMemoryLimitKb(262144);
         p2.setDescription("Cho hai số nguyên a và b, hãy in ra tổng của chúng.\n\n**Input:** Một dòng chứa hai số nguyên a và b (−10^9 ≤ a, b ≤ 10^9).\n\n**Output:** In ra một số nguyên duy nhất là a + b.");

@@ -348,7 +348,7 @@ public class ClientHandler implements Runnable {
             Problem p = new Problem();
             p.setTitle(data.get("title").getAsString());
             p.setDescription(data.get("description").getAsString());
-            p.setDifficulty(data.has("difficulty") ? data.get("difficulty").getAsString() : "MEDIUM");
+            p.setDifficulty(data.has("difficulty") ? String.valueOf(com.grading.server.repository.ProblemRepository.parseDifficulty(data.get("difficulty").getAsString())) : "1");
             p.setTimeLimitMs(data.has("timeLimitMs") ? data.get("timeLimitMs").getAsInt() : 1000);
             p.setMemoryLimitKb(data.has("memoryLimitKb") ? data.get("memoryLimitKb").getAsInt() : 524288);
             p.setCreatedBy(authenticatedUserId);
@@ -432,7 +432,7 @@ public class ClientHandler implements Runnable {
             p.setId(data.get("id").getAsInt());
             p.setTitle(data.get("title").getAsString().trim());
             p.setDescription(data.get("description").getAsString());
-            p.setDifficulty(data.has("difficulty") ? data.get("difficulty").getAsString() : "MEDIUM");
+            p.setDifficulty(data.has("difficulty") ? String.valueOf(com.grading.server.repository.ProblemRepository.parseDifficulty(data.get("difficulty").getAsString())) : "1");
             p.setTimeLimitMs(data.has("timeLimitMs") ? data.get("timeLimitMs").getAsInt() : 1000);
             p.setMemoryLimitKb(data.has("memoryLimitKb") ? data.get("memoryLimitKb").getAsInt() : 524288);
             if (data.has("classId") && !data.get("classId").isJsonNull()) p.setClassId(data.get("classId").getAsInt());

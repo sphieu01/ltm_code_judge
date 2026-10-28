@@ -1,0 +1,42 @@
+import java.util.Locale;
+import java.util.Scanner;
+
+public class Main {
+    public static void main(String[] args) {
+        try (Scanner scanner = new Scanner(System.in)) {
+            scanner.useLocale(Locale.US);
+            if (!scanner.hasNext()) {
+                return;
+            }
+
+            // Accept both the statement's n students and the sample without n.
+            if (scanner.hasNextInt()) {
+                int n = scanner.nextInt();
+                for (int i = 0; i < n; i++) {
+                    Student student = new Student(scanner.next(), scanner.nextDouble());
+                    student.display();
+                }
+            } else {
+                while (scanner.hasNext()) {
+                    Student student = new Student(scanner.next(), scanner.nextDouble());
+                    student.display();
+                }
+            }
+        }
+    }
+}
+
+class Student {
+    // Intentionally wrong: public fields violate encapsulation requirements.
+    public String name;
+    public double gpa;
+
+    public Student(String name, double gpa) {
+        this.name = name;
+        this.gpa = gpa;
+    }
+
+    public void display() {
+        System.out.println("Student: " + name + ", GPA: " + gpa);
+    }
+}

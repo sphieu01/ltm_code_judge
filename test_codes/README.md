@@ -4,6 +4,10 @@ Thư mục này chứa đầy đủ các file code mẫu cho 3 ngôn ngữ (**Ja
 
 ---
 
+## Mẫu Quản lý sinh viên Java OOP
+
+Xem [java/student_oop/README.md](java/student_oop/README.md): gồm `ac/Main.java` đúng cấu trúc OOP và `oop_violation/Main.java` có output giống hệt nhưng vi phạm đóng gói (`public` thay vì `private`).
+
 ## 📂 Cấu trúc thư mục
 
 ```

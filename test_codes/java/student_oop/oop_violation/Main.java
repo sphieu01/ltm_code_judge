@@ -9,7 +9,6 @@ public class Main {
                 return;
             }
 
-            // Accept both the statement's n students and the sample without n.
             if (scanner.hasNextInt()) {
                 int n = scanner.nextInt();
                 for (int i = 0; i < n; i++) {
@@ -26,10 +25,10 @@ public class Main {
     }
 }
 
+// VI PHẠM: Dồn class Student vào cùng 1 file Main.java (không tách ra Student.java)
 class Student {
-    // Intentionally wrong: public fields violate encapsulation requirements.
-    public String name;
-    public double gpa;
+    private String name;
+    private double gpa;
 
     public Student(String name, double gpa) {
         this.name = name;

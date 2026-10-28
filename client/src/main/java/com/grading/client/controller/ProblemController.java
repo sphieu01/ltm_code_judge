@@ -642,8 +642,14 @@ public class ProblemController {
                         String sourceCode = obj.has("sourceCode") && !obj.get("sourceCode").isJsonNull()
                                 ? obj.get("sourceCode").getAsString() : null;
                         boolean isZip = obj.has("isZip") && !obj.get("isZip").isJsonNull() && obj.get("isZip").getAsBoolean();
+                        String compileOutput = null;
+                        if (obj.has("compileOutput") && !obj.get("compileOutput").isJsonNull()) {
+                            compileOutput = obj.get("compileOutput").getAsString();
+                        } else if (obj.has("compile_output") && !obj.get("compile_output").isJsonNull()) {
+                            compileOutput = obj.get("compile_output").getAsString();
+                        }
 
-                        view.appendSubmissionHistory(title, time, verdict, sourceCode, isZip);
+                        view.appendSubmissionHistory(title, time, verdict, sourceCode, isZip, compileOutput);
                     }
                 }
             });

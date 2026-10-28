@@ -288,6 +288,21 @@ public class ProblemView extends BorderPane {
                 Label pill = new Label(item);
                 pill.setMinWidth(Region.USE_PREF_SIZE);
                 applyPillStyle(pill, item);
+
+                int idx = getIndex();
+                if (idx >= 0 && idx < getTableView().getItems().size()) {
+                    SubmissionHistoryRow row = getTableView().getItems().get(idx);
+                    boolean isCe = item.toUpperCase().contains("COMPILE") || item.toUpperCase().contains("CE");
+                    if (isCe || (row.compileOutput() != null && !row.compileOutput().isBlank())) {
+                        pill.setCursor(javafx.scene.Cursor.HAND);
+                        pill.setTooltip(new Tooltip("Bấm vào đây để xem chi tiết lỗi máy chấm"));
+                        pill.setOnMouseClicked(event -> {
+                            event.consume();
+                            showCompileErrorDialog(row.compileOutput(), row.verdict());
+                        });
+                    }
+                }
+
                 setGraphic(pill);
                 setText(null);
             }
@@ -325,20 +340,29 @@ public class ProblemView extends BorderPane {
     }
 
     public void appendSubmissionHistory(String title, String timestamp, String verdict, String sourceCode) {
-        appendSubmissionHistory(title, timestamp, verdict, sourceCode, false);
+        appendSubmissionHistory(title, timestamp, verdict, sourceCode, false, null);
     }
 
     public void appendSubmissionHistory(String title, String timestamp, String verdict, String sourceCode,
             boolean isZip) {
-        historyRows.add(new SubmissionHistoryRow(title, formatTimestamp(timestamp), verdict, sourceCode, isZip));
+        appendSubmissionHistory(title, timestamp, verdict, sourceCode, isZip, null);
+    }
+
+    public void appendSubmissionHistory(String title, String timestamp, String verdict, String sourceCode,
+            boolean isZip, String compileOutput) {
+        historyRows.add(new SubmissionHistoryRow(title, formatTimestamp(timestamp), verdict, sourceCode, isZip, compileOutput));
     }
 
     public void addSubmissionHistory(String title, String timestamp, String verdict, String sourceCode) {
-        addSubmissionHistory(title, timestamp, verdict, sourceCode, false);
+        addSubmissionHistory(title, timestamp, verdict, sourceCode, false, null);
     }
 
     public void addSubmissionHistory(String title, String timestamp, String verdict, String sourceCode, boolean isZip) {
-        historyRows.add(0, new SubmissionHistoryRow(title, formatTimestamp(timestamp), verdict, sourceCode, isZip));
+        addSubmissionHistory(title, timestamp, verdict, sourceCode, isZip, null);
+    }
+
+    public void addSubmissionHistory(String title, String timestamp, String verdict, String sourceCode, boolean isZip, String compileOutput) {
+        historyRows.add(0, new SubmissionHistoryRow(title, formatTimestamp(timestamp), verdict, sourceCode, isZip, compileOutput));
     }
 
     private void showSubmittedCode(SubmissionHistoryRow row) {
@@ -350,6 +374,34 @@ public class ProblemView extends BorderPane {
                 row.sourceCode(),
                 row.isZip());
         viewer.showAndWait();
+    }
+
+    private void showCompileErrorDialog(String compileError, String verdict) {
+        if (compileError == null || compileError.trim().isEmpty()) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Thông tin lỗi");
+            alert.setHeaderText("Không có chi tiết lỗi biên dịch");
+            alert.setContentText("Bài nộp không ghi nhận thông báo lỗi chi tiết.");
+            alert.showAndWait();
+            return;
+        }
+
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        if (compileError.contains("[OOP_VIOLATION]")) {
+            alert.setTitle("Lỗi vi phạm cấu trúc OOP");
+            alert.setHeaderText("❌ KHÔNG ĐẠT CẤU TRÚC HƯỚNG ĐỐI TƯỢNG (CE)\n(Bài làm không được đưa vào chạy test case)");
+        } else {
+            alert.setTitle("Lỗi biên dịch");
+            alert.setHeaderText("Biên dịch thất bại: " + (verdict != null ? verdict : "CE"));
+        }
+        TextArea area = new TextArea(compileError);
+        area.setEditable(false);
+        area.setWrapText(true);
+        area.setPrefRowCount(12);
+        area.setPrefWidth(600);
+        area.setStyle("-fx-font-family: 'JetBrains Mono', Consolas, monospace; -fx-font-size: 12px;");
+        alert.getDialogPane().setContent(area);
+        alert.showAndWait();
     }
 
     private String formatTimestamp(String timestamp) {
@@ -901,27 +953,11 @@ public class ProblemView extends BorderPane {
         String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         String probTitle = (currentProblem != null) ? currentProblem.getTitle() : "BÀI TẬP";
 
-        addSubmissionHistory(probTitle, nowStr, verdict, getCode());
+        addSubmissionHistory(probTitle, nowStr, verdict, getCode(), isZipSubmission, compileError);
 
-        // Nếu có lỗi biên dịch, hiển thị popup thông báo chi tiết
+        // Nếu có lỗi biên dịch hoặc vi phạm cấu trúc OOP, hiển thị popup thông báo chi tiết
         if (compileError != null && !compileError.trim().isEmpty()) {
-            Alert alert = new Alert(Alert.AlertType.ERROR);
-            if (compileError.contains("[OOP_VIOLATION]")) {
-                alert.setTitle("Lỗi vi phạm cấu trúc OOP");
-                alert.setHeaderText(
-                        "❌ KHÔNG ĐẠT CẤU TRÚC HƯỚNG ĐỐI TƯỢNG (CE)\n(Bài làm không được đưa vào chạy test case)");
-            } else {
-                alert.setTitle("Lỗi biên dịch");
-                alert.setHeaderText("Biên dịch thất bại: " + verdict);
-            }
-            TextArea area = new TextArea(compileError);
-            area.setEditable(false);
-            area.setWrapText(true);
-            area.setPrefRowCount(12);
-            area.setPrefWidth(600);
-            area.setStyle("-fx-font-family: 'JetBrains Mono', Consolas, monospace; -fx-font-size: 12px;");
-            alert.getDialogPane().setContent(area);
-            alert.show();
+            showCompileErrorDialog(compileError, verdict);
         }
     }
 
@@ -1145,6 +1181,6 @@ public class ProblemView extends BorderPane {
     }
 
     private record SubmissionHistoryRow(String title, String timestamp, String verdict, String sourceCode,
-            boolean isZip) {
+            boolean isZip, String compileOutput) {
     }
 }

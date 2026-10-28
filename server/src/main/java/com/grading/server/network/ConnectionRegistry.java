@@ -257,7 +257,8 @@ public class ConnectionRegistry {
                 submission.getTotalTests(),
                 submission.getExecTimeMs(),
                 submission.getMemoryUsedKb(),
-                submission.getJudgedAt()
+                submission.getJudgedAt(),
+                submission.getCompileOutput()
         );
     }
 
@@ -272,10 +273,12 @@ public class ConnectionRegistry {
         final int execTimeMs;
         final int memoryUsedKb;
         final String judgedAt;
+        final String compileError;
 
         NotificationData(int submissionId, int problemId, String verdict,
                          int score, int passedTests, int totalTests,
-                         int execTimeMs, int memoryUsedKb, String judgedAt) {
+                         int execTimeMs, int memoryUsedKb, String judgedAt,
+                         String compileError) {
             this.submissionId = submissionId;
             this.problemId = problemId;
             this.verdict = verdict;
@@ -285,6 +288,7 @@ public class ConnectionRegistry {
             this.execTimeMs = execTimeMs;
             this.memoryUsedKb = memoryUsedKb;
             this.judgedAt = judgedAt;
+            this.compileError = compileError;
         }
     }
 }

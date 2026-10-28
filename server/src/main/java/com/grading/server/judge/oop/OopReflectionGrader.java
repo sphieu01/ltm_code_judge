@@ -11,6 +11,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -46,6 +47,28 @@ public class OopReflectionGrader {
             return OopCheckResult.pass();
         }
 
+        // 0. Kiểm tra cấu trúc file mã nguồn (Source file layout enforcement)
+        // Mỗi class/interface được đặc tả trong oop_spec bắt buộc phải có file .java riêng biệt.
+        for (OopSpec.ClassSpec classSpec : spec.getClasses()) {
+            if (classSpec.getName() == null || classSpec.getName().isBlank()) continue;
+            String expectedFileName = classSpec.getName().trim() + ".java";
+            File sourceFile = findSourceFile(workDir, expectedFileName);
+            if (sourceFile == null || !sourceFile.exists()) {
+                return OopCheckResult.fail("Class/Interface '" + classSpec.getName().trim()
+                        + "' phải được định nghĩa trong file riêng biệt '" + expectedFileName + "'.");
+            }
+        }
+
+        // Kiểm tra tính độc lập của file Main.java (hoặc file chạy chính):
+        // File Main.java chỉ được chứa class Main, không được chứa thêm các class/interface phụ.
+        File mainFile = findSourceFile(workDir, "Main.java");
+        if (mainFile != null && mainFile.exists()) {
+            String violation = checkMainFileOnlyContainsMain(mainFile);
+            if (violation != null) {
+                return OopCheckResult.fail(violation);
+            }
+        }
+
         try {
             URL[] urls = new URL[]{ workDir.toURI().toURL() };
             try (URLClassLoader classLoader = new URLClassLoader(urls, Thread.currentThread().getContextClassLoader())) {
@@ -58,6 +81,12 @@ public class OopReflectionGrader {
                         clazz = Class.forName(classSpec.getName().trim(), true, classLoader);
                     } catch (ClassNotFoundException e) {
                         return OopCheckResult.fail("Không tìm thấy class '" + classSpec.getName() + "'. Hãy đảm bảo khai báo đúng tên lớp.");
+                    }
+
+                    // 1.1. Kiểm tra modifier public cho file class độc lập
+                    if (!Modifier.isPublic(clazz.getModifiers())) {
+                        return OopCheckResult.fail("Class/Interface '" + classSpec.getName()
+                                + "' phải được khai báo với access modifier là 'public'.");
                     }
 
                     // 2. Kiểm tra loại Class (Interface / Abstract Class / Concrete Class)
@@ -272,4 +301,63 @@ public class OopReflectionGrader {
 
         return false;
     }
+
+    /**
+     * Tìm file mã nguồn trong thư mục workDir (hỗ trợ tìm trực tiếp hoặc trong thư mục con nếu nén zip có thư mục gốc).
+     */
+    private static File findSourceFile(File dir, String fileName) {
+        if (dir == null || !dir.exists()) return null;
+        File direct = new File(dir, fileName);
+        if (direct.exists() && direct.isFile()) return direct;
+
+        File[] files = dir.listFiles();
+        if (files != null) {
+            for (File f : files) {
+                if (f.isDirectory()) {
+                    File found = findSourceFile(f, fileName);
+                    if (found != null) return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Kiểm tra nội dung file Main.java.
+     * File Main.java chỉ được chứa class Main, nghiêm cấm khai báo thêm bất kỳ class/interface độc lập nào khác.
+     */
+    private static String checkMainFileOnlyContainsMain(File mainFile) {
+        try {
+            String content = java.nio.file.Files.readString(mainFile.toPath(), java.nio.charset.StandardCharsets.UTF_8);
+
+            // Loại bỏ chuỗi ký tự ("...") và comment (/*...*/ và //...) để tránh match nhầm
+            String sanitized = content
+                    .replaceAll("\"(\\\\.|[^\"])*\"", "\"\"")
+                    .replaceAll("/\\*[\\s\\S]*?\\*/", "")
+                    .replaceAll("//.*", "");
+
+            // Tìm các khai báo top-level hoặc package-private class/interface/enum
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                    "(?:^|\\s)(?:public\\s+|abstract\\s+|final\\s+)*(class|interface|enum)\\s+(\\w+)"
+            );
+            java.util.regex.Matcher matcher = pattern.matcher(sanitized);
+
+            List<String> declaredTypes = new ArrayList<>();
+            while (matcher.find()) {
+                String typeName = matcher.group(2);
+                declaredTypes.add(typeName);
+            }
+
+            for (String typeName : declaredTypes) {
+                if (!typeName.equals("Main")) {
+                    return "File 'Main.java' chỉ được chứa class 'Main'. Lớp/giao diện '" + typeName
+                            + "' phải được tách ra thành file riêng biệt '" + typeName + ".java'.";
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Không thể đọc và phân tích file Main.java: {}", e.getMessage());
+        }
+        return null;
+    }
 }
+

@@ -1010,3 +1010,40 @@
 .root .table-view .column-header .label {
     -fx-font-size: 1em;
 }
+
+/* ===== TAB PANE FLAT STYLING ===== */
+.tab-pane {
+    -fx-tab-min-height: 32px;
+    -fx-tab-max-height: 32px;
+}
+.tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: -bg-surface;
+    -fx-border-color: transparent transparent -border-subtle transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.tab-pane .tab {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4 4 0 0;
+    -fx-padding: 6 16 6 16;
+    -fx-cursor: hand;
+}
+.tab-pane .tab:selected {
+    -fx-background-color: -bg-editor;
+    -fx-border-color: -accent transparent transparent transparent;
+    -fx-border-width: 2 0 0 0;
+}
+.tab-pane .tab .tab-label {
+    -fx-text-fill: -text-secondary;
+    -fx-font-size: 12.5px;
+}
+.tab-pane .tab:selected .tab-label {
+    -fx-text-fill: -text-bright;
+    -fx-font-weight: bold;
+}
+.tab-pane .tab:hover .tab-label {
+    -fx-text-fill: -text-bright;
+}
+.tab-pane:focused .tab-header-area .headers-region .tab:selected .focus-indicator {
+    -fx-border-color: transparent;
+}

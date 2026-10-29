@@ -450,15 +450,38 @@ public class AcademicRepository {
 
     public void assignProblemsToClass(int classId, List<Integer> problemIds) throws SQLException {
         if (problemIds == null || problemIds.isEmpty()) return;
-        String sql = "INSERT INTO class_problems (class_id, problem_id) VALUES (?, ?) ON CONFLICT (class_id, problem_id) DO NOTHING";
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            for (int pid : problemIds) {
-                stmt.setInt(1, classId);
-                stmt.setInt(2, pid);
-                stmt.addBatch();
+        try (Connection conn = DatabaseConfig.getConnection()) {
+            assignProblemsToClass(conn, classId, problemIds);
+        }
+    }
+
+    static void assignProblemsToClass(Connection conn, int classId, List<Integer> problemIds) throws SQLException {
+        String checkSql = "SELECT is_active FROM problems WHERE id = ? FOR SHARE";
+        String insertSql = "INSERT INTO class_problems (class_id, problem_id) VALUES (?, ?) " +
+                "ON CONFLICT (class_id, problem_id) DO NOTHING";
+        conn.setAutoCommit(false);
+        try (PreparedStatement check = conn.prepareStatement(checkSql);
+             PreparedStatement insert = conn.prepareStatement(insertSql)) {
+            for (int pid : problemIds.stream().distinct().toList()) {
+                check.setInt(1, pid);
+                try (ResultSet rs = check.executeQuery()) {
+                    if (!rs.next()) {
+                        throw new IllegalArgumentException("Bài tập #" + pid + " không tồn tại.");
+                    }
+                    if (rs.getObject("is_active") != null && !rs.getBoolean("is_active")) {
+                        throw new IllegalArgumentException("Bài tập #" + pid + " đang bị ẩn, không thể gán vào lớp.");
+                    }
+                }
+                insert.setInt(1, classId);
+                insert.setInt(2, pid);
+                insert.executeUpdate();
             }
-            stmt.executeBatch();
+            conn.commit();
+        } catch (SQLException | RuntimeException e) {
+            conn.rollback();
+            throw e;
+        } finally {
+            conn.setAutoCommit(true);
         }
     }
 

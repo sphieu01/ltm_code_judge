@@ -8,6 +8,11 @@ Thư mục này chứa đầy đủ các file code mẫu cho 3 ngôn ngữ (**Ja
 
 Xem [java/student_oop/README.md](java/student_oop/README.md): gồm `ac/Main.java` đúng cấu trúc OOP và `oop_violation/Main.java` có output giống hệt nhưng vi phạm đóng gói (`public` thay vì `private`).
 
+## Mẫu Quản lý sách Java OOP (hai thuộc tính)
+
+Xem [java/book_oop/README.md](java/book_oop/README.md): đề mô tả rõ constructor, getter/setter và `toString()`;
+có bốn bài nộp kèm ZIP gồm một bài AC và ba bài lỗi OOP (thiếu constructor, setter sai, `toString()` rỗng dù Main in đúng output).
+
 ## 📂 Cấu trúc thư mục
 
 ```

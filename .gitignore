@@ -45,6 +45,7 @@ TOREAD.md
 **/TOREAD.md
 
 test_data/
+/test_codes/java/book_oop/problem/
 AGENTS.md
 local/
 .env

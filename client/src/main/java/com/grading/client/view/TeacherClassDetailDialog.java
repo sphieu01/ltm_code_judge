@@ -175,9 +175,9 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         });
         studentTable.getColumns().addAll(username, name, solved, actions);
         studentTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        VBox.setVgrow(studentTable, Priority.ALWAYS);
+        TableViewSupport.fitHeightToRows(studentTable, 12);
+        VBox.setVgrow(studentTable, Priority.NEVER);
         box.getChildren().addAll(importBtn, studentTable);
-        VBox.setVgrow(box, Priority.ALWAYS);
         studentsTab = new Tab("Sinh viên (" + creditClass.getStudentCount() + ")", box);
         return studentsTab;
     }
@@ -253,10 +253,10 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
 
         classProblemTable.getColumns().addAll(idCol, titleCol, typeCol, diffCol, actionCol);
         classProblemTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-        VBox.setVgrow(classProblemTable, Priority.ALWAYS);
+        TableViewSupport.fitHeightToRows(classProblemTable, 12);
+        VBox.setVgrow(classProblemTable, Priority.NEVER);
 
         box.getChildren().addAll(topBar, classProblemTable);
-        VBox.setVgrow(box, Priority.ALWAYS);
 
         classProblemsTab = new Tab("Bài tập của lớp (" + problems.size() + ")", box);
         return classProblemsTab;
@@ -510,7 +510,8 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
             });
             return row;
         });
-        VBox.setVgrow(problemTable, Priority.ALWAYS);
+        TableViewSupport.fitHeightToRows(problemTable, 8);
+        VBox.setVgrow(problemTable, Priority.NEVER);
 
         createAssessmentButton.addEventFilter(javafx.event.ActionEvent.ACTION, e -> {
             e.consume();
@@ -552,7 +553,6 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
                     }));
         });
         box.getChildren().addAll(config, validation, problemTable);
-        VBox.setVgrow(problemTable, Priority.ALWAYS);
         return new Tab("Tạo bài kiểm tra", box);
     }
 
@@ -585,8 +585,9 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         HBox header = new HBox(10, existingTitle, new Region(), refresh);
         HBox.setHgrow(header.getChildren().get(1), Priority.ALWAYS);
         header.setAlignment(Pos.CENTER_LEFT);
+        TableViewSupport.fitHeightToRows(assessmentTable, 10);
+        VBox.setVgrow(assessmentTable, Priority.NEVER);
         box.getChildren().addAll(header, hint, assessmentTable);
-        VBox.setVgrow(assessmentTable, Priority.ALWAYS);
         return new Tab("Giám sát kiểm tra", box);
     }
 

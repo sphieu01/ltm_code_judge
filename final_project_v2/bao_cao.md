@@ -135,11 +135,11 @@ Thực nghiệm kiểm chứng xác nhận động cơ phân loại chính xác 
 Đặc biệt, cơ chế cách ly luồng phát huy hiệu quả khi gặp bài nộp lặp vô hạn. Trong mô hình tuần tự, một bài nộp treo cứng làm tê liệt toàn bộ hệ thống suốt thời gian chờ. Trong kiến trúc đề xuất, bài nộp quá hạn chỉ chiếm một luồng công nhân và bị ngắt cưỡng chế sau hai giây; ba công nhân còn lại vẫn chấm và trả kết quả liên tục, loại bỏ hoàn toàn nguy cơ nghẽn dây chuyền. Với bài tập hướng đối tượng, bộ chấm phản xạ động bắt chính xác lỗi vi phạm đóng gói và sai lệch phương thức mà phương pháp so khớp chuỗi console không thể xử lý.
 4.4 Phân tích và đánh đổi kỹ thuật
 a. Đánh đổi giữa chi phí tài nguyên và mức độ cách ly an toàn
-Bảo đảm an toàn thực thi mã nguồn sinh viên đặt ra bài toán đánh đổi giữa mức độ cách ly và độ trễ thực thi. Cách ly bằng bộ chứa Docker cung cấp môi trường độc lập hoàn toàn với hệ thống tệp và mạng máy chủ, nhưng tiêu hao tài nguyên khởi tạo và làm tăng độ trễ mỗi bài nộp lên hàng trăm mili-giây.
-Hệ thống giải quyết vấn đề bằng chiến lược phòng thủ hai tầng phối hợp: bộ quét tĩnh SecurityScanner lọc mã độc ở cấp độ cú pháp trước khi biên dịch, đi kèm cơ chế cô lập tiến trình ProcessBuilder cục bộ có giới hạn tài nguyên nghiêm ngặt. Cách tiếp cận này loại bỏ chi phí khởi động bộ chứa, duy trì độ trễ khởi chạy ở mức vài chục mili-giây, đồng thời vẫn bảo vệ máy chủ an toàn trước các mã độc phá hoại trong môi trường học đường.
+Bảo đảm an toàn thực thi đặt ra bài toán đánh đổi giữa mức độ cách ly và độ trễ. Cách ly bằng bộ chứa Docker cung cấp môi trường độc lập hoàn toàn với hệ thống tệp và mạng, nhưng tiêu hao tài nguyên khởi tạo và làm tăng độ trễ mỗi bài nộp lên hàng trăm mili-giây.
+Hệ thống giải quyết bằng chiến lược phòng thủ hai tầng: bộ quét tĩnh SecurityScanner lọc mã độc ở cấp độ cú pháp trước khi biên dịch, đi kèm cơ chế cô lập tiến trình ProcessBuilder cục bộ có giới hạn tài nguyên nghiêm ngặt. Cách tiếp cận này loại bỏ chi phí khởi động bộ chứa, duy trì độ trễ khởi chạy ở mức vài chục mili-giây, bảo vệ máy chủ an toàn trước các mã độc thông thường.
 b. Đánh đổi giữa đơn giản hóa kiến trúc mạng và khả năng mở rộng phân tán
-Hàng đợi nội bộ LinkedBlockingQueue mang lại lợi thế gọn nhẹ, loại bỏ độ trễ mạng phụ và không yêu cầu phần mềm trung gian trong phòng máy thực hành. Đổi lại, khả năng mở rộng bị giới hạn bởi tài nguyên phần cứng của một nút máy chủ vật lý duy nhất. Khi số lượng thí sinh vượt quá năng lực phục vụ của một máy chủ, hệ thống đòi hỏi cơ chế đồng bộ trạng thái socket phức tạp hơn.
-Tuy nhiên, với quy mô phòng máy thực hành từ vài chục đến vài trăm máy trạm, việc tối ưu trên một máy chủ độc lập là sự đánh đổi hoàn toàn hợp lý. Thiết kế này giúp triển khai đơn giản, vận hành khép kín không phụ thuộc dịch vụ ngoài và khai thác tối đa năng lực phần cứng đa nhân sẵn có.
+Hàng đợi nội bộ LinkedBlockingQueue mang lại lợi thế gọn nhẹ, loại bỏ độ trễ mạng phụ và không yêu cầu phần mềm trung gian. Đổi lại, khả năng mở rộng bị giới hạn bởi tài nguyên của một máy chủ vật lý. Khi số lượng thí sinh vượt quá năng lực máy chủ đơn lẻ, hệ thống đòi hỏi cơ chế đồng bộ trạng thái socket phức tạp hơn.
+Tuy nhiên, với quy mô phòng máy từ vài chục đến vài trăm máy trạm, việc tối ưu trên một máy chủ độc lập là sự đánh đổi hợp lý. Thiết kế này giúp triển khai đơn giản, vận hành khép kín không phụ thuộc dịch vụ ngoài và khai thác tối đa năng lực phần cứng đa nhân.
 
 5. KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN
 5.1 Tổng kết kết quả đạt được
@@ -153,6 +153,16 @@ Bảng 5.1: Tổng hợp đóng góp kỹ thuật cốt lõi và bằng chứng 
 | Thông báo đẩy thời gian thực | ConnectionRegistry lưu socket và phát gói PUSH_RESULT | Loại bỏ 100 phần trăm thăm dò HTTP, độ trễ nhận dưới 10 mili-giây |
 | Động cơ chấm OOP hai pha | Soi chiếu bytecode và nạp động URLClassLoader kiểm thử | Đánh giá chính xác bao gói, kế thừa và đa hình không cần console |
 5.3 Những hạn chế tồn tại của hệ thống
-Hệ thống còn ba hạn chế: vận hành trên một máy chủ đơn lẻ chưa hỗ trợ cân bằng tải cụm; chấm bài dựa trên tiến trình cục bộ thay vì container cách ly hạt nhân; và động cơ phản xạ động chuyên sâu mới hỗ trợ ngôn ngữ Java, các ngôn ngữ C, C++ và Python mới dừng ở mức so khớp luồng nhập xuất.
+Hệ thống còn ba hạn chế: vận hành trên máy chủ đơn lẻ chưa hỗ trợ cụm phân tán; chấm bài dựa trên tiến trình cục bộ thay vì container cách ly hạt nhân; và động cơ phản xạ động mới hỗ trợ Java, các ngôn ngữ C, C++ và Python mới dừng ở mức so khớp luồng nhập xuất.
 5.4 Hướng nghiên cứu và phát triển tiếp theo
-Hướng phát triển tiếp theo gồm: mở rộng cụm máy chấm phân tán theo mô hình điều phối động, tích hợp ảo hóa siêu nhẹ WebAssembly hoặc container tối giản để tăng cường an toàn thực thi đa nền tảng, và mở rộng động cơ phản xạ động sang các ngôn ngữ hướng đối tượng như Python và C Sharp.
+Hướng phát triển tiếp theo gồm: mở rộng cụm máy chấm phân tán điều phối động, tích hợp ảo hóa WebAssembly hoặc container tối giản tăng cường an toàn thực thi, và mở rộng động cơ phản xạ động sang các ngôn ngữ hướng đối tượng như Python và C Sharp.
+
+TÀI LIỆU THAM KHẢO
+1. Oracle Corporation, Java Platform Standard Edition 17 Documentation, 2021.
+2. PostgreSQL Global Development Group, PostgreSQL 16 Documentation, 2023.
+3. W. Richard Stevens, UNIX Network Programming: The Sockets Networking API, Prentice Hall, 2003.
+
+PHỤ LỤC
+Phụ lục A: Bảng tra cứu chi tiết tập mã lệnh giao thức mạng.
+Phụ lục B: Lược đồ cơ sở dữ liệu quan hệ hệ thống.
+Phụ lục C: Mẫu đặc tả bài toán OOP và cấu hình ca kiểm thử động.

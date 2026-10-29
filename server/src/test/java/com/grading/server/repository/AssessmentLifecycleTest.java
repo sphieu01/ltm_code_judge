@@ -85,19 +85,103 @@ class AssessmentLifecycleTest {
     }
 
     @Test
-    void expiryRemovesStartedAttemptFromActiveContextAndRejectsReentry() throws Exception {
+    void expiryCompletesStartedAttemptAndRejectsReentry() throws Exception {
         Fixture fixture = new Fixture(NOW);
         fixture.repository.start(1, 7);
         fixture.clock.advanceSeconds(30 * 60);
 
         JsonObject expired = fixture.summary();
-        assertEquals("EXPIRED", expired.get("status").getAsString());
+        assertEquals("COMPLETED", expired.get("status").getAsString());
+        assertTrue(expired.get("completed").getAsBoolean());
+        assertEquals(NOW.plusMinutes(30).toString(), expired.get("completedAt").getAsString());
         assertEquals(0, expired.get("remainingSeconds").getAsLong());
         assertNull(fixture.repository.findActiveForStudent(7, null));
         assertThrows(IllegalArgumentException.class, () -> fixture.repository.start(1, 7));
-        // Students can still explicitly finish an expired attempt and return to practice.
+        // A late client completion must preserve the actual deadline.
+        fixture.clock.advanceSeconds(60);
         fixture.repository.complete(1, 7);
         assertEquals("COMPLETED", fixture.summary().get("status").getAsString());
+        assertEquals(Timestamp.valueOf(NOW.plusMinutes(30)), fixture.database.completedAt);
+    }
+
+    @Test
+    void serverFinalizesAnOfflineAttemptWithoutAnySubmissionsAtTheDeadline() throws Exception {
+        Fixture fixture = new Fixture(NOW);
+        fixture.database.startedAt = Timestamp.valueOf(NOW.plusMinutes(5));
+        fixture.clock.advanceSeconds(30 * 60 - 1);
+        assertEquals(0, fixture.repository.completeExpiredAttempts());
+        assertNull(fixture.database.completedAt);
+
+        fixture.clock.advanceSeconds(1);
+        assertEquals(1, fixture.repository.completeExpiredAttempts());
+        assertEquals(Timestamp.valueOf(NOW.plusMinutes(30)), fixture.database.completedAt);
+        assertEquals("COMPLETED", fixture.summary().get("status").getAsString());
+        assertEquals(0, fixture.summary().get("submittedCount").getAsInt());
+        assertEquals(0, fixture.repository.completeExpiredAttempts(), "Expiry processing must be idempotent");
+    }
+
+    @Test
+    void scheduledClosingTimeCanEndAttemptBeforeItsDuration() throws Exception {
+        Fixture fixture = new Fixture(NOW);
+        fixture.database.closesAt = NOW.plusMinutes(10);
+        fixture.repository.start(1, 7);
+        fixture.clock.advanceSeconds(10 * 60);
+
+        assertEquals(1, fixture.repository.completeExpiredAttempts());
+        assertEquals(Timestamp.valueOf(NOW.plusMinutes(10)), fixture.database.completedAt);
+        assertEquals("COMPLETED", fixture.summary().get("status").getAsString());
+    }
+
+    @Test
+    void expiryDoesNotCompleteStudentsWhoNeverStartedOrChangeManualCompletionTime() throws Exception {
+        Fixture absent = new Fixture(NOW.minusHours(2));
+        assertEquals(0, absent.repository.completeExpiredAttempts());
+        assertEquals("EXPIRED", absent.summary().get("status").getAsString());
+        assertFalse(absent.summary().get("completed").getAsBoolean());
+        assertNull(absent.database.startedAt);
+        assertNull(absent.database.completedAt);
+
+        Fixture finished = new Fixture(NOW);
+        finished.repository.start(1, 7);
+        finished.clock.advanceSeconds(60);
+        finished.repository.complete(1, 7);
+        Timestamp manualCompletion = finished.database.completedAt;
+        finished.clock.advanceSeconds(60 * 60);
+        assertEquals(0, finished.repository.completeExpiredAttempts());
+        assertEquals(manualCompletion, finished.database.completedAt);
+    }
+
+    @Test
+    void openingTeacherHistoryRepairsOldExpiredAttemptAndShowsCompletedWithZeroSubmissions() throws Exception {
+        Fixture fixture = new Fixture(NOW.minusDays(2));
+        fixture.database.startedAt = Timestamp.valueOf(NOW.minusDays(2).plusMinutes(3));
+
+        JsonObject monitor = fixture.repository.getMonitor(1, 9);
+
+        assertEquals("EXPIRED", monitor.get("status").getAsString(), "The exam itself has ended");
+        JsonObject participated = monitor.getAsJsonArray("progress").get(0).getAsJsonObject();
+        assertTrue(participated.get("started").getAsBoolean());
+        assertTrue(participated.get("completed").getAsBoolean());
+        assertEquals(NOW.minusDays(2).plusMinutes(30).toString(), participated.get("completedAt").getAsString());
+        assertEquals(0, participated.get("submittedCount").getAsInt());
+        assertTrue(monitor.getAsJsonArray("submissions").isEmpty(), "Finishing must not invent code submissions");
+        JsonObject absent = monitor.getAsJsonArray("progress").get(1).getAsJsonObject();
+        assertFalse(absent.get("started").getAsBoolean());
+        assertFalse(absent.get("completed").getAsBoolean());
+        assertEquals(Timestamp.valueOf(NOW.minusDays(2).plusMinutes(30)), fixture.database.completedAt);
+    }
+
+    @Test
+    void teacherClassHistoryIncludesAutomaticCompletionsInItsTotals() throws Exception {
+        Fixture fixture = new Fixture(NOW.minusHours(2));
+        fixture.database.startedAt = Timestamp.valueOf(NOW.minusHours(2));
+
+        JsonObject exam = fixture.repository.findByClass(5, 9).get(0).getAsJsonObject();
+
+        assertEquals(2, exam.get("studentCount").getAsInt());
+        assertEquals(1, exam.get("startedCount").getAsInt());
+        assertEquals(1, exam.get("completedCount").getAsInt());
+        assertEquals("EXPIRED", exam.get("status").getAsString());
     }
 
     @Test
@@ -206,6 +290,7 @@ class AssessmentLifecycleTest {
     /** A JDBC protocol stub: stores attempts and rows, leaving lifecycle decisions to the repository. */
     private static final class MemoryDatabase {
         private final LocalDateTime opensAt;
+        private LocalDateTime closesAt;
         private Timestamp startedAt;
         private Timestamp completedAt;
         private String courseLanguage = "java";
@@ -213,7 +298,10 @@ class AssessmentLifecycleTest {
         private Timestamp lastSubmittedAt;
         private final List<String> queries = new ArrayList<>();
 
-        MemoryDatabase(LocalDateTime opensAt) { this.opensAt = opensAt; }
+        MemoryDatabase(LocalDateTime opensAt) {
+            this.opensAt = opensAt;
+            this.closesAt = opensAt.plusHours(1);
+        }
 
         Connection connection() {
             return proxy(Connection.class, (object, method, args) -> switch (method.getName()) {
@@ -242,8 +330,21 @@ class AssessmentLifecycleTest {
         List<Map<String, Object>> query(String sql, Map<Integer, Object> parameters) {
             queries.add(sql);
             if (sql.startsWith("SELECT COUNT(")) {
-                return List.of(row("count", sql.contains("assessment_problems") ? 1 : 0));
+                int count = sql.contains("assessment_problems") ? 1
+                        : sql.contains("completed_at IS NOT NULL") ? (completedAt == null ? 0 : 1)
+                        : sql.contains("FROM assessment_attempts") ? (startedAt == null ? 0 : 1)
+                        : sql.contains("FROM class_enrollments") ? 2 : 0;
+                return List.of(row("count", count));
             }
+            if (sql.startsWith("SELECT u.id,u.username")) {
+                return List.of(row("id", 7, "username", "student7", "full_name", "Minh Chung",
+                                "started_at", startedAt, "completed_at", completedAt,
+                                "submitted_count", 0, "solved_count", 0, "last_submission_at", null),
+                        row("id", 8, "username", "student8", "full_name", "Absent student",
+                                "started_at", null, "completed_at", null,
+                                "submitted_count", 0, "solved_count", 0, "last_submission_at", null));
+            }
+            if (sql.contains("FROM submissions s JOIN users")) return List.of();
             if (sql.startsWith("SELECT started_at,completed_at")) {
                 return startedAt == null ? List.of() : List.of(row("started_at", startedAt, "completed_at", completedAt));
             }
@@ -263,13 +364,13 @@ class AssessmentLifecycleTest {
                 if (!Integer.valueOf(1).equals(parameters.get(1)) || !Integer.valueOf(7).equals(parameters.get(2)))
                     return List.of();
                 return List.of(row("opens_at", Timestamp.valueOf(opensAt),
-                        "closes_at", Timestamp.valueOf(opensAt.plusHours(1)), "duration_minutes", 30));
+                        "closes_at", Timestamp.valueOf(closesAt), "duration_minutes", 30));
             }
             if (sql.contains("FROM assessments a JOIN classes cl")) {
                 Map<String, Object> assessment = row("id", 1, "class_id", 5, "title", "Midterm", "class_code", "CS101",
                         "class_name", "Class 5", "course_name", "Programming", "course_lang", courseLanguage,
                         "allowed_languages", "c,cpp,java,python", "opens_at", Timestamp.valueOf(opensAt),
-                        "closes_at", Timestamp.valueOf(opensAt.plusHours(1)), "duration_minutes", 30,
+                        "closes_at", Timestamp.valueOf(closesAt), "duration_minutes", 30,
                         "problem_count", 1, "submitted_count", 0, "started_at", startedAt, "completed_at", completedAt);
                 if (sql.contains("LIMIT 1")) return List.of(assessment);
                 List<Map<String, Object>> records = new ArrayList<>();
@@ -280,6 +381,15 @@ class AssessmentLifecycleTest {
         }
 
         int update(String sql, Map<Integer, Object> parameters) {
+            if (sql.startsWith("UPDATE assessment_attempts aa SET")) {
+                if (startedAt == null || completedAt != null) return 0;
+                LocalDateTime deadline = closesAt.isBefore(opensAt.plusMinutes(30)) ? closesAt : opensAt.plusMinutes(30);
+                if (((Timestamp) parameters.get(1)).toLocalDateTime().isBefore(deadline)) return 0;
+                if (sql.contains("AND a.class_id=?") && !Integer.valueOf(5).equals(parameters.get(2))) return 0;
+                if (sql.contains("AND a.id=?") && !Integer.valueOf(1).equals(parameters.get(2))) return 0;
+                completedAt = Timestamp.valueOf(deadline);
+                return 1;
+            }
             if (sql.startsWith("INSERT INTO assessment_attempts")) {
                 if (startedAt != null) return 0;
                 startedAt = (Timestamp) parameters.get(3);
@@ -288,7 +398,11 @@ class AssessmentLifecycleTest {
             if (sql.startsWith("UPDATE assessment_attempts")) {
                 if (startedAt == null || !Integer.valueOf(1).equals(parameters.get(2))
                         || !Integer.valueOf(7).equals(parameters.get(3))) return 0;
-                if (completedAt == null) completedAt = (Timestamp) parameters.get(1);
+                if (completedAt == null) {
+                    LocalDateTime requested = ((Timestamp) parameters.get(1)).toLocalDateTime();
+                    LocalDateTime deadline = closesAt.isBefore(opensAt.plusMinutes(30)) ? closesAt : opensAt.plusMinutes(30);
+                    completedAt = Timestamp.valueOf(requested.isBefore(deadline) ? requested : deadline);
+                }
                 return 1;
             }
             throw new UnsupportedOperationException(sql);

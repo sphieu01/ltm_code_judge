@@ -32,15 +32,16 @@ public class TeacherEditAssessmentDialog extends Dialog<Boolean> {
     private final TeacherClassDetailView.AssessmentRow assessment;
     private final CreditClass creditClass;
     private final ObservableList<Problem> problems = FXCollections.observableArrayList();
+    private final Set<Integer> selectedProblemIds = new HashSet<>();
     private final SocketClient client = SessionManager.getInstance().getSocketClient();
+    private TableView<Problem> problemTable;
+    private Button saveButton;
+    private final Label validation = new Label();
 
-    public TeacherEditAssessmentDialog(Stage owner, TeacherClassDetailView.AssessmentRow assessment, CreditClass creditClass, List<Problem> classProblems) {
+    public TeacherEditAssessmentDialog(Stage owner, TeacherClassDetailView.AssessmentRow assessment, CreditClass creditClass) {
         this.owner = owner;
         this.assessment = assessment;
         this.creditClass = creditClass;
-        if (classProblems != null) {
-            this.problems.setAll(classProblems.stream().map(Problem::new).toList());
-        }
 
         initOwner(owner);
         setTitle("Sửa bài kiểm tra - " + assessment.title());
@@ -98,10 +99,11 @@ public class TeacherEditAssessmentDialog extends Dialog<Boolean> {
         durationBox.setAlignment(Pos.CENTER_LEFT);
         config.add(durationBox, 1, 2);
 
-        Label validation = new Label();
         validation.setStyle("-fx-text-fill: #ef4444; -fx-font-size: 12.5px;");
 
-        TableView<Problem> problemTable = new TableView<>(problems);
+        problemTable = new TableView<>(problems);
+        problemTable.setPlaceholder(new Label("Đang tải kho bài tập..."));
+        problemTable.setDisable(true);
         problemTable.getStyleClass().add("table-view");
         TableColumn<Problem, String> colTitle = new TableColumn<>("Bài tập");
         colTitle.setCellValueFactory(new PropertyValueFactory<>("title"));
@@ -117,13 +119,16 @@ public class TeacherEditAssessmentDialog extends Dialog<Boolean> {
         colChoose.setMinWidth(90);
         colChoose.setMaxWidth(110);
         colChoose.setStyle("-fx-alignment: CENTER;");
-        colChoose.setCellValueFactory(data -> new SimpleBooleanProperty(data.getValue().isActive()));
+        colChoose.setCellValueFactory(data -> new SimpleBooleanProperty(selectedProblemIds.contains(data.getValue().getId())));
         colChoose.setCellFactory(col -> new TableCell<>() {
             private final CheckBox check = new CheckBox();
             {
                 check.setOnAction(e -> {
                     Problem p = getTableView().getItems().get(getIndex());
-                    if (p != null) p.setActive(check.isSelected());
+                    if (p != null) {
+                        if (check.isSelected()) selectedProblemIds.add(p.getId());
+                        else selectedProblemIds.remove(p.getId());
+                    }
                 });
             }
             @Override protected void updateItem(Boolean item, boolean empty) {
@@ -141,7 +146,9 @@ public class TeacherEditAssessmentDialog extends Dialog<Boolean> {
         problemTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         VBox.setVgrow(problemTable, Priority.ALWAYS);
 
-        box.getChildren().addAll(config, problemTable, validation);
+        Label bankHint = new Label("Chọn bài từ toàn bộ kho bài tập, bao gồm bài ẩn và bài chưa gán vào lớp.");
+        bankHint.getStyleClass().add("meta-item");
+        box.getChildren().addAll(config, bankHint, problemTable, validation);
         pane.setContent(box);
 
         ButtonType saveType = new ButtonType("Lưu thay đổi", ButtonBar.ButtonData.OK_DONE);
@@ -149,6 +156,8 @@ public class TeacherEditAssessmentDialog extends Dialog<Boolean> {
         pane.getButtonTypes().addAll(saveType, cancelType);
 
         Button saveBtn = (Button) pane.lookupButton(saveType);
+        saveButton = saveBtn;
+        saveBtn.setDisable(true);
         saveBtn.getStyleClass().addAll("button", "btn-primary");
         Button cancelBtn = (Button) pane.lookupButton(cancelType);
         cancelBtn.getStyleClass().addAll("button", "btn-secondary");
@@ -177,7 +186,7 @@ public class TeacherEditAssessmentDialog extends Dialog<Boolean> {
             }
 
             JsonArray selectedIds = new JsonArray();
-            problems.stream().filter(Problem::isActive).forEach(p -> selectedIds.add(p.getId()));
+            problems.stream().filter(p -> selectedProblemIds.contains(p.getId())).forEach(p -> selectedIds.add(p.getId()));
             if (selectedIds.isEmpty()) {
                 validation.setText("Hãy chọn ít nhất một bài tập cho bài kiểm tra.");
                 event.consume();
@@ -202,22 +211,42 @@ public class TeacherEditAssessmentDialog extends Dialog<Boolean> {
     }
 
     private void loadExistingProblems() {
-        if (client == null || !client.isConnected()) return;
+        if (client == null || !client.isConnected()) {
+            validation.setText("Chưa kết nối đến máy chủ.");
+            return;
+        }
+        client.getProblems(0, response -> Platform.runLater(() -> {
+            if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null
+                    || !response.getData().isJsonArray()) {
+                problemTable.setPlaceholder(new Label("Không thể tải kho bài tập. Hãy đóng và mở lại cửa sổ."));
+                validation.setText("Không thể tải kho bài tập. Hãy đóng và mở lại cửa sổ.");
+                return;
+            }
+            com.google.gson.Gson gson = new com.google.gson.Gson();
+            for (var element : response.getData().getAsJsonArray()) {
+                problems.add(gson.fromJson(element, Problem.class));
+            }
+            loadSelectedProblems();
+        }));
+    }
+
+    private void loadSelectedProblems() {
         client.getAssessmentMonitor(assessment.id(), response -> Platform.runLater(() -> {
             if ("SUCCESS".equalsIgnoreCase(response.getStatus()) && response.getData() != null && response.getData().isJsonObject()) {
                 var data = response.getData().getAsJsonObject();
                 if (data.has("problems") && data.get("problems").isJsonArray()) {
-                    Set<Integer> activeProblemIds = new HashSet<>();
                     for (var el : data.getAsJsonArray("problems")) {
                         if (el.isJsonObject() && el.getAsJsonObject().has("id")) {
-                            activeProblemIds.add(el.getAsJsonObject().get("id").getAsInt());
+                            selectedProblemIds.add(el.getAsJsonObject().get("id").getAsInt());
                         }
                     }
-                    for (Problem p : problems) {
-                        p.setActive(activeProblemIds.contains(p.getId()));
-                    }
+                    problemTable.refresh();
+                    problemTable.setDisable(false);
+                    saveButton.setDisable(false);
+                    return;
                 }
             }
+            validation.setText("Không thể tải các bài đã chọn. Hãy đóng và mở lại cửa sổ.");
         }));
     }
 

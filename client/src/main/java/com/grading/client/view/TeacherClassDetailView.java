@@ -37,6 +37,8 @@ public class TeacherClassDetailView extends BorderPane {
     private final SocketClient client = SessionManager.getInstance().getSocketClient();
     private final ObservableList<User.UserDTO> students = FXCollections.observableArrayList();
     private final ObservableList<Problem> problems = FXCollections.observableArrayList();
+    private final ObservableList<Problem> assessmentProblems = FXCollections.observableArrayList();
+    private final Set<Integer> selectedAssessmentProblemIds = new HashSet<>();
     private final ObservableList<AlertRow> alerts = FXCollections.observableArrayList();
     private final ObservableList<AssessmentRow> assessments = FXCollections.observableArrayList();
     private final Set<Integer> studentIds = new HashSet<>();
@@ -59,6 +61,7 @@ public class TeacherClassDetailView extends BorderPane {
         buildLayout();
         loadStudents();
         loadProblems();
+        loadAssessmentProblems();
         loadAssessments();
     }
 
@@ -306,6 +309,7 @@ public class TeacherClassDetailView extends BorderPane {
         info.setStyle("-fx-font-weight: bold; -fx-text-fill: -text-bright;");
 
         ObservableList<Problem> allProblems = FXCollections.observableArrayList();
+        Set<Integer> selectedProblemIds = new HashSet<>();
         Set<Integer> currentProblemIds = new HashSet<>();
         for (Problem p : problems) currentProblemIds.add(p.getId());
 
@@ -316,11 +320,15 @@ public class TeacherClassDetailView extends BorderPane {
         checkCol.setMinWidth(70);
         checkCol.setMaxWidth(80);
         checkCol.setStyle("-fx-alignment: CENTER;");
-        checkCol.setCellValueFactory(data -> new javafx.beans.property.SimpleBooleanProperty(data.getValue().isActive()));
+        checkCol.setCellValueFactory(data -> new javafx.beans.property.SimpleBooleanProperty(selectedProblemIds.contains(data.getValue().getId())));
         checkCol.setCellFactory(col -> new TableCell<>() {
             private final CheckBox check = new CheckBox();
             {
-                check.setOnAction(e -> getTableView().getItems().get(getIndex()).setActive(check.isSelected()));
+                check.setOnAction(e -> {
+                    int id = getTableView().getItems().get(getIndex()).getId();
+                    if (check.isSelected()) selectedProblemIds.add(id);
+                    else selectedProblemIds.remove(id);
+                });
             }
             @Override
             protected void updateItem(Boolean item, boolean empty) {
@@ -375,6 +383,7 @@ public class TeacherClassDetailView extends BorderPane {
                 List<Problem> list = new ArrayList<>();
                 for (JsonElement el : response.getData().getAsJsonArray()) {
                     JsonObject o = el.getAsJsonObject();
+                    if (o.has("active") && !o.get("active").isJsonNull() && !o.get("active").getAsBoolean()) continue;
                     int pid = o.has("id") ? o.get("id").getAsInt() : 0;
                     if (currentProblemIds.contains(pid)) continue;
                     Problem p = new Problem();
@@ -382,13 +391,14 @@ public class TeacherClassDetailView extends BorderPane {
                     if (o.has("title")) p.setTitle(o.get("title").getAsString());
                     if (o.has("difficulty")) p.setDifficulty(o.get("difficulty").getAsString());
                     if (o.has("problemType")) p.setProblemType(o.get("problemType").getAsString());
-                    p.setActive(false);
                     list.add(p);
                 }
                 allProblems.setAll(list);
                 if (list.isEmpty()) {
-                    table.setPlaceholder(new Label("Tất cả bài tập trong kho đã được gán vào lớp này."));
+                    table.setPlaceholder(new Label("Không có bài tập đang hiển thị nào chưa được gán vào lớp này."));
                 }
+            } else {
+                table.setPlaceholder(new Label("Không thể tải danh sách bài tập."));
             }
         }));
 
@@ -396,7 +406,7 @@ public class TeacherClassDetailView extends BorderPane {
             if (btn == assignType) {
                 List<Integer> selectedIds = new ArrayList<>();
                 for (Problem p : allProblems) {
-                    if (p.isActive()) selectedIds.add(p.getId());
+                    if (selectedProblemIds.contains(p.getId())) selectedIds.add(p.getId());
                 }
                 return selectedIds;
             }
@@ -461,7 +471,8 @@ public class TeacherClassDetailView extends BorderPane {
         Label validation = new Label();
         validation.setStyle("-fx-text-fill: #ef4444; -fx-font-size: 12.5px;");
 
-        problemTable = new TableView<>(problems);
+        problemTable = new TableView<>(assessmentProblems);
+        problemTable.setPlaceholder(new Label("Đang tải kho bài tập..."));
         problemTable.getStyleClass().add("table-view");
         TableColumn<Problem, String> problemTitle = new TableColumn<>("Bài tập");
         problemTitle.setCellValueFactory(new PropertyValueFactory<>("title"));
@@ -493,10 +504,14 @@ public class TeacherClassDetailView extends BorderPane {
         choose.setMinWidth(90);
         choose.setMaxWidth(110);
         choose.setStyle("-fx-alignment: CENTER;");
-        choose.setCellValueFactory(data -> new javafx.beans.property.SimpleBooleanProperty(data.getValue().isActive()));
+        choose.setCellValueFactory(data -> new javafx.beans.property.SimpleBooleanProperty(selectedAssessmentProblemIds.contains(data.getValue().getId())));
         choose.setCellFactory(col -> new TableCell<>() {
             private final CheckBox check = new CheckBox();
-            { check.setOnAction(e -> getTableView().getItems().get(getIndex()).setActive(check.isSelected())); }
+            { check.setOnAction(e -> {
+                int id = getTableView().getItems().get(getIndex()).getId();
+                if (check.isSelected()) selectedAssessmentProblemIds.add(id);
+                else selectedAssessmentProblemIds.remove(id);
+            }); }
             @Override protected void updateItem(Boolean item, boolean empty) {
                 super.updateItem(item, empty);
                 if (empty) setGraphic(null);
@@ -535,7 +550,7 @@ public class TeacherClassDetailView extends BorderPane {
                 return;
             }
             JsonArray selectedIds = new JsonArray();
-            problems.stream().filter(Problem::isActive).forEach(p -> selectedIds.add(p.getId()));
+            assessmentProblems.stream().filter(p -> selectedAssessmentProblemIds.contains(p.getId())).forEach(p -> selectedIds.add(p.getId()));
             if (selectedIds.isEmpty()) {
                 validation.setText("Hãy chọn ít nhất một bài tập.");
                 return;
@@ -560,7 +575,9 @@ public class TeacherClassDetailView extends BorderPane {
         HBox actionFooter = new HBox(12, createAssessmentButton, validation);
         actionFooter.setAlignment(Pos.CENTER_LEFT);
 
-        box.getChildren().addAll(config, problemTable, actionFooter);
+        Label bankHint = new Label("Chọn bài từ toàn bộ kho bài tập, bao gồm bài ẩn và bài chưa gán vào lớp.");
+        bankHint.getStyleClass().add("meta-item");
+        box.getChildren().addAll(config, bankHint, problemTable, actionFooter);
         return new Tab("Tạo bài kiểm tra", box);
     }
 
@@ -656,7 +673,7 @@ public class TeacherClassDetailView extends BorderPane {
 
     private void handleEditAssessment(AssessmentRow row) {
         if (row == null) return;
-        TeacherEditAssessmentDialog dialog = new TeacherEditAssessmentDialog(owner, row, creditClass, problems);
+        TeacherEditAssessmentDialog dialog = new TeacherEditAssessmentDialog(owner, row, creditClass);
         dialog.showAndWait().ifPresent(success -> {
             if (success) {
                 loadAssessments();
@@ -815,13 +832,30 @@ public class TeacherClassDetailView extends BorderPane {
                 if (o.has("difficulty")) p.setDifficulty(o.get("difficulty").getAsString());
                 if (o.has("problemType")) p.setProblemType(o.get("problemType").getAsString());
                 if (o.has("oopSpec") && !o.get("oopSpec").isJsonNull()) p.setOopSpec(o.get("oopSpec").getAsString());
-                p.setActive(false);
                 list.add(p);
             }
             problems.setAll(list);
             if (classProblemsTab != null) {
                 classProblemsTab.setText("Bài tập của lớp (" + list.size() + ")");
             }
+        }));
+    }
+
+    private void loadAssessmentProblems() {
+        if (client == null || !client.isConnected()) return;
+        client.getProblems(0, response -> Platform.runLater(() -> {
+            if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null
+                    || !response.getData().isJsonArray()) {
+                problemTable.setPlaceholder(new Label("Không thể tải kho bài tập."));
+                return;
+            }
+            List<Problem> list = new ArrayList<>();
+            com.google.gson.Gson gson = new com.google.gson.Gson();
+            for (JsonElement element : response.getData().getAsJsonArray()) {
+                list.add(gson.fromJson(element, Problem.class));
+            }
+            assessmentProblems.setAll(list);
+            problemTable.setPlaceholder(new Label("Kho bài tập chưa có bài nào."));
         }));
     }
 

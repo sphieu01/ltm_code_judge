@@ -302,11 +302,15 @@ public class ClientHandler implements Runnable {
             } else {
                 JsonObject activeAssessment = academicService.getActiveAssessment(authenticatedUserId, null);
                 if (activeAssessment != null) {
-                    int assessmentClassId = activeAssessment.get("classId").getAsInt();
-                    java.util.Set<Integer> allowed = new java.util.HashSet<>();
-                    for (var id : activeAssessment.getAsJsonArray("problemIds")) allowed.add(id.getAsInt());
-                    problems = problemService.getProblemsByClassForStudent(assessmentClassId).stream()
-                            .filter(problem -> allowed.contains(problem.getId())).toList();
+                    JsonArray assessmentProblems = activeAssessment.getAsJsonArray("problems").deepCopy();
+                    for (var element : assessmentProblems) {
+                        JsonObject row = element.getAsJsonObject();
+                        row.addProperty("status", row.has("verdict") && !row.get("verdict").isJsonNull()
+                                ? row.get("verdict").getAsString() : "");
+                    }
+                    send(Message.success(MessageType.GET_PROBLEMS_RESPONSE, request.getRequestId(),
+                            "OK", assessmentProblems));
+                    return;
                 } else {
                     problems = (classId > 0)
                             ? problemService.getProblemsByClassForStudent(classId)

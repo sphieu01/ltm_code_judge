@@ -16,6 +16,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.sql.SQLException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * ServerApp — Entry point của Server Core.
@@ -83,6 +86,20 @@ public class ServerApp {
         com.grading.server.service.AcademicService academicService = new com.grading.server.service.AcademicService(academicRepository);
         com.grading.server.service.ProctorService proctorService = new com.grading.server.service.ProctorService();
 
+        // Persist deadline completions without relying on a connected student client.
+        var assessmentExpiryScheduler = Executors.newSingleThreadScheduledExecutor(task -> {
+            Thread thread = new Thread(task, "assessment-expiry");
+            thread.setDaemon(true);
+            return thread;
+        });
+        assessmentExpiryScheduler.scheduleWithFixedDelay(() -> {
+            try {
+                academicService.completeExpiredAssessmentAttempts();
+            } catch (SQLException | RuntimeException e) {
+                logger.error("Could not finalize expired assessment attempts; will retry", e);
+            }
+        }, 0, 5, TimeUnit.SECONDS);
+
         // ── 4. Judge Worker Pool ──────────────────────────────────────────────
         JudgeWorkerPool workerPool = new JudgeWorkerPool(
                 judgeQueue,
@@ -107,6 +124,7 @@ public class ServerApp {
             logger.info("Shutdown signal received, cleaning up...");
 
             socketServer.stop();        // Dừng accept loop + drain handler threads
+            assessmentExpiryScheduler.shutdownNow();
             workerPool.shutdown();      // Dừng judge workers (in metrics)
             DatabaseConfig.close();     // Đóng HikariCP pool
 

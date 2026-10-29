@@ -290,6 +290,7 @@ public class AssessmentRepository {
         JsonArray result = new JsonArray();
         LocalDateTime now = LocalDateTime.now(clock);
         try (Connection conn = connections.open(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+            completeExpiredAttempts(conn, now, classId, null);
             stmt.setInt(1, classId);
             stmt.setInt(2, teacherId);
             stmt.setInt(3, teacherId);
@@ -320,7 +321,9 @@ public class AssessmentRepository {
             try (ResultSet rs = stmt.executeQuery()) {
                 if (!rs.next()) throw new IllegalArgumentException("Không tìm thấy bài kiểm tra hoặc bạn không có quyền xem.");
                 int classId = rs.getInt("class_id");
-                JsonObject result = mapAssessment(conn, rs, null, LocalDateTime.now(clock), false);
+                LocalDateTime now = LocalDateTime.now(clock);
+                completeExpiredAttempts(conn, now, null, assessmentId);
+                JsonObject result = mapAssessment(conn, rs, null, now, false);
                 result.add("progress", findProgress(conn, assessmentId, classId));
                 result.add("submissions", findSubmissions(conn, assessmentId));
                 return result;
@@ -396,14 +399,39 @@ public class AssessmentRepository {
     }
 
     public void complete(int assessmentId, int studentId) throws SQLException {
-        String sql = "UPDATE assessment_attempts SET completed_at=COALESCE(completed_at,?) " +
-                "WHERE assessment_id=? AND student_id=?";
+        String sql = "UPDATE assessment_attempts SET completed_at=COALESCE(completed_at," +
+                "LEAST(?,a.closes_at,a.opens_at+a.duration_minutes*INTERVAL '1 minute')) " +
+                "FROM assessments a WHERE assessment_id=a.id AND assessment_id=? AND student_id=?";
         try (Connection conn = connections.open(); PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setTimestamp(1, Timestamp.valueOf(LocalDateTime.now(clock)));
             stmt.setInt(2, assessmentId);
             stmt.setInt(3, studentId);
             if (stmt.executeUpdate() != 1)
                 throw new IllegalArgumentException("Bài kiểm tra chưa được bắt đầu.");
+        }
+    }
+
+    /** Finalizes started attempts even when the student's client is disconnected. */
+    public int completeExpiredAttempts() throws SQLException {
+        try (Connection conn = connections.open()) {
+            return completeExpiredAttempts(conn, LocalDateTime.now(clock), null, null);
+        }
+    }
+
+    private int completeExpiredAttempts(Connection conn, LocalDateTime now,
+                                        Integer classId, Integer assessmentId) throws SQLException {
+        String deadline = "LEAST(a.closes_at,a.opens_at+a.duration_minutes*INTERVAL '1 minute')";
+        String sql = "UPDATE assessment_attempts aa SET completed_at=" + deadline +
+                " FROM assessments a WHERE aa.assessment_id=a.id AND aa.completed_at IS NULL " +
+                "AND " + deadline + "<=?" +
+                (classId == null ? "" : " AND a.class_id=?") +
+                (assessmentId == null ? "" : " AND a.id=?");
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setTimestamp(1, Timestamp.valueOf(now));
+            int parameter = 2;
+            if (classId != null) stmt.setInt(parameter++, classId);
+            if (assessmentId != null) stmt.setInt(parameter, assessmentId);
+            return stmt.executeUpdate();
         }
     }
 
@@ -437,7 +465,10 @@ public class AssessmentRepository {
         long remainingSeconds = Math.max(0, java.time.Duration.between(now, effectiveClose).getSeconds());
 
         boolean started = attempt != null;
-        boolean completed = attempt != null && attempt[1] != null;
+        LocalDateTime completedAt = attempt == null ? null
+                : attempt[1] != null ? attempt[1].toLocalDateTime()
+                : !now.isBefore(effectiveClose) ? effectiveClose : null;
+        boolean completed = completedAt != null;
         String status = completed ? "COMPLETED"
                 : now.isBefore(opensAt) ? "UPCOMING"
                 : now.isBefore(effectiveClose) ? "ACTIVE" : "EXPIRED";
@@ -465,8 +496,8 @@ public class AssessmentRepository {
         result.addProperty("started", started);
         if (attempt != null && attempt[0] != null)
             result.addProperty("startedAt", attempt[0].toLocalDateTime().toString());
-        if (attempt != null && attempt[1] != null)
-            result.addProperty("completedAt", attempt[1].toLocalDateTime().toString());
+        if (completedAt != null)
+            result.addProperty("completedAt", completedAt.toString());
         return result;
     }
 

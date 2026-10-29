@@ -198,6 +198,10 @@ public class AcademicService {
         assessmentRepository.complete(assessmentId, studentId);
     }
 
+    public int completeExpiredAssessmentAttempts() throws SQLException {
+        return assessmentRepository.completeExpiredAttempts();
+    }
+
     public Integer getActiveAssessmentIdForProblem(int studentId, int problemId) throws SQLException {
         return assessmentRepository.findActiveAssessmentIdForProblem(studentId, problemId);
     }

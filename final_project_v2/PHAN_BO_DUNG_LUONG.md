@@ -5,7 +5,7 @@ PHẦN MỞ ĐẦU: 250 từ (chiếm 4%). Bao gồm nhận xét giảng viên, 
 
 1. TỔNG QUAN: 750 từ (chiếm 12.5%). Trình bày bối cảnh nghiên cứu, phát biểu bài toán, mục tiêu đề tài và các đóng góp chính.
 
-2. CÁC NGHIÊN CỨU LIÊN QUAN VÀ CƠ SỞ LÝ THUYẾT: 750 từ (chiếm 12.5%). Trình bày cơ sở lý thuyết socket TCP, đóng khung thông điệp JSON, xử lý đồng thời, khảo sát các hệ thống Online Judge hiện có và phân tích hạn chế.
+2. CÁC NGHIÊN CỨU LIÊN QUAN VÀ CƠ SỞ LÝ THUYẾT: 750 từ (chiếm 12.5%). Trình bày ngắn gọn cơ sở lý thuyết mạng socket, khảo sát Codeforces, LeetCode, phân tích bất cập của hệ thống Code PTIT và định vị giải pháp đề xuất.
 
 3. PHƯƠNG PHÁP LUẬN VÀ THIẾT KẾ HỆ THỐNG: 1950 từ (chiếm 32.5%). Trọng tâm thiết kế kiến trúc hệ thống, giao thức truyền thông mạng Delimited JSON, từ điển Opcode, mô hình hàng đợi BlockingQueue kết hợp Worker Pool, kiểm soát tràn bộ đệm và phân tầng lưu trữ MinIO.
 

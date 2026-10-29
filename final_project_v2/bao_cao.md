@@ -140,3 +140,19 @@ Hệ thống giải quyết vấn đề bằng chiến lược phòng thủ hai 
 b. Đánh đổi giữa đơn giản hóa kiến trúc mạng và khả năng mở rộng phân tán
 Hàng đợi nội bộ LinkedBlockingQueue mang lại lợi thế gọn nhẹ, loại bỏ độ trễ mạng phụ và không yêu cầu phần mềm trung gian trong phòng máy thực hành. Đổi lại, khả năng mở rộng bị giới hạn bởi tài nguyên phần cứng của một nút máy chủ vật lý duy nhất. Khi số lượng thí sinh vượt quá năng lực phục vụ của một máy chủ, hệ thống đòi hỏi cơ chế đồng bộ trạng thái socket phức tạp hơn.
 Tuy nhiên, với quy mô phòng máy thực hành từ vài chục đến vài trăm máy trạm, việc tối ưu trên một máy chủ độc lập là sự đánh đổi hoàn toàn hợp lý. Thiết kế này giúp triển khai đơn giản, vận hành khép kín không phụ thuộc dịch vụ ngoài và khai thác tối đa năng lực phần cứng đa nhân sẵn có.
+
+5. KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN
+5.1 Tổng kết kết quả đạt được
+Đề tài hoàn thành thiết kế và hiện thực hóa hệ thống chấm mã nguồn tự động phân tán qua socket TCP trên cổng 9999. Hệ thống giải quyết hai điểm nghẽn kỹ thuật: loại bỏ lưu lượng thăm dò HTTP polling nhờ cơ chế đẩy kết quả thời gian thực hai chiều, đồng thời tự động hóa bài tập Java OOP bằng động cơ phản xạ động hai pha không phụ thuộc console. Hàng đợi nội bộ kết hợp nhóm công nhân song song và tầng phòng thủ kép giúp tối ưu thông lượng và bảo vệ máy chủ an toàn.
+5.2 Bảng tổng hợp đóng góp kỹ thuật và bằng chứng thực nghiệm
+Bảng 5.1: Tổng hợp đóng góp kỹ thuật cốt lõi và bằng chứng thực nghiệm
+| Đóng góp kỹ thuật | Giải pháp hiện thực | Bằng chứng thực nghiệm |
+| :--- | :--- | :--- |
+| Hàng đợi Producer-Consumer | LinkedBlockingQueue và 4 công nhân xử lý song song | Thông lượng tăng từ 38.3 lên 153.6 bài trên phút, tăng tốc 4.01 lần |
+| Cô lập luồng xử lý bài lỗi | SecurityScanner và ProcessBuilder ngắt sau hai giây | Thời gian chờ tối đa giảm từ 30983 xuống 7480 mili-giây |
+| Thông báo đẩy thời gian thực | ConnectionRegistry lưu socket và phát gói PUSH_RESULT | Loại bỏ 100 phần trăm thăm dò HTTP, độ trễ nhận dưới 10 mili-giây |
+| Động cơ chấm OOP hai pha | Soi chiếu bytecode và nạp động URLClassLoader kiểm thử | Đánh giá chính xác bao gói, kế thừa và đa hình không cần console |
+5.3 Những hạn chế tồn tại của hệ thống
+Hệ thống còn ba hạn chế: vận hành trên một máy chủ đơn lẻ chưa hỗ trợ cân bằng tải cụm; chấm bài dựa trên tiến trình cục bộ thay vì container cách ly hạt nhân; và động cơ phản xạ động chuyên sâu mới hỗ trợ ngôn ngữ Java, các ngôn ngữ C, C++ và Python mới dừng ở mức so khớp luồng nhập xuất.
+5.4 Hướng nghiên cứu và phát triển tiếp theo
+Hướng phát triển tiếp theo gồm: mở rộng cụm máy chấm phân tán theo mô hình điều phối động, tích hợp ảo hóa siêu nhẹ WebAssembly hoặc container tối giản để tăng cường an toàn thực thi đa nền tảng, và mở rộng động cơ phản xạ động sang các ngôn ngữ hướng đối tượng như Python và C Sharp.

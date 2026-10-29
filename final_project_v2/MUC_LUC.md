@@ -50,22 +50,20 @@ c. Thiết kế cơ chế phòng chống gian lận và xác thực chống gi�
 
 4. HIỆN THỰC HÓA VÀ ĐÁNH GIÁ THỰC NGHIỆM
 4.1 Hiện thực hóa các thành phần phần mềm cốt lõi
-a. Phân hệ máy chủ mạng đa luồng và điều phối kết nối
-b. Trình khách đồ họa JavaFX và xử lý phản hồi bất đồng bộ
-c. Động cơ chấm bài OOP hai pha sử dụng phản xạ động
-d. Cơ chế cách ly và giới hạn tài nguyên an toàn
+a. Máy chủ socket đa luồng và cơ chế thông báo đẩy
+b. Ứng dụng khách JavaFX và giao diện tương tác thời gian thực
+c. Động cơ chấm OOP hai pha và cơ chế cô lập an toàn
 4.2 Thiết lập môi trường và kịch bản thực nghiệm
-a. Môi trường phần cứng, hệ điều hành và nền tảng thực thi
-b. Bộ chỉ số đo lường hiệu năng mạng và xử lý
-c. Xây dựng 4 kịch bản thực nghiệm từ S1 đến S4
+a. Môi trường thực nghiệm và bộ chỉ số đo lường hiệu năng
+b. Thiết kế hai bộ thực nghiệm kiểm soát biến độc lập
 4.3 Kết quả thực nghiệm và đo lường định lượng
-a. So sánh thời gian phản hồi và thông lượng giữa mô hình tuần tự và hàng đợi đa luồng
-b. Mức độ tiêu thụ tài nguyên CPU, bộ nhớ dưới áp lực tải đồng thời
-c. Đánh giá tính chính xác và tỷ lệ bắt lỗi của động cơ chấm OOP
-4.4 Phân tích, thảo luận và đánh đổi kỹ thuật
+a. Hiệu năng mở rộng theo số lượng luồng chấm
+b. Năng lực chịu tải theo quy mô bài nộp và độ ổn định hàng đợi
+c. Đánh giá độ chính xác và khả năng xử lý bài nộp đặc thù
+4.4 Phân tích và đánh đổi kỹ thuật
 a. Đánh đổi giữa chi phí tài nguyên và mức độ cách ly an toàn
 b. Đánh đổi giữa đơn giản hóa kiến trúc mạng và khả năng mở rộng phân tán
-c. Phân tích nguyên nhân các trường hợp kiểm thử biên
+
 5. KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN
 5.1 Tổng kết kết quả đạt được
 5.2 Bảng tổng hợp các đóng góp kỹ thuật và bằng chứng thực nghiệm

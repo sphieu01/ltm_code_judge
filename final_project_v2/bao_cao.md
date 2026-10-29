@@ -86,3 +86,57 @@ b. Phân tầng lưu trữ tệp nguồn qua kho đối tượng MinIO
 Lưu trực tiếp mã nguồn lớn hoặc gói ZIP vào cơ sở dữ liệu quan hệ làm phình to bảng dữ liệu và nghẽn bộ đệm đọc ghi. Hệ thống áp dụng mô hình phân tầng: cơ sở dữ liệu chỉ lưu thông tin chỉ mục, điểm số và phán quyết; toàn bộ tệp nguồn và gói ZIP được đồng bộ bất đồng bộ sang kho đối tượng MinIO tương thích giao thức S3. Khóa định danh trên MinIO đặt theo quy tắc phân cấp mã bài tập và mã bài nộp. Thiết kế này giữ cơ sở dữ liệu nhẹ gọn, tăng tốc sao lưu và giúp máy chủ vận hành độc lập nếu MinIO tạm ngắt kết nối.
 c. Cơ chế phòng chống gian lận và bảo vệ kỳ thi
 Hệ thống thiết lập bảo vệ đa lớp cho các kỳ thi thực hành. Ở tầng mạng, mọi yêu cầu bắt buộc đính kèm token phiên hợp lệ gắn liền với địa chỉ IP máy trạm. Nếu phát hiện token dùng đồng thời từ hai IP khác nhau hoặc có dấu hiệu mạo danh máy thi, máy chủ lập tức hủy phiên và ghi nhận vi phạm. Ở tầng dữ liệu, hệ thống kiểm tra chữ ký băm tệp nguồn chống sửa đổi trên đường truyền, đồng thời từ chối mọi bài nộp gửi ngoài khung giờ thi hoặc không thuộc danh sách lớp tín chỉ.
+
+4. HIỆN THỰC HÓA VÀ ĐÁNH GIÁ THỰC NGHIỆM
+4.1 Hiện thực hóa các thành phần phần mềm cốt lõi
+a. Máy chủ socket đa luồng và cơ chế thông báo đẩy
+Máy chủ cài đặt trên Java 17 LTS, lắng nghe cổng TCP 9999 qua ServerSocket tiêu chuẩn. Lớp SocketServer dùng nhóm luồng cố định ExecutorService quản lý kết nối từ các máy trạm, giới hạn số luồng đồng thời nhằm chống quá tải bộ nhớ. Mỗi kết nối do một luồng ClientHandler độc lập tiếp nhận, sử dụng BufferedReader đọc từng dòng JSON và PrintWriter gửi dữ liệu phản hồi.
+Khi xác thực thành công, kênh socket được lưu vào bảng ánh xạ ConcurrentHashMap trong lớp ConnectionRegistry. Khi công nhân hoàn tất chấm bài, dịch vụ này tra cứu kênh socket theo tên người nộp và đẩy ngay gói tin kết quả qua kết nối mở sẵn, loại bỏ hoàn toàn cơ chế thăm dò trạng thái từ máy khách.
+b. Ứng dụng khách JavaFX và giao diện tương tác thời gian thực
+Ứng dụng khách xây dựng bằng JavaFX kết hợp thư viện AtlantaFX theo kiến trúc hướng sự kiện. Lớp SocketClient duy trì kênh TCP bền vững, điều hành luồng nền ListenerThread túc trực nhận gói tin mà không làm treo giao diện. Dữ liệu đẩy về được chuyển an toàn lên màn hình qua cơ chế Platform.runLater.
+[Hình 4.1: Giao diện sinh viên nộp bài và nhận kết quả phán quyết thời gian thực qua socket TCP]
+Giao diện ProblemView chia ba phân vùng: bên trái hiển thị đề bài và giới hạn tài nguyên; ở giữa là vùng soạn thảo mã nguồn kèm tính năng nộp tệp đơn hoặc gói ZIP; bên phải là bảng test case cập nhật trạng thái Accepted xanh lá ngay khi máy chủ đẩy dữ liệu về.
+[Hình 4.2: Giao diện giảng viên giám sát phòng thi và cảnh báo vi phạm trực tiếp]
+Giao diện TeacherAssessmentMonitorView cung cấp bảng theo dõi trực tiếp phòng thi: hiển thị danh sách thí sinh trực tuyến, điểm số lũy tiến từng câu và cảnh báo phát hiện gian lận khi sinh viên chuyển tab hoặc mất tiêu điểm cửa sổ.
+c. Động cơ chấm OOP hai pha và cơ chế cô lập an toàn
+Động cơ JudgeEngine sử dụng nhóm luồng JudgeWorker lấy bài nộp từ hàng đợi LinkedBlockingQueue. Với bài tập hướng đối tượng, lớp OopReflectionGrader thẩm định qua hai pha: Pha 1 dùng URLClassLoader nạp bytecode sau biên dịch để soi chiếu cấu trúc, kiểm tra tính bao gói của thuộc tính và đối chiếu chữ ký phương thức; Pha 2 khởi tạo đối tượng sống trong bộ nhớ và kích hoạt phương thức độc lập qua Java Reflection để kiểm tra tính đa hình và giá trị trả về mà không cần hàm main.
+Hệ thống kích hoạt hai tầng phòng thủ: lớp SecurityScanner quét tĩnh chuỗi mã nguồn bằng biểu thức chính quy để chặn các lời gọi nguy hiểm như Runtime.getRuntime, ProcessBuilder hoặc System.exit trước khi biên dịch; tầng thực thi SandboxRunner khởi chạy tiến trình con độc lập qua ProcessBuilder với giới hạn hai giây và 256 megabyte bộ nhớ, đi kèm luồng giám sát ngắt tiến trình tự động nếu xảy ra lặp vô hạn.
+4.2 Thiết lập môi trường và kịch bản thực nghiệm
+a. Môi trường thực nghiệm và bộ chỉ số đo lường hiệu năng
+Thực nghiệm triển khai trên máy trạm vi xử lý Intel Core đa nhân, bộ nhớ trong 16 gigabyte RAM, hệ điều hành Windows 11 64-bit và môi trường thực thi Java JDK 17. Bộ dữ liệu kiểm thử sử dụng bài toán tính toán với 5 ca kiểm thử độc lập và tập 5 mẫu mã nguồn đại diện cho các trường hợp: chạy đúng đạt điểm tối đa, sai kết quả, lặp vô hạn, lỗi ngoại lệ thời gian chạy và lỗi cú pháp biên dịch.
+Hệ thống thu thập bốn chỉ số định lượng: thời gian hoàn thành toàn bộ bài nộp tính bằng giây; thông lượng xử lý tính bằng số bài trên phút; thời gian chờ trung bình trong hàng đợi tính bằng mili-giây; và thời gian chờ tối đa của bài nộp cuối cùng trước khi được xử lý.
+b. Thiết kế hai bộ thực nghiệm kiểm soát biến độc lập
+Quá trình đo lường do lớp ExperimentRunner điều phối tuân thủ nguyên tắc kiểm soát biến độc lập qua hai bộ thực nghiệm:
+Bộ thực nghiệm 1 đánh giá khả năng mở rộng số luồng chấm. Cố định tải 20 bài nộp từ 5 máy khách đồng thời; biến thiên số công nhân máy chủ nhận các giá trị 1 công nhân cơ sở tuần tự, 2 công nhân, 4 công nhân mô hình đề xuất và 8 công nhân thăm dò bão hòa.
+Bộ thực nghiệm 2 đánh giá năng lực chịu tải quy mô bài nộp dồn dập. Cố định cấu hình 4 công nhân đề xuất; biến thiên số bài nộp nhận các giá trị 10 bài tải nhẹ, 20 bài tải trung bình, 40 bài tải cao và 60 bài tải nặng kiểm tra sức chịu đựng hàng đợi.
+4.3 Kết quả thực nghiệm và đo lường định lượng
+a. Hiệu năng mở rộng theo số lượng luồng chấm
+Kết quả đo đạc từ bộ thực nghiệm 1 chứng minh sự vượt trội của kiến trúc xử lý song song so với mô hình xử lý tuần tự khi cùng xử lý 20 bài nộp.
+Bảng 4.1: Ảnh hưởng của số lượng công nhân đến hiệu năng xử lý khi cố định 20 bài nộp
+| Kịch bản thực nghiệm | Số công nhân | Số bài nộp | Thời gian giây | Thông lượng bài trên phút | Thời gian chờ TB mili-giây | Thời gian chờ Max mili-giây | Hệ số tăng tốc |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| Kịch bản A1 cơ sở tuần tự | 1 | 20 | 31.36 | 38.3 | 16544.9 | 30983 | 1.00x |
+| Kịch bản A2 | 2 | 20 | 13.98 | 85.8 | 7174.2 | 13601 | 2.24x |
+| Kịch bản A3 mô hình đề xuất | 4 | 20 | 7.81 | 153.6 | 4227.2 | 7480 | 4.01x |
+| Kịch bản A4 | 8 | 20 | 6.69 | 179.4 | 3965.8 | 6372 | 4.69x |
+Số liệu Bảng 4.1 cho thấy khi tăng số công nhân từ 1 lên 4 theo mô hình đề xuất, thời gian hoàn thành giảm từ 31.36 giây xuống 7.81 giây, đạt hệ số tăng tốc 4.01 lần. Thông lượng xử lý tăng từ 38.3 lên 153.6 bài trên phút, tương đương mức tăng 301 phần trăm. Thời gian chờ trung bình trong hàng đợi giảm 74.5 phần trăm, từ 16544.9 mili-giây xuống 4227.2 mili-giây; thời gian chờ tối đa giảm từ 30983 mili-giây xuống 7480 mili-giây, cắt giảm hơn 23 giây nghẽn tắc. Nâng lên 8 công nhân, hiệu năng đạt 179.4 bài trên phút nhưng tốc độ tăng chậm lại do tiệm cận giới hạn lõi vật lý của vi xử lý.
+b. Năng lực chịu tải theo quy mô bài nộp và độ ổn định hàng đợi
+Kết quả đo đạc từ bộ thực nghiệm 2 khẳng định độ ổn định của hệ thống khi quy mô bài nộp dồn dập tăng gấp 6 lần trên cấu hình 4 công nhân.
+Bảng 4.2: Ảnh hưởng của quy mô tải bài nộp khi cố định cấu hình máy chủ 4 công nhân
+| Kịch bản thực nghiệm | Cấu hình máy chủ | Số bài nộp | Thời gian giây | Thông lượng bài trên phút | Thời gian chờ TB mili-giây | Thời gian chờ Max mili-giây |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| Kịch bản B1 tải nhẹ | 4 công nhân | 10 | 4.20 | 142.8 | 2399.4 | 3913 |
+| Kịch bản B2 tải trung bình | 4 công nhân | 20 | 8.68 | 138.2 | 4882.8 | 8376 |
+| Kịch bản B3 tải cao | 4 công nhân | 40 | 15.11 | 158.8 | 7993.3 | 14728 |
+| Kịch bản B4 tải nặng | 4 công nhân | 60 | 23.66 | 152.1 | 11992.0 | 23356 |
+Số liệu Bảng 4.2 chứng minh thông lượng xử lý duy trì ổn định trong khoảng 138 đến 158 bài trên phút dưới mọi mức tải từ 10 đến 60 bài. Thời gian xử lý tăng tuyến tính theo khối lượng công việc mà không xuất hiện nghẽn luồng. Hàng đợi LinkedBlockingQueue hấp thụ tải tốt: toàn bộ 60 bài nộp gửi đến gần như tức thời đều được tiếp nhận an toàn trong bộ nhớ chỉ sau vài mili-giây, giữ cho kênh socket luôn thông suốt và không từ chối phục vụ.
+c. Đánh giá độ chính xác và khả năng xử lý bài nộp đặc thù
+Thực nghiệm kiểm chứng xác nhận động cơ phân loại chính xác 100 phần trăm các trường hợp: bài chuẩn đạt điểm tối đa, bài sai logic nhận Wrong Answer, bài ném ngoại lệ nhận Runtime Error, và bài sai cú pháp nhận Compile Error kèm nhật ký chi tiết.
+Đặc biệt, cơ chế cách ly luồng phát huy hiệu quả khi gặp bài nộp lặp vô hạn. Trong mô hình tuần tự, một bài nộp treo cứng làm tê liệt toàn bộ hệ thống suốt thời gian chờ. Trong kiến trúc đề xuất, bài nộp quá hạn chỉ chiếm một luồng công nhân và bị ngắt cưỡng chế sau hai giây; ba công nhân còn lại vẫn chấm và trả kết quả liên tục, loại bỏ hoàn toàn nguy cơ nghẽn dây chuyền. Với bài tập hướng đối tượng, bộ chấm phản xạ động bắt chính xác lỗi vi phạm đóng gói và sai lệch phương thức mà phương pháp so khớp chuỗi console không thể xử lý.
+4.4 Phân tích và đánh đổi kỹ thuật
+a. Đánh đổi giữa chi phí tài nguyên và mức độ cách ly an toàn
+Bảo đảm an toàn thực thi mã nguồn sinh viên đặt ra bài toán đánh đổi giữa mức độ cách ly và độ trễ thực thi. Cách ly bằng bộ chứa Docker cung cấp môi trường độc lập hoàn toàn với hệ thống tệp và mạng máy chủ, nhưng tiêu hao tài nguyên khởi tạo và làm tăng độ trễ mỗi bài nộp lên hàng trăm mili-giây.
+Hệ thống giải quyết vấn đề bằng chiến lược phòng thủ hai tầng phối hợp: bộ quét tĩnh SecurityScanner lọc mã độc ở cấp độ cú pháp trước khi biên dịch, đi kèm cơ chế cô lập tiến trình ProcessBuilder cục bộ có giới hạn tài nguyên nghiêm ngặt. Cách tiếp cận này loại bỏ chi phí khởi động bộ chứa, duy trì độ trễ khởi chạy ở mức vài chục mili-giây, đồng thời vẫn bảo vệ máy chủ an toàn trước các mã độc phá hoại trong môi trường học đường.
+b. Đánh đổi giữa đơn giản hóa kiến trúc mạng và khả năng mở rộng phân tán
+Hàng đợi nội bộ LinkedBlockingQueue mang lại lợi thế gọn nhẹ, loại bỏ độ trễ mạng phụ và không yêu cầu phần mềm trung gian trong phòng máy thực hành. Đổi lại, khả năng mở rộng bị giới hạn bởi tài nguyên phần cứng của một nút máy chủ vật lý duy nhất. Khi số lượng thí sinh vượt quá năng lực phục vụ của một máy chủ, hệ thống đòi hỏi cơ chế đồng bộ trạng thái socket phức tạp hơn.
+Tuy nhiên, với quy mô phòng máy thực hành từ vài chục đến vài trăm máy trạm, việc tối ưu trên một máy chủ độc lập là sự đánh đổi hoàn toàn hợp lý. Thiết kế này giúp triển khai đơn giản, vận hành khép kín không phụ thuộc dịch vụ ngoài và khai thác tối đa năng lực phần cứng đa nhân sẵn có.

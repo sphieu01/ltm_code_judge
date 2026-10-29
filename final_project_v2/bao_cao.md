@@ -90,17 +90,17 @@ Hệ thống thiết lập bảo vệ đa lớp cho các kỳ thi thực hành. 
 4. HIỆN THỰC HÓA VÀ ĐÁNH GIÁ THỰC NGHIỆM
 4.1 Hiện thực hóa các thành phần phần mềm cốt lõi
 a. Máy chủ socket đa luồng và cơ chế thông báo đẩy
-Máy chủ cài đặt trên Java 17 LTS, lắng nghe cổng TCP 9999 qua ServerSocket tiêu chuẩn. Lớp SocketServer dùng nhóm luồng cố định ExecutorService quản lý kết nối từ các máy trạm, giới hạn số luồng đồng thời nhằm chống quá tải bộ nhớ. Mỗi kết nối do một luồng ClientHandler độc lập tiếp nhận, sử dụng BufferedReader đọc từng dòng JSON và PrintWriter gửi dữ liệu phản hồi.
-Khi xác thực thành công, kênh socket được lưu vào bảng ánh xạ ConcurrentHashMap trong lớp ConnectionRegistry. Khi công nhân hoàn tất chấm bài, dịch vụ này tra cứu kênh socket theo tên người nộp và đẩy ngay gói tin kết quả qua kết nối mở sẵn, loại bỏ hoàn toàn cơ chế thăm dò trạng thái từ máy khách.
+Máy chủ cài đặt trên Java 17 LTS, lắng nghe cổng TCP 9999 qua ServerSocket. Lớp SocketServer dùng nhóm luồng cố định ExecutorService quản lý kết nối, tránh cạn kiệt bộ nhớ. Mỗi kết nối do luồng ClientHandler độc lập tiếp nhận, dùng BufferedReader đọc từng dòng JSON và PrintWriter gửi phản hồi.
+Khi xác thực thành công, kênh socket được lưu vào ConcurrentHashMap trong ConnectionRegistry. Khi hoàn tất chấm, dịch vụ này tra cứu kênh socket theo tên người nộp và đẩy ngay gói tin kết quả qua kết nối mở sẵn, loại bỏ hoàn toàn cơ chế thăm dò từ máy khách.
 b. Ứng dụng khách JavaFX và giao diện tương tác thời gian thực
-Ứng dụng khách xây dựng bằng JavaFX kết hợp thư viện AtlantaFX theo kiến trúc hướng sự kiện. Lớp SocketClient duy trì kênh TCP bền vững, điều hành luồng nền ListenerThread túc trực nhận gói tin mà không làm treo giao diện. Dữ liệu đẩy về được chuyển an toàn lên màn hình qua cơ chế Platform.runLater.
+Ứng dụng khách xây dựng bằng JavaFX kết hợp thư viện AtlantaFX theo kiến trúc hướng sự kiện. Lớp SocketClient duy trì kênh TCP bền vững, điều hành luồng nền ListenerThread nhận dữ liệu không làm treo giao diện, đồng bộ lên màn hình qua Platform.runLater.
 [Hình 4.1: Giao diện sinh viên nộp bài và nhận kết quả phán quyết thời gian thực qua socket TCP]
-Giao diện ProblemView chia ba phân vùng: bên trái hiển thị đề bài và giới hạn tài nguyên; ở giữa là vùng soạn thảo mã nguồn kèm tính năng nộp tệp đơn hoặc gói ZIP; bên phải là bảng test case cập nhật trạng thái Accepted xanh lá ngay khi máy chủ đẩy dữ liệu về.
+Giao diện ProblemView gồm ba phân vùng: bên trái hiển thị đề bài; ở giữa là vùng soạn thảo nộp mã nguồn đơn hoặc gói ZIP; bên phải là bảng test case cập nhật trạng thái Accepted xanh lá tức thì.
 [Hình 4.2: Giao diện giảng viên giám sát phòng thi và cảnh báo vi phạm trực tiếp]
-Giao diện TeacherAssessmentMonitorView cung cấp bảng theo dõi trực tiếp phòng thi: hiển thị danh sách thí sinh trực tuyến, điểm số lũy tiến từng câu và cảnh báo phát hiện gian lận khi sinh viên chuyển tab hoặc mất tiêu điểm cửa sổ.
+Giao diện TeacherAssessmentMonitorView cung cấp bảng theo dõi phòng thi: hiển thị danh sách thí sinh, điểm số lũy tiến và cảnh báo gian lận khi sinh viên chuyển tab hoặc mất tiêu điểm cửa sổ.
 c. Động cơ chấm OOP hai pha và cơ chế cô lập an toàn
-Động cơ JudgeEngine sử dụng nhóm luồng JudgeWorker lấy bài nộp từ hàng đợi LinkedBlockingQueue. Với bài tập hướng đối tượng, lớp OopReflectionGrader thẩm định qua hai pha: Pha 1 dùng URLClassLoader nạp bytecode sau biên dịch để soi chiếu cấu trúc, kiểm tra tính bao gói của thuộc tính và đối chiếu chữ ký phương thức; Pha 2 khởi tạo đối tượng sống trong bộ nhớ và kích hoạt phương thức độc lập qua Java Reflection để kiểm tra tính đa hình và giá trị trả về mà không cần hàm main.
-Hệ thống kích hoạt hai tầng phòng thủ: lớp SecurityScanner quét tĩnh chuỗi mã nguồn bằng biểu thức chính quy để chặn các lời gọi nguy hiểm như Runtime.getRuntime, ProcessBuilder hoặc System.exit trước khi biên dịch; tầng thực thi SandboxRunner khởi chạy tiến trình con độc lập qua ProcessBuilder với giới hạn hai giây và 256 megabyte bộ nhớ, đi kèm luồng giám sát ngắt tiến trình tự động nếu xảy ra lặp vô hạn.
+Động cơ JudgeEngine dùng nhóm luồng JudgeWorker lấy bài từ LinkedBlockingQueue. Với bài tập hướng đối tượng, lớp OopReflectionGrader thẩm định qua hai pha: Pha 1 nạp bytecode qua URLClassLoader soi chiếu cấu trúc, kiểm tra tính bao gói và chữ ký phương thức; Pha 2 khởi tạo đối tượng sống trong bộ nhớ và kích hoạt phương thức qua Java Reflection kiểm tra đa hình không cần hàm main.
+Hệ thống kích hoạt hai tầng phòng thủ: SecurityScanner quét tĩnh chuỗi mã nguồn bằng biểu thức chính quy chặn các lời gọi nguy hiểm Runtime.getRuntime hay System.exit trước khi biên dịch; SandboxRunner chạy tiến trình con qua ProcessBuilder với giới hạn hai giây và 256 megabyte bộ nhớ, tự động ngắt nếu lặp vô hạn.
 4.2 Thiết lập môi trường và kịch bản thực nghiệm
 a. Môi trường thực nghiệm và bộ chỉ số đo lường hiệu năng
 Thực nghiệm triển khai trên máy trạm vi xử lý Intel Core đa nhân, bộ nhớ trong 16 gigabyte RAM, hệ điều hành Windows 11 64-bit và môi trường thực thi Java JDK 17. Bộ dữ liệu kiểm thử sử dụng bài toán tính toán với 5 ca kiểm thử độc lập và tập 5 mẫu mã nguồn đại diện cho các trường hợp: chạy đúng đạt điểm tối đa, sai kết quả, lặp vô hạn, lỗi ngoại lệ thời gian chạy và lỗi cú pháp biên dịch.
@@ -119,7 +119,7 @@ Bảng 4.1: Ảnh hưởng của số lượng công nhân đến hiệu năng x
 | Kịch bản A2 | 2 | 20 | 13.98 | 85.8 | 7174.2 | 13601 | 2.24x |
 | Kịch bản A3 mô hình đề xuất | 4 | 20 | 7.81 | 153.6 | 4227.2 | 7480 | 4.01x |
 | Kịch bản A4 | 8 | 20 | 6.69 | 179.4 | 3965.8 | 6372 | 4.69x |
-Số liệu Bảng 4.1 cho thấy khi tăng số công nhân từ 1 lên 4 theo mô hình đề xuất, thời gian hoàn thành giảm từ 31.36 giây xuống 7.81 giây, đạt hệ số tăng tốc 4.01 lần. Thông lượng xử lý tăng từ 38.3 lên 153.6 bài trên phút, tương đương mức tăng 301 phần trăm. Thời gian chờ trung bình trong hàng đợi giảm 74.5 phần trăm, từ 16544.9 mili-giây xuống 4227.2 mili-giây; thời gian chờ tối đa giảm từ 30983 mili-giây xuống 7480 mili-giây, cắt giảm hơn 23 giây nghẽn tắc. Nâng lên 8 công nhân, hiệu năng đạt 179.4 bài trên phút nhưng tốc độ tăng chậm lại do tiệm cận giới hạn lõi vật lý của vi xử lý.
+Số liệu Bảng 4.1 cho thấy khi tăng công nhân từ 1 lên 4, thời gian hoàn thành giảm từ 31.36 xuống 7.81 giây, tăng tốc 4.01 lần. Thông lượng tăng từ 38.3 lên 153.6 bài trên phút, tương đương tăng 301 phần trăm. Thời gian chờ trung bình giảm 74.5 phần trăm, từ 16544.9 xuống 4227.2 mili-giây; thời gian chờ tối đa giảm từ 30983 xuống 7480 mili-giây, cắt giảm 23 giây nghẽn tắc. Nâng lên 8 công nhân, hiệu năng đạt 179.4 bài trên phút nhưng tốc độ tăng chậm lại do tiệm cận giới hạn lõi vật lý.
 b. Năng lực chịu tải theo quy mô bài nộp và độ ổn định hàng đợi
 Kết quả đo đạc từ bộ thực nghiệm 2 khẳng định độ ổn định của hệ thống khi quy mô bài nộp dồn dập tăng gấp 6 lần trên cấu hình 4 công nhân.
 Bảng 4.2: Ảnh hưởng của quy mô tải bài nộp khi cố định cấu hình máy chủ 4 công nhân
@@ -129,7 +129,7 @@ Bảng 4.2: Ảnh hưởng của quy mô tải bài nộp khi cố định cấu
 | Kịch bản B2 tải trung bình | 4 công nhân | 20 | 8.68 | 138.2 | 4882.8 | 8376 |
 | Kịch bản B3 tải cao | 4 công nhân | 40 | 15.11 | 158.8 | 7993.3 | 14728 |
 | Kịch bản B4 tải nặng | 4 công nhân | 60 | 23.66 | 152.1 | 11992.0 | 23356 |
-Số liệu Bảng 4.2 chứng minh thông lượng xử lý duy trì ổn định trong khoảng 138 đến 158 bài trên phút dưới mọi mức tải từ 10 đến 60 bài. Thời gian xử lý tăng tuyến tính theo khối lượng công việc mà không xuất hiện nghẽn luồng. Hàng đợi LinkedBlockingQueue hấp thụ tải tốt: toàn bộ 60 bài nộp gửi đến gần như tức thời đều được tiếp nhận an toàn trong bộ nhớ chỉ sau vài mili-giây, giữ cho kênh socket luôn thông suốt và không từ chối phục vụ.
+Số liệu Bảng 4.2 chứng minh thông lượng duy trì ổn định trong khoảng 138 đến 158 bài trên phút dưới mọi mức tải từ 10 đến 60 bài, thời gian xử lý tăng tuyến tính theo khối lượng công việc. Hàng đợi LinkedBlockingQueue hấp thụ xung lực tốt: toàn bộ 60 bài nộp gửi đến tức thời đều tiếp nhận an toàn vào bộ nhớ sau vài mili-giây, giữ kênh socket thông suốt và không từ chối phục vụ.
 c. Đánh giá độ chính xác và khả năng xử lý bài nộp đặc thù
 Thực nghiệm kiểm chứng xác nhận động cơ phân loại chính xác 100 phần trăm các trường hợp: bài chuẩn đạt điểm tối đa, bài sai logic nhận Wrong Answer, bài ném ngoại lệ nhận Runtime Error, và bài sai cú pháp nhận Compile Error kèm nhật ký chi tiết.
 Đặc biệt, cơ chế cách ly luồng phát huy hiệu quả khi gặp bài nộp lặp vô hạn. Trong mô hình tuần tự, một bài nộp treo cứng làm tê liệt toàn bộ hệ thống suốt thời gian chờ. Trong kiến trúc đề xuất, bài nộp quá hạn chỉ chiếm một luồng công nhân và bị ngắt cưỡng chế sau hai giây; ba công nhân còn lại vẫn chấm và trả kết quả liên tục, loại bỏ hoàn toàn nguy cơ nghẽn dây chuyền. Với bài tập hướng đối tượng, bộ chấm phản xạ động bắt chính xác lỗi vi phạm đóng gói và sai lệch phương thức mà phương pháp so khớp chuỗi console không thể xử lý.
@@ -156,6 +156,9 @@ Bảng 5.1: Tổng hợp đóng góp kỹ thuật cốt lõi và bằng chứng 
 Hệ thống còn ba hạn chế: vận hành trên máy chủ đơn lẻ chưa hỗ trợ cụm phân tán; chấm bài dựa trên tiến trình cục bộ thay vì container cách ly hạt nhân; và động cơ phản xạ động mới hỗ trợ Java, các ngôn ngữ C, C++ và Python mới dừng ở mức so khớp luồng nhập xuất.
 5.4 Hướng nghiên cứu và phát triển tiếp theo
 Hướng phát triển tiếp theo gồm: mở rộng cụm máy chấm phân tán điều phối động, tích hợp ảo hóa WebAssembly hoặc container tối giản tăng cường an toàn thực thi, và mở rộng động cơ phản xạ động sang các ngôn ngữ hướng đối tượng như Python và C Sharp.
+
+KẾT LUẬN
+Đề tài đã hoàn thành xuất sắc toàn bộ mục tiêu đề ra. Hệ thống chấm mã nguồn tự động phân tán qua socket TCP được hiện thực hóa trọn vẹn, vận hành ổn định và chứng minh hiệu năng vượt trội qua thực nghiệm định lượng. Việc kết hợp kiến trúc hàng đợi nội bộ, cơ chế đẩy dữ liệu hai chiều và động cơ phản xạ động hai pha mang lại giải pháp kỹ thuật mạng hoàn chỉnh, có giá trị thực tiễn cao, sẵn sàng ứng dụng hiệu quả trong đào tạo lập trình tại các phòng máy thực hành.
 
 TÀI LIỆU THAM KHẢO
 1. Oracle Corporation, Java Platform Standard Edition 17 Documentation, 2021.

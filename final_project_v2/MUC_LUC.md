@@ -69,6 +69,7 @@ b. Đánh đổi giữa đơn giản hóa kiến trúc mạng và khả năng m�
 5.2 Bảng tổng hợp các đóng góp kỹ thuật và bằng chứng thực nghiệm
 5.3 Những hạn chế tồn tại của hệ thống
 5.4 Hướng nghiên cứu và phát triển tiếp theo
+5.5 Kết luận
 
 PHẦN KẾT THÚC
 TÀI LIỆU THAM KHẢO

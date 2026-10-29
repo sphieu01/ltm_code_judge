@@ -49,6 +49,7 @@ public class TeacherImportStudentsDialog extends Dialog<TeacherImportStudentsDia
     private ComboBox<CreditClass> targetClassCombo;
     private Label fileStatusLabel;
     private TableView<StudentPreviewRow> previewTable;
+    private long previewLoadVersion;
     private ObservableList<StudentPreviewRow> previewList = FXCollections.observableArrayList();
 
     public TeacherImportStudentsDialog(Stage owner, List<CreditClass> classes, CreditClass preselectedClass) {
@@ -178,32 +179,53 @@ public class TeacherImportStudentsDialog extends Dialog<TeacherImportStudentsDia
     }
 
     private void parseFile(File file) {
-        try {
-            List<String> lines = Files.readAllLines(file.toPath(), StandardCharsets.UTF_8);
-            previewList.clear();
+        long version = ++previewLoadVersion;
+        previewList.clear();
+        TableViewSupport.setLoading(previewTable, true);
+        javafx.concurrent.Task<List<StudentPreviewRow>> task = new javafx.concurrent.Task<>() {
+            @Override protected List<StudentPreviewRow> call() throws Exception {
+                return parseLines(Files.readAllLines(file.toPath(), StandardCharsets.UTF_8));
+            }
+        };
+        task.setOnSucceeded(event -> {
+            if (version != previewLoadVersion) return;
+            previewList.setAll(task.getValue());
+            previewTable.setPlaceholder(new Label("File không có sinh viên hợp lệ."));
+            TableViewSupport.setLoading(previewTable, false);
+            fileStatusLabel.setText("Đã nạp: " + file.getName() + " (" + previewList.size() + " sinh viên hợp lệ)");
+        });
+        task.setOnFailed(event -> {
+            if (version != previewLoadVersion) return;
+            TableViewSupport.showLoadError(previewTable, "Không thể đọc file danh sách sinh viên.");
+            fileStatusLabel.setText("Lỗi đọc file: " + task.getException().getMessage());
+        });
+        Thread worker = new Thread(task, "student-file-preview");
+        worker.setDaemon(true);
+        worker.start();
+    }
 
-            for (String line : lines) {
-                line = line.trim();
-                if (line.isEmpty() || line.startsWith("#") || line.toLowerCase().startsWith("username")) {
-                    continue; // Bỏ qua dòng trống, comment, hoặc header
-                }
+    private List<StudentPreviewRow> parseLines(List<String> lines) {
+        List<StudentPreviewRow> rows = new ArrayList<>();
 
-                List<String> parts = parseDelimitedLine(line);
-                if (!parts.isEmpty()) {
-                    String username = parts.get(0).trim();
-                    if (parts.size() != 2) continue;
-                    String fullName = parts.get(1).trim();
-
-                    if (username.matches("^B23DCCN(?:00[1-9]|0[1-9][0-9]|[1-9][0-9]{2})$") && !fullName.isBlank()) {
-                        previewList.add(new StudentPreviewRow(username, fullName));
-                    }
-                }
+        for (String line : lines) {
+            line = line.trim();
+            if (line.isEmpty() || line.startsWith("#") || line.toLowerCase().startsWith("username")) {
+                continue; // Bỏ qua dòng trống, comment, hoặc header
             }
 
-            fileStatusLabel.setText("Đã nạp: " + file.getName() + " (" + previewList.size() + " sinh viên hợp lệ)");
-        } catch (Exception ex) {
-            fileStatusLabel.setText("Lỗi đọc file: " + ex.getMessage());
+            List<String> parts = parseDelimitedLine(line);
+            if (!parts.isEmpty()) {
+                String username = parts.get(0).trim();
+                if (parts.size() != 2) continue;
+                String fullName = parts.get(1).trim();
+
+                if (username.matches("^B23DCCN(?:00[1-9]|0[1-9][0-9]|[1-9][0-9]{2})$") && !fullName.isBlank()) {
+                    rows.add(new StudentPreviewRow(username, fullName));
+                }
+            }
         }
+
+        return rows;
     }
 
     private List<String> parseDelimitedLine(String line) {

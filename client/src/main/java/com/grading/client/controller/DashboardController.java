@@ -132,6 +132,7 @@ public class DashboardController {
                 return;
             }
             classesRefreshInFlight = true;
+            if (!sessionManager.isAssessmentMode() && !assessmentLobby) view.setProblemsLoading(true);
             socketClient.getMyClasses(response -> {
                 Platform.runLater(() -> {
                     classesRefreshInFlight = false;
@@ -224,17 +225,27 @@ public class DashboardController {
 
     private void refreshAssessments(Integer selectedClassId) {
         SocketClient socketClient = sessionManager.getSocketClient();
-        if (disposed || socketClient == null || !socketClient.isConnected()) return;
+        if (disposed) return;
+        if (socketClient == null || !socketClient.isConnected()) {
+            view.showAssessmentLoadError();
+            return;
+        }
         if (refreshInFlight || assessmentTransitionInProgress) {
             assessmentRefreshPending = true;
             return;
         }
         refreshInFlight = true;
+        view.setAssessmentsLoading(true);
         long stateVersion = assessmentStateVersion;
         socketClient.getStudentAssessments(response -> Platform.runLater(() -> {
             refreshInFlight = false;
+            view.setAssessmentsLoading(false);
             if (disposed || stateVersion != assessmentStateVersion) return;
-            if (!"SUCCESS".equalsIgnoreCase(response.getStatus())) return;
+            if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null
+                    || !response.getData().isJsonArray()) {
+                view.showAssessmentLoadError();
+                return;
+            }
             java.util.Map<Integer, JsonObject> previous = new java.util.HashMap<>(assessmentCache);
             assessmentCache.clear();
             assessmentDataLoaded = true;
@@ -567,7 +578,7 @@ public class DashboardController {
                 handleProblemsResponse(response);
             }));
         } else {
-            view.setProblems(createDefaultProblems());
+            view.showProblemLoadError("Chưa kết nối đến máy chủ.");
         }
     }
 

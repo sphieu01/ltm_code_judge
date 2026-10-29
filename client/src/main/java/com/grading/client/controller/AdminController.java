@@ -89,31 +89,28 @@ public class AdminController {
 
     private void loadCourses() {
         SocketClient client = sessionManager.getSocketClient();
-        if (client == null || !client.isConnected()) return;
 
-        client.getCourses(response -> {
-            Platform.runLater(() -> {
-                if ("SUCCESS".equalsIgnoreCase(response.getStatus()) && response.getData() != null && response.getData().isJsonArray()) {
-                    List<Course> list = new ArrayList<>();
-                    for (JsonElement el : response.getData().getAsJsonArray()) {
-                        JsonObject obj = el.getAsJsonObject();
-                        Course c = new Course();
-                        if (obj.has("id")) c.setId(obj.get("id").getAsInt());
-                        if (obj.has("code")) c.setCode(obj.get("code").getAsString());
-                        if (obj.has("name")) c.setName(obj.get("name").getAsString());
-                        if (obj.has("language")) c.setLanguage(obj.get("language").getAsString());
-                        if (obj.has("description")) c.setDescription(obj.get("description").getAsString());
-                        if (obj.has("active")) {
-                            c.setActive(obj.get("active").getAsBoolean());
-                        } else if (obj.has("isActive")) {
-                            c.setActive(obj.get("isActive").getAsBoolean());
-                        }
-                        list.add(c);
+        TableViewSupport.load(view.getCourseTable(), client, done -> client.getCourses(done), response -> {
+            if ("SUCCESS".equalsIgnoreCase(response.getStatus()) && response.getData() != null && response.getData().isJsonArray()) {
+                List<Course> list = new ArrayList<>();
+                for (JsonElement el : response.getData().getAsJsonArray()) {
+                    JsonObject obj = el.getAsJsonObject();
+                    Course c = new Course();
+                    if (obj.has("id")) c.setId(obj.get("id").getAsInt());
+                    if (obj.has("code")) c.setCode(obj.get("code").getAsString());
+                    if (obj.has("name")) c.setName(obj.get("name").getAsString());
+                    if (obj.has("language")) c.setLanguage(obj.get("language").getAsString());
+                    if (obj.has("description")) c.setDescription(obj.get("description").getAsString());
+                    if (obj.has("active")) {
+                        c.setActive(obj.get("active").getAsBoolean());
+                    } else if (obj.has("isActive")) {
+                        c.setActive(obj.get("isActive").getAsBoolean());
                     }
-                    cachedCourses = list;
-                    view.setCourses(list);
+                    list.add(c);
                 }
-            });
+                cachedCourses = list;
+                view.setCourses(list);
+            }
         });
     }
 
@@ -190,28 +187,25 @@ public class AdminController {
 
     private void loadClasses() {
         SocketClient client = sessionManager.getSocketClient();
-        if (client == null || !client.isConnected()) return;
 
-        client.getClasses(response -> {
-            Platform.runLater(() -> {
-                if ("SUCCESS".equalsIgnoreCase(response.getStatus()) && response.getData() != null && response.getData().isJsonArray()) {
-                    List<CreditClass> list = new ArrayList<>();
-                    for (JsonElement el : response.getData().getAsJsonArray()) {
-                        JsonObject obj = el.getAsJsonObject();
-                        CreditClass cc = new CreditClass();
-                        if (obj.has("id")) cc.setId(obj.get("id").getAsInt());
-                        if (obj.has("classCode")) cc.setClassCode(obj.get("classCode").getAsString());
-                        if (obj.has("name")) cc.setName(obj.get("name").getAsString());
-                        if (obj.has("courseId")) cc.setCourseId(obj.get("courseId").getAsInt());
-                        if (obj.has("courseName")) cc.setCourseName(obj.get("courseName").getAsString());
-                        if (obj.has("courseLanguage")) cc.setCourseLanguage(obj.get("courseLanguage").getAsString());
-                        if (obj.has("studentCount")) cc.setStudentCount(obj.get("studentCount").getAsInt());
-                        list.add(cc);
-                    }
-                    cachedClasses = list;
-                    view.setClasses(list);
+        TableViewSupport.load(view.getClassTable(), client, done -> client.getClasses(done), response -> {
+            if ("SUCCESS".equalsIgnoreCase(response.getStatus()) && response.getData() != null && response.getData().isJsonArray()) {
+                List<CreditClass> list = new ArrayList<>();
+                for (JsonElement el : response.getData().getAsJsonArray()) {
+                    JsonObject obj = el.getAsJsonObject();
+                    CreditClass cc = new CreditClass();
+                    if (obj.has("id")) cc.setId(obj.get("id").getAsInt());
+                    if (obj.has("classCode")) cc.setClassCode(obj.get("classCode").getAsString());
+                    if (obj.has("name")) cc.setName(obj.get("name").getAsString());
+                    if (obj.has("courseId")) cc.setCourseId(obj.get("courseId").getAsInt());
+                    if (obj.has("courseName")) cc.setCourseName(obj.get("courseName").getAsString());
+                    if (obj.has("courseLanguage")) cc.setCourseLanguage(obj.get("courseLanguage").getAsString());
+                    if (obj.has("studentCount")) cc.setStudentCount(obj.get("studentCount").getAsInt());
+                    list.add(cc);
                 }
-            });
+                cachedClasses = list;
+                view.setClasses(list);
+            }
         });
     }
 
@@ -308,27 +302,24 @@ public class AdminController {
 
     private void loadStudents(int classId) {
         SocketClient client = sessionManager.getSocketClient();
-        if (client == null || !client.isConnected()) return;
 
-        client.getStudents(classId, response -> {
-            Platform.runLater(() -> {
-                if ("SUCCESS".equalsIgnoreCase(response.getStatus()) && response.getData() != null && response.getData().isJsonArray()) {
-                    List<User.UserDTO> list = new ArrayList<>();
-                    for (JsonElement el : response.getData().getAsJsonArray()) {
-                        JsonObject obj = el.getAsJsonObject();
-                        int id = obj.has("id") ? obj.get("id").getAsInt() : 0;
-                        String username = obj.has("username") ? obj.get("username").getAsString() : "";
-                        String fullName = obj.has("fullName") ? obj.get("fullName").getAsString() : "";
-                        String role = obj.has("role") ? obj.get("role").getAsString() : "STUDENT";
-                        Integer cId = obj.has("classId") && !obj.get("classId").isJsonNull() ? obj.get("classId").getAsInt() : null;
-                        String cName = obj.has("className") && !obj.get("className").isJsonNull() ? obj.get("className").getAsString() : null;
-                        String createdAt = obj.has("createdAt") && !obj.get("createdAt").isJsonNull() ? obj.get("createdAt").getAsString() : "";
+        TableViewSupport.load(view.getStudentTable(), client, done -> client.getStudents(classId, done), response -> {
+            if ("SUCCESS".equalsIgnoreCase(response.getStatus()) && response.getData() != null && response.getData().isJsonArray()) {
+                List<User.UserDTO> list = new ArrayList<>();
+                for (JsonElement el : response.getData().getAsJsonArray()) {
+                    JsonObject obj = el.getAsJsonObject();
+                    int id = obj.has("id") ? obj.get("id").getAsInt() : 0;
+                    String username = obj.has("username") ? obj.get("username").getAsString() : "";
+                    String fullName = obj.has("fullName") ? obj.get("fullName").getAsString() : "";
+                    String role = obj.has("role") ? obj.get("role").getAsString() : "STUDENT";
+                    Integer cId = obj.has("classId") && !obj.get("classId").isJsonNull() ? obj.get("classId").getAsInt() : null;
+                    String cName = obj.has("className") && !obj.get("className").isJsonNull() ? obj.get("className").getAsString() : null;
+                    String createdAt = obj.has("createdAt") && !obj.get("createdAt").isJsonNull() ? obj.get("createdAt").getAsString() : "";
 
-                        list.add(new User.UserDTO(id, username, fullName, role, cId, cName, createdAt));
-                    }
-                    view.setStudents(list);
+                    list.add(new User.UserDTO(id, username, fullName, role, cId, cName, createdAt));
                 }
-            });
+                view.setStudents(list);
+            }
         });
     }
 
@@ -437,39 +428,36 @@ public class AdminController {
 
     private void loadProblems(Integer classId) {
         SocketClient client = sessionManager.getSocketClient();
-        if (client == null || !client.isConnected()) return;
 
-        client.getProblems(classId, response -> {
-            Platform.runLater(() -> {
-                if ("SUCCESS".equalsIgnoreCase(response.getStatus()) && response.getData() != null && response.getData().isJsonArray()) {
-                    List<Problem> list = new ArrayList<>();
-                    for (JsonElement el : response.getData().getAsJsonArray()) {
-                        JsonObject obj = el.getAsJsonObject();
-                        Problem p = new Problem();
-                        if (obj.has("id")) p.setId(obj.get("id").getAsInt());
-                        if (obj.has("title")) p.setTitle(obj.get("title").getAsString());
-                        if (obj.has("difficulty")) p.setDifficulty(obj.get("difficulty").getAsString());
-                        if (obj.has("timeLimitMs")) p.setTimeLimitMs(obj.get("timeLimitMs").getAsInt());
-                        if (obj.has("memoryLimitKb")) p.setMemoryLimitKb(obj.get("memoryLimitKb").getAsInt());
-                        if (obj.has("description")) p.setDescription(obj.get("description").getAsString());
-                        if (obj.has("classId") && !obj.get("classId").isJsonNull()) p.setClassId(obj.get("classId").getAsInt());
-                        if (obj.has("className") && !obj.get("className").isJsonNull()) p.setClassName(obj.get("className").getAsString());
-                        if (obj.has("active")) {
-                            p.setActive(obj.get("active").getAsBoolean());
-                        } else if (obj.has("isActive")) {
-                            p.setActive(obj.get("isActive").getAsBoolean());
-                        }
-                        if (obj.has("problemType") && !obj.get("problemType").isJsonNull()) {
-                            p.setProblemType(obj.get("problemType").getAsString());
-                        }
-                        if (obj.has("oopSpec") && !obj.get("oopSpec").isJsonNull()) {
-                            p.setOopSpec(obj.get("oopSpec").getAsString());
-                        }
-                        list.add(p);
+        TableViewSupport.load(view.getProblemTable(), client, done -> client.getProblems(classId, done), response -> {
+            if ("SUCCESS".equalsIgnoreCase(response.getStatus()) && response.getData() != null && response.getData().isJsonArray()) {
+                List<Problem> list = new ArrayList<>();
+                for (JsonElement el : response.getData().getAsJsonArray()) {
+                    JsonObject obj = el.getAsJsonObject();
+                    Problem p = new Problem();
+                    if (obj.has("id")) p.setId(obj.get("id").getAsInt());
+                    if (obj.has("title")) p.setTitle(obj.get("title").getAsString());
+                    if (obj.has("difficulty")) p.setDifficulty(obj.get("difficulty").getAsString());
+                    if (obj.has("timeLimitMs")) p.setTimeLimitMs(obj.get("timeLimitMs").getAsInt());
+                    if (obj.has("memoryLimitKb")) p.setMemoryLimitKb(obj.get("memoryLimitKb").getAsInt());
+                    if (obj.has("description")) p.setDescription(obj.get("description").getAsString());
+                    if (obj.has("classId") && !obj.get("classId").isJsonNull()) p.setClassId(obj.get("classId").getAsInt());
+                    if (obj.has("className") && !obj.get("className").isJsonNull()) p.setClassName(obj.get("className").getAsString());
+                    if (obj.has("active")) {
+                        p.setActive(obj.get("active").getAsBoolean());
+                    } else if (obj.has("isActive")) {
+                        p.setActive(obj.get("isActive").getAsBoolean());
                     }
-                    view.setProblems(list);
+                    if (obj.has("problemType") && !obj.get("problemType").isJsonNull()) {
+                        p.setProblemType(obj.get("problemType").getAsString());
+                    }
+                    if (obj.has("oopSpec") && !obj.get("oopSpec").isJsonNull()) {
+                        p.setOopSpec(obj.get("oopSpec").getAsString());
+                    }
+                    list.add(p);
                 }
-            });
+                view.setProblems(list);
+            }
         });
     }
 

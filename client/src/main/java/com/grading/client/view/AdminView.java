@@ -819,4 +819,9 @@ public class AdminView extends BorderPane {
         alert.setContentText(alertMessage);
         alert.show();
     }
+
+    public TableView<Course> getCourseTable() { return courseTable; }
+    public TableView<CreditClass> getClassTable() { return classTable; }
+    public TableView<User.UserDTO> getStudentTable() { return studentTable; }
+    public TableView<Problem> getProblemTable() { return problemTable; }
 }

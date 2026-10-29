@@ -11,6 +11,7 @@ import com.grading.client.network.SocketClient;
 import com.grading.client.proctor.AiToolDetector;
 import com.grading.client.protocol.Response;
 import com.grading.client.view.ProblemView;
+import com.grading.client.view.TableViewSupport;
 import javafx.application.Platform;
 
 /**
@@ -616,43 +617,40 @@ public class ProblemController {
         int problemId = problem.getId();
 
         SocketClient socketClient = sessionManager.getSocketClient();
-        if (socketClient == null || !socketClient.isConnected()) return;
 
         Integer assessmentId = sessionManager.isAssessmentMode()
                 ? sessionManager.getActiveAssessmentId() : null;
-        socketClient.getHistory(problemId, assessmentId, response -> {
-            Platform.runLater(() -> {
-                if (disposed) return;
-                if ("SUCCESS".equalsIgnoreCase(response.getStatus())
-                        && response.getData() != null && response.getData().isJsonArray()) {
-                    view.clearHistory();
-                    JsonArray arr = response.getData().getAsJsonArray();
-                    for (JsonElement el : arr) {
-                        if (!el.isJsonObject()) continue;
-                        JsonObject obj = el.getAsJsonObject();
-                        if (assessmentId == null && obj.has("assessmentId") && !obj.get("assessmentId").isJsonNull()) continue;
-                        String title = problem.getTitle();
-                        if (obj.has("problemTitle") && !obj.get("problemTitle").isJsonNull()) {
-                            title = obj.get("problemTitle").getAsString();
-                        }
-                        String time = obj.has("submittedAt") && !obj.get("submittedAt").isJsonNull()
-                                ? obj.get("submittedAt").getAsString() : "";
-                        String verdict = obj.has("verdict") && !obj.get("verdict").isJsonNull()
-                                ? obj.get("verdict").getAsString() : "--";
-                        String sourceCode = obj.has("sourceCode") && !obj.get("sourceCode").isJsonNull()
-                                ? obj.get("sourceCode").getAsString() : null;
-                        boolean isZip = obj.has("isZip") && !obj.get("isZip").isJsonNull() && obj.get("isZip").getAsBoolean();
-                        String compileOutput = null;
-                        if (obj.has("compileOutput") && !obj.get("compileOutput").isJsonNull()) {
-                            compileOutput = obj.get("compileOutput").getAsString();
-                        } else if (obj.has("compile_output") && !obj.get("compile_output").isJsonNull()) {
-                            compileOutput = obj.get("compile_output").getAsString();
-                        }
-
-                        view.appendSubmissionHistory(title, time, verdict, sourceCode, isZip, compileOutput);
+        TableViewSupport.load(view.getHistoryTable(), socketClient, done -> socketClient.getHistory(problemId, assessmentId, done), response -> {
+            if (disposed) return;
+            if ("SUCCESS".equalsIgnoreCase(response.getStatus())
+                    && response.getData() != null && response.getData().isJsonArray()) {
+                view.clearHistory();
+                JsonArray arr = response.getData().getAsJsonArray();
+                for (JsonElement el : arr) {
+                    if (!el.isJsonObject()) continue;
+                    JsonObject obj = el.getAsJsonObject();
+                    if (assessmentId == null && obj.has("assessmentId") && !obj.get("assessmentId").isJsonNull()) continue;
+                    String title = problem.getTitle();
+                    if (obj.has("problemTitle") && !obj.get("problemTitle").isJsonNull()) {
+                        title = obj.get("problemTitle").getAsString();
                     }
+                    String time = obj.has("submittedAt") && !obj.get("submittedAt").isJsonNull()
+                            ? obj.get("submittedAt").getAsString() : "";
+                    String verdict = obj.has("verdict") && !obj.get("verdict").isJsonNull()
+                            ? obj.get("verdict").getAsString() : "--";
+                    String sourceCode = obj.has("sourceCode") && !obj.get("sourceCode").isJsonNull()
+                            ? obj.get("sourceCode").getAsString() : null;
+                    boolean isZip = obj.has("isZip") && !obj.get("isZip").isJsonNull() && obj.get("isZip").getAsBoolean();
+                    String compileOutput = null;
+                    if (obj.has("compileOutput") && !obj.get("compileOutput").isJsonNull()) {
+                        compileOutput = obj.get("compileOutput").getAsString();
+                    } else if (obj.has("compile_output") && !obj.get("compile_output").isJsonNull()) {
+                        compileOutput = obj.get("compile_output").getAsString();
+                    }
+
+                    view.appendSubmissionHistory(title, time, verdict, sourceCode, isZip, compileOutput);
                 }
-            });
+            }
         });
     }
 

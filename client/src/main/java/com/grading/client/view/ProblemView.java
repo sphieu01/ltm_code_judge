@@ -335,6 +335,8 @@ public class ProblemView extends BorderPane {
         return section;
     }
 
+    public TableView<?> getHistoryTable() { return historyTable; }
+
     public void clearHistory() {
         historyRows.clear();
     }
@@ -389,7 +391,8 @@ public class ProblemView extends BorderPane {
         Alert alert = new Alert(Alert.AlertType.ERROR);
         if (compileError.contains("[OOP_VIOLATION]")) {
             alert.setTitle("Lỗi vi phạm cấu trúc OOP");
-            alert.setHeaderText("❌ KHÔNG ĐẠT CẤU TRÚC HƯỚNG ĐỐI TƯỢNG (CE)\n(Bài làm không được đưa vào chạy test case)");
+            alert.setGraphic(null);
+            alert.setHeaderText("KHÔNG ĐẠT CẤU TRÚC HƯỚNG ĐỐI TƯỢNG (CE)\n(Bài làm không được đưa vào chạy test case)");
         } else {
             alert.setTitle("Lỗi biên dịch");
             alert.setHeaderText("Biên dịch thất bại: " + (verdict != null ? verdict : "CE"));

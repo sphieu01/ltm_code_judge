@@ -263,6 +263,7 @@ public class DashboardView extends BorderPane {
 
     private TableView<Problem> buildProblemTable() {
         TableView<Problem> table = new TableView<>();
+        table.setPlaceholder(new Label("Chưa có bài tập nào."));
         table.getStyleClass().add("table-view");
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
@@ -572,12 +573,21 @@ public class DashboardView extends BorderPane {
 
     public void setProblemsLoading(boolean loading) {
         problemLoadStatus.setText(loading ? "Đang tải bài luyện tập…" : "");
-        problemTable.setPlaceholder(new Label(loading ? "Đang tải bài luyện tập…" : "Chưa có bài tập nào."));
+        problemTable.setPlaceholder(new Label("Chưa có bài tập nào."));
+        TableViewSupport.setLoading(problemTable, loading);
     }
 
     public void showProblemLoadError(String message) {
         problemLoadStatus.setText(message);
-        problemTable.setPlaceholder(new Label(message));
+        TableViewSupport.showLoadError(problemTable, message);
+    }
+
+    public void setAssessmentsLoading(boolean loading) {
+        TableViewSupport.setLoading(assessmentTable, loading);
+    }
+
+    public void showAssessmentLoadError() {
+        TableViewSupport.showLoadError(assessmentTable, "Không thể tải danh sách bài kiểm tra.");
     }
 
     public void setAssessmentMode(boolean active, String title, String classCode,

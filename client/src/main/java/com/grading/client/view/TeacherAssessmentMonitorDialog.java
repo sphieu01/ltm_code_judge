@@ -30,6 +30,9 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
     private final ObservableList<ProgressRow> progress = FXCollections.observableArrayList();
     private final ObservableList<SubmissionRow> submissions = FXCollections.observableArrayList();
     private final ObservableList<AlertRow> alerts = FXCollections.observableArrayList();
+    private TableView<ProgressRow> progressTable;
+    private TableView<SubmissionRow> submissionTable;
+    private TableView<AlertRow> alertTable;
     private Timeline poller;
 
     public TeacherAssessmentMonitorDialog(Stage owner, int assessmentId, String title) {
@@ -71,7 +74,7 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
         summary.setWrapText(true);
         summary.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-padding: 4px;");
 
-        TableView<ProgressRow> progressTable = new TableView<>(progress);
+        progressTable = new TableView<>(progress);
         progressTable.setPlaceholder(new Label("Chưa có sinh viên trong lớp."));
         progressTable.getColumns().addAll(
                 col("Tài khoản", ProgressRow::username, 150),
@@ -82,7 +85,7 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
                 col("Lần nộp cuối", ProgressRow::lastSubmission, 170));
         progressTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
-        TableView<SubmissionRow> submissionTable = new TableView<>(submissions);
+        submissionTable = new TableView<>(submissions);
         submissionTable.setPlaceholder(new Label("Chưa có lượt nộp bài."));
         submissionTable.getColumns().addAll(
                 col("Thời điểm", SubmissionRow::time, 160),
@@ -108,7 +111,7 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
         VBox submissionBox = new VBox(8, viewSource, submissionTable);
         VBox.setVgrow(submissionTable, Priority.ALWAYS);
 
-        TableView<AlertRow> alertTable = new TableView<>(alerts);
+        alertTable = new TableView<>(alerts);
         alertTable.setPlaceholder(new Label("Chưa có cảnh báo gian lận trong bài kiểm tra."));
         alertTable.getColumns().addAll(
                 col("Thời điểm", AlertRow::time, 165),
@@ -158,8 +161,8 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
     }
 
     private void refresh() {
-        if (client == null || !client.isConnected()) return;
-        client.getAssessmentMonitor(assessmentId, response -> Platform.runLater(() -> {
+        if (TableViewSupport.isLoading(progressTable)) return;
+        TableViewSupport.load(java.util.List.of(progressTable, submissionTable, alertTable), client, done -> client.getAssessmentMonitor(assessmentId, done), response -> {
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null
                     || !response.getData().isJsonObject()) {
                 summary.setText(response.getMessage() == null ? "Không thể tải dữ liệu theo dõi." : response.getMessage());
@@ -173,7 +176,7 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
             loadProgress(data.getAsJsonArray("progress"));
             loadSubmissions(data.getAsJsonArray("submissions"));
             loadAlerts(data.getAsJsonArray("alerts"));
-        }));
+        });
     }
 
     private void loadProgress(JsonArray array) {

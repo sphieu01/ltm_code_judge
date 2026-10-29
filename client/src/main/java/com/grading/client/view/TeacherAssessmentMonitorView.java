@@ -36,6 +36,9 @@ public class TeacherAssessmentMonitorView extends BorderPane {
     private final ObservableList<ProgressRow> progress = FXCollections.observableArrayList();
     private final ObservableList<SubmissionRow> submissions = FXCollections.observableArrayList();
     private final ObservableList<AlertRow> alerts = FXCollections.observableArrayList();
+    private TableView<ProgressRow> progressTable;
+    private TableView<SubmissionRow> submissionTable;
+    private TableView<AlertRow> alertTable;
     private Timeline poller;
     private Runnable onBack;
 
@@ -92,7 +95,7 @@ public class TeacherAssessmentMonitorView extends BorderPane {
         summary.setWrapText(true);
         summary.setStyle("-fx-font-size: 13.5px; -fx-font-weight: bold; -fx-padding: 4px;");
 
-        TableView<ProgressRow> progressTable = new TableView<>(progress);
+        progressTable = new TableView<>(progress);
         progressTable.getStyleClass().add("table-view");
         progressTable.setPlaceholder(new Label("Chưa có sinh viên trong lớp."));
         progressTable.getColumns().addAll(
@@ -104,7 +107,7 @@ public class TeacherAssessmentMonitorView extends BorderPane {
                 col("Lần nộp cuối", ProgressRow::lastSubmission, 170));
         progressTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
-        TableView<SubmissionRow> submissionTable = new TableView<>(submissions);
+        submissionTable = new TableView<>(submissions);
         submissionTable.getStyleClass().add("table-view");
         submissionTable.setPlaceholder(new Label("Chưa có lượt nộp bài."));
         submissionTable.getColumns().addAll(
@@ -131,7 +134,7 @@ public class TeacherAssessmentMonitorView extends BorderPane {
         VBox submissionBox = new VBox(8, viewSource, submissionTable);
         VBox.setVgrow(submissionTable, Priority.ALWAYS);
 
-        TableView<AlertRow> alertTable = new TableView<>(alerts);
+        alertTable = new TableView<>(alerts);
         alertTable.getStyleClass().add("table-view");
         alertTable.setPlaceholder(new Label("Chưa có cảnh báo gian lận trong bài kiểm tra."));
         alertTable.getColumns().addAll(
@@ -189,8 +192,8 @@ public class TeacherAssessmentMonitorView extends BorderPane {
     }
 
     private void refresh() {
-        if (client == null || !client.isConnected()) return;
-        client.getAssessmentMonitor(assessmentId, response -> Platform.runLater(() -> {
+        if (TableViewSupport.isLoading(progressTable)) return;
+        TableViewSupport.load(java.util.List.of(progressTable, submissionTable, alertTable), client, done -> client.getAssessmentMonitor(assessmentId, done), response -> {
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null
                     || !response.getData().isJsonObject()) {
                 summary.setText(response.getMessage() == null ? "Không thể tải dữ liệu theo dõi." : response.getMessage());
@@ -205,7 +208,7 @@ public class TeacherAssessmentMonitorView extends BorderPane {
             loadProgress(data.getAsJsonArray("progress"));
             loadSubmissions(data.getAsJsonArray("submissions"));
             loadAlerts(data.getAsJsonArray("alerts"));
-        }));
+        });
     }
 
     private void loadProgress(JsonArray array) {

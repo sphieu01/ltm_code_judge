@@ -181,46 +181,43 @@ public class StudentHistoryView extends BorderPane {
 
     private void loadSubmissions() {
         SocketClient client = SessionManager.getInstance().getSocketClient();
-        if (client == null || !client.isConnected()) return;
 
-        client.getHistory(response -> {
-            Platform.runLater(() -> {
-                if ("SUCCESS".equalsIgnoreCase(response.getStatus()) && response.getData() != null && response.getData().isJsonArray()) {
-                    List<Submission> list = new ArrayList<>();
-                    for (JsonElement el : response.getData().getAsJsonArray()) {
-                        if (!el.isJsonObject()) continue;
-                        JsonObject obj = el.getAsJsonObject();
-                        Submission s = new Submission();
-                        if (obj.has("id")) s.setId(obj.get("id").getAsInt());
-                        if (obj.has("problemId")) s.setProblemId(obj.get("problemId").getAsInt());
-                        if (obj.has("problemTitle") && !obj.get("problemTitle").isJsonNull()) {
-                            s.setProblemTitle(obj.get("problemTitle").getAsString());
-                        }
-                        if (obj.has("language")) s.setLanguage(obj.get("language").getAsString());
-                        if (obj.has("sourceCode") && !obj.get("sourceCode").isJsonNull()) {
-                            s.setSourceCode(obj.get("sourceCode").getAsString());
-                        }
-                        if (obj.has("isZip") && !obj.get("isZip").isJsonNull()) {
-                            s.setZip(obj.get("isZip").getAsBoolean());
-                        }
-                        if (obj.has("verdict")) s.setVerdict(obj.get("verdict").getAsString());
-                        if (obj.has("score")) s.setScore(obj.get("score").getAsInt());
-                        if (obj.has("passedTests")) s.setPassedTests(obj.get("passedTests").getAsInt());
-                        else if (obj.has("passedTestCases")) s.setPassedTests(obj.get("passedTestCases").getAsInt());
-                        if (obj.has("totalTests")) s.setTotalTests(obj.get("totalTests").getAsInt());
-                        else if (obj.has("totalTestCases")) s.setTotalTests(obj.get("totalTestCases").getAsInt());
-                        if (obj.has("execTimeMs")) s.setExecTimeMs(obj.get("execTimeMs").getAsInt());
-                        else if (obj.has("executionTimeMs")) s.setExecTimeMs(obj.get("executionTimeMs").getAsInt());
-                        if (obj.has("memoryUsedKb")) s.setMemoryUsedKb(obj.get("memoryUsedKb").getAsInt());
-                        if (obj.has("submittedAt") && !obj.get("submittedAt").isJsonNull()) s.setSubmittedAt(obj.get("submittedAt").getAsString());
-                        else if (obj.has("createdAt")) s.setSubmittedAt(obj.get("createdAt").getAsString());
-
-                        list.add(s);
+        TableViewSupport.load(table, client, done -> client.getHistory(done), response -> {
+            if ("SUCCESS".equalsIgnoreCase(response.getStatus()) && response.getData() != null && response.getData().isJsonArray()) {
+                List<Submission> list = new ArrayList<>();
+                for (JsonElement el : response.getData().getAsJsonArray()) {
+                    if (!el.isJsonObject()) continue;
+                    JsonObject obj = el.getAsJsonObject();
+                    Submission s = new Submission();
+                    if (obj.has("id")) s.setId(obj.get("id").getAsInt());
+                    if (obj.has("problemId")) s.setProblemId(obj.get("problemId").getAsInt());
+                    if (obj.has("problemTitle") && !obj.get("problemTitle").isJsonNull()) {
+                        s.setProblemTitle(obj.get("problemTitle").getAsString());
                     }
-                    submissions.setAll(list);
-                    totalSubmissionsLabel.setText("Tổng cộng: " + list.size() + " lượt nộp");
+                    if (obj.has("language")) s.setLanguage(obj.get("language").getAsString());
+                    if (obj.has("sourceCode") && !obj.get("sourceCode").isJsonNull()) {
+                        s.setSourceCode(obj.get("sourceCode").getAsString());
+                    }
+                    if (obj.has("isZip") && !obj.get("isZip").isJsonNull()) {
+                        s.setZip(obj.get("isZip").getAsBoolean());
+                    }
+                    if (obj.has("verdict")) s.setVerdict(obj.get("verdict").getAsString());
+                    if (obj.has("score")) s.setScore(obj.get("score").getAsInt());
+                    if (obj.has("passedTests")) s.setPassedTests(obj.get("passedTests").getAsInt());
+                    else if (obj.has("passedTestCases")) s.setPassedTests(obj.get("passedTestCases").getAsInt());
+                    if (obj.has("totalTests")) s.setTotalTests(obj.get("totalTests").getAsInt());
+                    else if (obj.has("totalTestCases")) s.setTotalTests(obj.get("totalTestCases").getAsInt());
+                    if (obj.has("execTimeMs")) s.setExecTimeMs(obj.get("execTimeMs").getAsInt());
+                    else if (obj.has("executionTimeMs")) s.setExecTimeMs(obj.get("executionTimeMs").getAsInt());
+                    if (obj.has("memoryUsedKb")) s.setMemoryUsedKb(obj.get("memoryUsedKb").getAsInt());
+                    if (obj.has("submittedAt") && !obj.get("submittedAt").isJsonNull()) s.setSubmittedAt(obj.get("submittedAt").getAsString());
+                    else if (obj.has("createdAt")) s.setSubmittedAt(obj.get("createdAt").getAsString());
+
+                    list.add(s);
                 }
-            });
+                submissions.setAll(list);
+                totalSubmissionsLabel.setText("Tổng cộng: " + list.size() + " lượt nộp");
+            }
         });
     }
 

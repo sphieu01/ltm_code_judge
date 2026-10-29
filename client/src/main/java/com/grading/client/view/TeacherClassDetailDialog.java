@@ -217,7 +217,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
 
         TableColumn<Problem, String> typeCol = new TableColumn<>("Loại bài");
         typeCol.setCellValueFactory(data -> new SimpleStringProperty(
-                data.getValue().isJavaOop() ? "Java OOP (Soi cấu trúc)" : "I/O Matching (Chuẩn)"
+                data.getValue().isJavaOop() ? "Java OOP (Soi cấu trúc)" : "I/O Matching"
         ));
         typeCol.setMinWidth(160);
         typeCol.setMaxWidth(200);
@@ -310,7 +310,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         for (Problem p : problems) currentProblemIds.add(p.getId());
 
         TableView<Problem> table = new TableView<>(allProblems);
-        table.setPlaceholder(new Label("Đang tải danh sách bài tập..."));
+        table.setPlaceholder(new Label("Không có bài tập nào có thể gán vào lớp."));
 
         TableColumn<Problem, Boolean> checkCol = new TableColumn<>("Chọn");
         checkCol.setMinWidth(70);
@@ -370,7 +370,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         Button assignBtn = (Button) dialog.getDialogPane().lookupButton(assignType);
         assignBtn.getStyleClass().addAll("button", "btn-primary");
 
-        client.getProblems(0, response -> Platform.runLater(() -> {
+        TableViewSupport.load(table, client, done -> client.getProblems(0, done), response -> {
             if ("SUCCESS".equalsIgnoreCase(response.getStatus()) && response.getData() != null) {
                 List<Problem> list = new ArrayList<>();
                 for (JsonElement el : response.getData().getAsJsonArray()) {
@@ -390,7 +390,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
                     table.setPlaceholder(new Label("Tất cả bài tập trong kho đã được gán vào lớp này."));
                 }
             }
-        }));
+        });
 
         dialog.setResultConverter(btn -> {
             if (btn == assignType) {
@@ -708,8 +708,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
     }
 
     private void loadStudents() {
-        if (client == null || !client.isConnected()) return;
-        client.getStudents(creditClass.getId(), response -> Platform.runLater(() -> {
+        TableViewSupport.load(studentTable, client, done -> client.getStudents(creditClass.getId(), done), response -> {
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null
                     || !response.getData().isJsonArray()) {
                 students.clear();
@@ -732,12 +731,11 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
             creditClass.setStudentCount(list.size());
             if (studentsTab != null) studentsTab.setText("Sinh viên (" + list.size() + ")");
             loadStats();
-        }));
+        });
     }
 
     private void loadStats() {
-        if (client == null || !client.isConnected()) return;
-        client.getClassStudentStats(creditClass.getId(), response -> Platform.runLater(() -> {
+        TableViewSupport.load(studentTable, client, done -> client.getClassStudentStats(creditClass.getId(), done), response -> {
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null) return;
             solvedCounts.clear();
             for (JsonElement e : response.getData().getAsJsonArray()) {
@@ -745,7 +743,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
                 if (o.has("studentId") && o.has("solvedCount")) solvedCounts.put(o.get("studentId").getAsInt(), o.get("solvedCount").getAsInt());
             }
             studentTable.refresh();
-        }));
+        });
     }
 
     private void editStudent(User.UserDTO student) {
@@ -771,8 +769,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
     }
 
     private void loadProblems() {
-        if (client == null || !client.isConnected()) return;
-        client.getClassProblems(creditClass.getId(), response -> Platform.runLater(() -> {
+        TableViewSupport.load(List.of(classProblemTable, problemTable), client, done -> client.getClassProblems(creditClass.getId(), done), response -> {
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null) return;
             List<Problem> list = new ArrayList<>();
             for (JsonElement e : response.getData().getAsJsonArray()) {
@@ -790,12 +787,11 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
             if (classProblemsTab != null) {
                 classProblemsTab.setText("Bài tập của lớp (" + list.size() + ")");
             }
-        }));
+        });
     }
 
     private void loadAssessments() {
-        if (client == null || !client.isConnected()) return;
-        client.getClassAssessments(creditClass.getId(), response -> Platform.runLater(() -> {
+        TableViewSupport.load(assessmentTable, client, done -> client.getClassAssessments(creditClass.getId(), done), response -> {
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null
                     || !response.getData().isJsonArray()) {
                 assessments.clear();
@@ -816,7 +812,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
                         value(o, "status")));
             }
             assessments.setAll(rows);
-        }));
+        });
     }
 
     private int intValue(JsonObject object, String field) {
@@ -837,8 +833,8 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
     }
 
     private void loadAlerts() {
-        if (client == null || !client.isConnected() || studentIds.isEmpty()) return;
-        client.getProctorLogs(response -> Platform.runLater(() -> {
+        if (studentIds.isEmpty()) { alerts.clear(); return; }
+        TableViewSupport.load(alertTable, client, done -> client.getProctorLogs(done), response -> {
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null) return;
             List<AlertRow> list = new ArrayList<>();
             for (JsonElement e : response.getData().getAsJsonArray()) {
@@ -855,7 +851,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
                         value(o, "problemTitle")));
             }
             alerts.setAll(list);
-        }));
+        });
     }
 
     private String value(JsonObject object, String field) { return object.has(field) && !object.get(field).isJsonNull() ? object.get(field).getAsString() : "-"; }

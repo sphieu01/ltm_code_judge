@@ -220,7 +220,7 @@ public class TeacherClassDetailView extends BorderPane {
 
         TableColumn<Problem, String> typeCol = new TableColumn<>("Loại bài");
         typeCol.setCellValueFactory(data -> new SimpleStringProperty(
-                data.getValue().isJavaOop() ? "Java OOP (Soi cấu trúc)" : "I/O Matching (Chuẩn)"
+                data.getValue().isJavaOop() ? "Java OOP (Soi cấu trúc)" : "I/O Matching"
         ));
         typeCol.setMinWidth(160);
         typeCol.setMaxWidth(200);
@@ -314,7 +314,7 @@ public class TeacherClassDetailView extends BorderPane {
         for (Problem p : problems) currentProblemIds.add(p.getId());
 
         TableView<Problem> table = new TableView<>(allProblems);
-        table.setPlaceholder(new Label("Đang tải danh sách bài tập..."));
+        table.setPlaceholder(new Label("Không có bài tập nào có thể gán vào lớp."));
 
         TableColumn<Problem, Boolean> checkCol = new TableColumn<>("Chọn");
         checkCol.setMinWidth(70);
@@ -378,7 +378,7 @@ public class TeacherClassDetailView extends BorderPane {
         Button assignBtn = (Button) dialog.getDialogPane().lookupButton(assignType);
         assignBtn.getStyleClass().addAll("button", "btn-primary");
 
-        client.getProblems(0, response -> Platform.runLater(() -> {
+        TableViewSupport.load(table, client, done -> client.getProblems(0, done), response -> {
             if ("SUCCESS".equalsIgnoreCase(response.getStatus()) && response.getData() != null) {
                 List<Problem> list = new ArrayList<>();
                 for (JsonElement el : response.getData().getAsJsonArray()) {
@@ -400,7 +400,7 @@ public class TeacherClassDetailView extends BorderPane {
             } else {
                 table.setPlaceholder(new Label("Không thể tải danh sách bài tập."));
             }
-        }));
+        });
 
         dialog.setResultConverter(btn -> {
             if (btn == assignType) {
@@ -472,7 +472,7 @@ public class TeacherClassDetailView extends BorderPane {
         validation.setStyle("-fx-text-fill: #ef4444; -fx-font-size: 12.5px;");
 
         problemTable = new TableView<>(assessmentProblems);
-        problemTable.setPlaceholder(new Label("Đang tải kho bài tập..."));
+        problemTable.setPlaceholder(new Label("Kho bài tập chưa có bài nào."));
         problemTable.getStyleClass().add("table-view");
         TableColumn<Problem, String> problemTitle = new TableColumn<>("Bài tập");
         problemTitle.setCellValueFactory(new PropertyValueFactory<>("title"));
@@ -754,8 +754,7 @@ public class TeacherClassDetailView extends BorderPane {
     }
 
     public void loadStudents() {
-        if (client == null || !client.isConnected()) return;
-        client.getStudents(creditClass.getId(), response -> Platform.runLater(() -> {
+        TableViewSupport.load(studentTable, client, done -> client.getStudents(creditClass.getId(), done), response -> {
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null
                     || !response.getData().isJsonArray()) {
                 students.clear();
@@ -781,12 +780,11 @@ public class TeacherClassDetailView extends BorderPane {
             creditClass.setStudentCount(list.size());
             if (studentsTab != null) studentsTab.setText("Sinh viên (" + list.size() + ")");
             loadStats();
-        }));
+        });
     }
 
     private void loadStats() {
-        if (client == null || !client.isConnected()) return;
-        client.getClassStudentStats(creditClass.getId(), response -> Platform.runLater(() -> {
+        TableViewSupport.load(studentTable, client, done -> client.getClassStudentStats(creditClass.getId(), done), response -> {
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null) return;
             solvedCounts.clear();
             for (JsonElement e : response.getData().getAsJsonArray()) {
@@ -794,7 +792,7 @@ public class TeacherClassDetailView extends BorderPane {
                 if (o.has("studentId") && o.has("solvedCount")) solvedCounts.put(o.get("studentId").getAsInt(), o.get("solvedCount").getAsInt());
             }
             studentTable.refresh();
-        }));
+        });
     }
 
     private void editStudent(User.UserDTO student) {
@@ -820,8 +818,7 @@ public class TeacherClassDetailView extends BorderPane {
     }
 
     public void loadProblems() {
-        if (client == null || !client.isConnected()) return;
-        client.getClassProblems(creditClass.getId(), response -> Platform.runLater(() -> {
+        TableViewSupport.load(classProblemTable, client, done -> client.getClassProblems(creditClass.getId(), done), response -> {
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null) return;
             List<Problem> list = new ArrayList<>();
             for (JsonElement e : response.getData().getAsJsonArray()) {
@@ -838,12 +835,11 @@ public class TeacherClassDetailView extends BorderPane {
             if (classProblemsTab != null) {
                 classProblemsTab.setText("Bài tập của lớp (" + list.size() + ")");
             }
-        }));
+        });
     }
 
     private void loadAssessmentProblems() {
-        if (client == null || !client.isConnected()) return;
-        client.getProblems(0, response -> Platform.runLater(() -> {
+        TableViewSupport.load(problemTable, client, done -> client.getProblems(0, done), response -> {
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null
                     || !response.getData().isJsonArray()) {
                 problemTable.setPlaceholder(new Label("Không thể tải kho bài tập."));
@@ -856,12 +852,11 @@ public class TeacherClassDetailView extends BorderPane {
             }
             assessmentProblems.setAll(list);
             problemTable.setPlaceholder(new Label("Kho bài tập chưa có bài nào."));
-        }));
+        });
     }
 
     public void loadAssessments() {
-        if (client == null || !client.isConnected()) return;
-        client.getClassAssessments(creditClass.getId(), response -> Platform.runLater(() -> {
+        TableViewSupport.load(assessmentTable, client, done -> client.getClassAssessments(creditClass.getId(), done), response -> {
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null
                     || !response.getData().isJsonArray()) {
                 assessments.clear();
@@ -893,7 +888,7 @@ public class TeacherClassDetailView extends BorderPane {
                         opensAt, closesAt, durationMinutes));
             }
             assessments.setAll(rows);
-        }));
+        });
     }
 
     private int intValue(JsonObject object, String field) {

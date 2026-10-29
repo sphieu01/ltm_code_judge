@@ -102,7 +102,7 @@ public class TeacherEditAssessmentDialog extends Dialog<Boolean> {
         validation.setStyle("-fx-text-fill: #ef4444; -fx-font-size: 12.5px;");
 
         problemTable = new TableView<>(problems);
-        problemTable.setPlaceholder(new Label("Đang tải kho bài tập..."));
+        problemTable.setPlaceholder(new Label("Kho bài tập chưa có bài nào."));
         problemTable.setDisable(true);
         problemTable.getStyleClass().add("table-view");
         TableColumn<Problem, String> colTitle = new TableColumn<>("Bài tập");
@@ -211,11 +211,7 @@ public class TeacherEditAssessmentDialog extends Dialog<Boolean> {
     }
 
     private void loadExistingProblems() {
-        if (client == null || !client.isConnected()) {
-            validation.setText("Chưa kết nối đến máy chủ.");
-            return;
-        }
-        client.getProblems(0, response -> Platform.runLater(() -> {
+        TableViewSupport.load(problemTable, client, done -> client.getProblems(0, done), response -> {
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null
                     || !response.getData().isJsonArray()) {
                 problemTable.setPlaceholder(new Label("Không thể tải kho bài tập. Hãy đóng và mở lại cửa sổ."));
@@ -227,11 +223,11 @@ public class TeacherEditAssessmentDialog extends Dialog<Boolean> {
                 problems.add(gson.fromJson(element, Problem.class));
             }
             loadSelectedProblems();
-        }));
+        });
     }
 
     private void loadSelectedProblems() {
-        client.getAssessmentMonitor(assessment.id(), response -> Platform.runLater(() -> {
+        TableViewSupport.load(problemTable, client, done -> client.getAssessmentMonitor(assessment.id(), done), response -> {
             if ("SUCCESS".equalsIgnoreCase(response.getStatus()) && response.getData() != null && response.getData().isJsonObject()) {
                 var data = response.getData().getAsJsonObject();
                 if (data.has("problems") && data.get("problems").isJsonArray()) {
@@ -247,7 +243,7 @@ public class TeacherEditAssessmentDialog extends Dialog<Boolean> {
                 }
             }
             validation.setText("Không thể tải các bài đã chọn. Hãy đóng và mở lại cửa sổ.");
-        }));
+        });
     }
 
     private HBox dateTimeBox(DatePicker date, Spinner<Integer> hour, Spinner<Integer> minute) {

@@ -58,7 +58,6 @@ public class ProblemView extends BorderPane {
     private HBox uploadDropZone;
     private HBox selectedFileBox;
     private Label selectedFileLabel;
-    private Button changeFileBtn;
     private Button removeFileBtn;
 
     private ProgressBar progressBar;
@@ -472,7 +471,7 @@ public class ProblemView extends BorderPane {
 
         // 1.5. Hiển thị file đã chọn (nếu có)
         selectedFileBox = new HBox(6);
-        selectedFileBox.setAlignment(Pos.CENTER_LEFT);
+        selectedFileBox.setAlignment(Pos.CENTER_RIGHT);
         selectedFileBox.setPrefWidth(BTN_WIDTH);
         selectedFileBox.setMaxWidth(BTN_WIDTH);
         selectedFileBox.setVisible(false);
@@ -480,17 +479,20 @@ public class ProblemView extends BorderPane {
 
         selectedFileLabel = new Label("📄 Chưa chọn file");
         selectedFileLabel.getStyleClass().add("upload-file-pill");
+        selectedFileLabel.setPrefHeight(BTN_HEIGHT);
+        selectedFileLabel.setMinHeight(BTN_HEIGHT);
+        selectedFileLabel.setMaxHeight(BTN_HEIGHT);
+        selectedFileLabel.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(selectedFileLabel, Priority.ALWAYS);
-
-        changeFileBtn = new Button("...");
-        changeFileBtn.getStyleClass().addAll("button", "btn-secondary");
-        changeFileBtn.setStyle("-fx-font-size: 11px; -fx-padding: 2 6 2 6;");
 
         removeFileBtn = new Button("x");
         removeFileBtn.getStyleClass().addAll("button", "btn-secondary");
-        removeFileBtn.setStyle("-fx-font-size: 11px; -fx-padding: 2 6 2 6; -fx-text-fill: -status-wa;");
+        removeFileBtn.setPrefSize(BTN_HEIGHT, BTN_HEIGHT);
+        removeFileBtn.setMinSize(BTN_HEIGHT, BTN_HEIGHT);
+        removeFileBtn.setMaxSize(BTN_HEIGHT, BTN_HEIGHT);
+        removeFileBtn.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-padding: 0; -fx-text-fill: -status-wa; -fx-cursor: hand;");
 
-        selectedFileBox.getChildren().addAll(selectedFileLabel, changeFileBtn, removeFileBtn);
+        selectedFileBox.getChildren().addAll(selectedFileLabel, removeFileBtn);
 
         // 2. Thanh tiến độ khi đang chấm
         progressBar = new ProgressBar(0.0);
@@ -520,7 +522,6 @@ public class ProblemView extends BorderPane {
 
     private void setupFileUploadAndDragDrop() {
         uploadDropZone.setOnMouseClicked(e -> openFileChooser());
-        changeFileBtn.setOnAction(e -> openFileChooser());
         removeFileBtn.setOnAction(e -> clearSelectedFile());
 
         uploadDropZone.setOnDragOver(event -> {

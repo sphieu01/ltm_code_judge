@@ -6,6 +6,9 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.skin.TableViewSkin;
+import javafx.scene.control.skin.VirtualFlow;
+import javafx.scene.control.ScrollBar;
+import javafx.geometry.Orientation;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.geometry.Pos;
@@ -13,7 +16,12 @@ import javafx.application.Platform;
 import com.grading.client.network.SocketClient;
 import com.grading.client.protocol.Response;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /** Shared table sizing and asynchronous loading, empty and failure states. */
 public final class TableViewSupport {
@@ -48,6 +56,10 @@ public final class TableViewSupport {
     }
 
     private static <T> void installSkin(TableView<T> table, StackPane overlay) {
+        // Dispose the old skin before constructing its replacement. Otherwise JavaFX
+        // 17 can leave table headers referencing the disposed skin, failing the next
+        // layout pass and preventing the entire monitor screen from rendering.
+        table.setSkin(null);
         table.setSkin(new TableViewSkin<T>(table) {
             { getChildren().add(overlay); }
             @Override protected void layoutChildren(double x, double y, double w, double h) {
@@ -134,6 +146,58 @@ public final class TableViewSupport {
     }
 
     private TableViewSupport() {
+    }
+
+    /** Refresh live rows while retaining sorting, selection, focus and the visible row/offset. */
+    public static <T, K> void updateItems(TableView<T> table, List<T> rows, Function<T, K> key) {
+        List<T> next = new ArrayList<>(rows);
+        if (table.getComparator() != null) next.sort(table.getComparator());
+        var items = table.getItems();
+        if (items.equals(next)) return; // Unchanged polls must not trigger a table rebuild.
+
+        Map<K, T> previous = new HashMap<>();
+        for (T row : items) previous.put(key.apply(row), row);
+        next.replaceAll(row -> Objects.equals(previous.get(key.apply(row)), row)
+                ? previous.get(key.apply(row)) : row);
+
+        T selected = table.getSelectionModel().getSelectedItem();
+        T focused = table.getFocusModel().getFocusedItem();
+        VirtualFlow<?> flow = table.lookup(".virtual-flow") instanceof VirtualFlow<?> found ? found : null;
+        var firstCell = flow == null ? null : flow.getFirstVisibleCell();
+        int firstIndex = firstCell == null ? -1 : firstCell.getIndex();
+        K anchor = firstIndex >= 0 && firstIndex < items.size() ? key.apply(items.get(firstIndex)) : null;
+        double offset = firstCell == null ? 0 : firstCell.getLayoutY();
+        ScrollBar horizontal = table.lookupAll(".scroll-bar").stream()
+                .filter(ScrollBar.class::isInstance).map(ScrollBar.class::cast)
+                .filter(bar -> bar.getOrientation() == Orientation.HORIZONTAL).findFirst().orElse(null);
+        double horizontalPosition = horizontal == null ? 0 : horizontal.getValue();
+
+        items.setAll(next);
+        table.getSelectionModel().clearSelection();
+        if (selected != null) table.getSelectionModel().select(indexOf(next, key.apply(selected), key));
+        table.getFocusModel().focus(focused == null ? -1 : indexOf(next, key.apply(focused), key));
+
+        if (flow != null && anchor != null) {
+            // Anchor by identity so rows arriving above the viewport do not move the
+            // content being read. Capture at response time, after any user scrolling.
+            int index = indexOf(next, anchor, key);
+            if (index < 0) index = Math.min(firstIndex, next.size() - 1);
+            table.layout();
+            if (index >= 0) {
+                flow.scrollToTop(index);
+                flow.layout();
+                flow.scrollPixels(-offset);
+                flow.layout();
+            }
+        }
+        if (horizontal != null) horizontal.setValue(horizontalPosition);
+    }
+
+    private static <T, K> int indexOf(List<T> rows, K value, Function<T, K> key) {
+        for (int i = 0; i < rows.size(); i++) {
+            if (Objects.equals(value, key.apply(rows.get(i)))) return i;
+        }
+        return -1;
     }
 
     public static void fitHeightToRows(TableView<?> table, int maxVisibleRows) {

@@ -51,6 +51,8 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
     private Tab studentsTab;
     private Tab classProblemsTab;
     private TableView<Problem> classProblemTable;
+    private boolean studentsReady;
+    private boolean classProblemsReady;
 
     public TeacherClassDetailDialog(Stage owner, CreditClass creditClass) {
         this.owner = owner;
@@ -178,7 +180,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
         TableViewSupport.fitHeightToRows(studentTable, 12);
         VBox.setVgrow(studentTable, Priority.NEVER);
         box.getChildren().addAll(importBtn, studentTable);
-        studentsTab = new Tab("Sinh viên (" + creditClass.getStudentCount() + ")", box);
+        studentsTab = new Tab("Sinh viên", box);
         return studentsTab;
     }
 
@@ -258,7 +260,7 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
 
         box.getChildren().addAll(topBar, classProblemTable);
 
-        classProblemsTab = new Tab("Bài tập của lớp (" + problems.size() + ")", box);
+        classProblemsTab = new Tab("Bài tập của lớp", box);
         return classProblemsTab;
     }
 
@@ -708,6 +710,8 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
     }
 
     private void loadStudents() {
+        studentsReady = false;
+        updateClassTabCounts();
         TableViewSupport.load(studentTable, client, done -> client.getStudents(creditClass.getId(), done), response -> {
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null
                     || !response.getData().isJsonArray()) {
@@ -715,7 +719,6 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
                 studentIds.clear();
                 studentTable.setPlaceholder(new Label(response.getMessage() == null
                         ? "Không thể tải danh sách sinh viên." : response.getMessage()));
-                if (studentsTab != null) studentsTab.setText("Sinh viên (0)");
                 return;
             }
             List<User.UserDTO> list = new ArrayList<>(); studentIds.clear();
@@ -729,7 +732,6 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
             }
             students.setAll(list);
             creditClass.setStudentCount(list.size());
-            if (studentsTab != null) studentsTab.setText("Sinh viên (" + list.size() + ")");
             loadStats();
         });
     }
@@ -743,6 +745,8 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
                 if (o.has("studentId") && o.has("solvedCount")) solvedCounts.put(o.get("studentId").getAsInt(), o.get("solvedCount").getAsInt());
             }
             studentTable.refresh();
+            studentsReady = true;
+            updateClassTabCounts();
         });
     }
 
@@ -769,6 +773,8 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
     }
 
     private void loadProblems() {
+        classProblemsReady = false;
+        updateClassTabCounts();
         TableViewSupport.load(List.of(classProblemTable, problemTable), client, done -> client.getClassProblems(creditClass.getId(), done), response -> {
             if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null) return;
             List<Problem> list = new ArrayList<>();
@@ -784,10 +790,15 @@ public class TeacherClassDetailDialog extends Dialog<Void> {
                 list.add(p);
             }
             problems.setAll(list);
-            if (classProblemsTab != null) {
-                classProblemsTab.setText("Bài tập của lớp (" + list.size() + ")");
-            }
+            classProblemsReady = true;
+            updateClassTabCounts();
         });
+    }
+
+    private void updateClassTabCounts() {
+        boolean ready = studentsReady && classProblemsReady;
+        studentsTab.setText(ready ? "Sinh viên (" + students.size() + ")" : "Sinh viên");
+        classProblemsTab.setText(ready ? "Bài tập của lớp (" + problems.size() + ")" : "Bài tập của lớp");
     }
 
     private void loadAssessments() {

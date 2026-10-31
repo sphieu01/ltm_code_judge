@@ -21,6 +21,8 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 
 import java.util.function.Function;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Màn hình giáo viên theo dõi trực tiếp một bài kiểm tra. */
 public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
@@ -34,6 +36,7 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
     private TableView<SubmissionRow> submissionTable;
     private TableView<AlertRow> alertTable;
     private Timeline poller;
+    private final AssessmentMonitorRefresh refresher;
 
     public TeacherAssessmentMonitorDialog(Stage owner, int assessmentId, String title) {
         this.assessmentId = assessmentId;
@@ -41,6 +44,8 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
         setTitle("Theo dõi bài kiểm tra - " + title);
         setResizable(true);
         build();
+        refresher = new AssessmentMonitorRefresh(List.of(progressTable, submissionTable, alertTable),
+                client, assessmentId, summary, this::applyData);
 
         Rectangle2D visualBounds = Screen.getPrimary().getVisualBounds();
         getDialogPane().setPrefSize(visualBounds.getWidth(), visualBounds.getHeight());
@@ -157,67 +162,69 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
     }
 
     private void stopPolling() {
+        refresher.stop();
         if (poller != null) poller.stop();
     }
 
     private void refresh() {
-        if (TableViewSupport.isLoading(progressTable)) return;
-        TableViewSupport.load(java.util.List.of(progressTable, submissionTable, alertTable), client, done -> client.getAssessmentMonitor(assessmentId, done), response -> {
-            if (!"SUCCESS".equalsIgnoreCase(response.getStatus()) || response.getData() == null
-                    || !response.getData().isJsonObject()) {
-                summary.setText(response.getMessage() == null ? "Không thể tải dữ liệu theo dõi." : response.getMessage());
-                return;
-            }
-            JsonObject data = response.getData().getAsJsonObject();
-            String title = value(data, "title");
-            String status = value(data, "status");
-            summary.setText(title + "  •  " + statusText(status) + "  •  "
-                    + format(value(data, "opensAt")) + " → " + format(value(data, "closesAt")));
-            loadProgress(data.getAsJsonArray("progress"));
-            loadSubmissions(data.getAsJsonArray("submissions"));
-            loadAlerts(data.getAsJsonArray("alerts"));
-        });
+        refresher.refresh();
     }
 
-    private void loadProgress(JsonArray array) {
-        progress.clear();
-        if (array == null) return;
+    private void applyData(JsonObject data) {
+        List<ProgressRow> nextProgress = parseProgress(data.getAsJsonArray("progress"));
+        List<SubmissionRow> nextSubmissions = parseSubmissions(data.getAsJsonArray("submissions"));
+        List<AlertRow> nextAlerts = parseAlerts(data.getAsJsonArray("alerts"));
+        String title = value(data, "title");
+        String status = value(data, "status");
+        summary.setText(title + "  •  " + statusText(status) + "  •  "
+                + format(value(data, "opensAt")) + " → " + format(value(data, "closesAt")));
+        TableViewSupport.updateItems(progressTable, nextProgress, ProgressRow::username);
+        TableViewSupport.updateItems(submissionTable, nextSubmissions, SubmissionRow::id);
+        TableViewSupport.updateItems(alertTable, nextAlerts, AlertRow::id);
+    }
+
+    private List<ProgressRow> parseProgress(JsonArray array) {
+        List<ProgressRow> rows = new ArrayList<>();
+        if (array == null) return rows;
         for (JsonElement element : array) {
             JsonObject o = element.getAsJsonObject();
             int submitted = number(o, "submittedCount");
             int total = number(o, "totalProblems");
             boolean started = bool(o, "started");
-            progress.add(new ProgressRow(value(o, "username"), value(o, "fullName"),
+            rows.add(new ProgressRow(value(o, "username"), value(o, "fullName"),
                     submitted + "/" + total, number(o, "solvedCount") + "/" + total,
                     bool(o, "completed") ? "Đã hoàn thành" : started ? "Đang làm" : "Chưa bắt đầu",
                     format(value(o, "lastSubmissionAt"))));
         }
+        return rows;
     }
 
-    private void loadSubmissions(JsonArray array) {
-        submissions.clear();
-        if (array == null) return;
+    private List<SubmissionRow> parseSubmissions(JsonArray array) {
+        List<SubmissionRow> rows = new ArrayList<>();
+        if (array == null) return rows;
         for (JsonElement element : array) {
             JsonObject o = element.getAsJsonObject();
-            submissions.add(new SubmissionRow(format(value(o, "submittedAt")),
+            rows.add(new SubmissionRow(format(value(o, "submittedAt")),
                     value(o, "fullName") + " (" + value(o, "username") + ")",
                     value(o, "problemTitle"), value(o, "language"),
                     com.grading.client.model.Submission.formatVerdict(value(o, "verdict")),
                     String.valueOf(number(o, "score")), number(o, "passedTests") + "/" + number(o, "totalTests"),
-                    value(o, "sourceCode")));
+                    value(o, "sourceCode"), number(o, "submissionId")));
         }
+        return rows;
     }
 
-    private void loadAlerts(JsonArray array) {
-        alerts.clear();
-        if (array == null) return;
+    private List<AlertRow> parseAlerts(JsonArray array) {
+        List<AlertRow> rows = new ArrayList<>();
+        if (array == null) return rows;
         for (JsonElement element : array) {
             JsonObject o = element.getAsJsonObject();
             String event = value(o, "eventType");
             if ("FOCUS_LOSS".equalsIgnoreCase(event)) continue;
-            alerts.add(new AlertRow(value(o, "formattedTime"), value(o, "fullName"), event,
-                    value(o, "detail"), value(o, "severity"), value(o, "problemTitle")));
+            rows.add(new AlertRow(value(o, "formattedTime"), value(o, "fullName"), event,
+                    value(o, "detail"), value(o, "severity"), value(o, "problemTitle"), number(o, "id")));
         }
+        return rows;
     }
 
     private void showSource(SubmissionRow row) {
@@ -264,7 +271,7 @@ public class TeacherAssessmentMonitorDialog extends Dialog<Void> {
     private record ProgressRow(String username, String fullName, String submitted, String solved,
                                String status, String lastSubmission) {}
     private record SubmissionRow(String time, String student, String problem, String language,
-                                 String verdict, String score, String tests, String sourceCode) {}
+                                 String verdict, String score, String tests, String sourceCode, int id) {}
     private record AlertRow(String time, String student, String event, String detail,
-                            String severity, String problem) {}
+                            String severity, String problem, int id) {}
 }

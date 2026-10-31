@@ -96,6 +96,30 @@ public class SecurityScanner {
         // Chặn cố tình tắt JVM server
         addRule(JAVA_RULES, "\\b(System\\.exit)\\s*\\(",
                 "Chặn lệnh tắt tiến trình JVM (System.exit)");
+
+        // ─── 4. Quy tắc phát hiện mã nguồn / chú thích do AI sinh (Generative AI Artifacts) ───
+        addAiDetectionRules(CPP_RULES);
+        addAiDetectionRules(C_RULES);
+        addAiDetectionRules(PYTHON_RULES);
+        addAiDetectionRules(JAVA_RULES);
+    }
+
+    private static void addAiDetectionRules(List<Rule> list) {
+        // Nhãn / tên các mô hình AI phổ biến
+        addRule(list, "(?i)\\b(chatgpt|openai|anthropic|claude|gemini|copilot|github\\s+copilot)\\b",
+                "Phát hiện dấu vết / nhãn mô hình AI (ChatGPT, Claude, Gemini, Copilot)");
+
+        // Câu mở đầu phản hồi đặc trưng của LLM
+        addRule(list, "(?i)\\b(here\\s+is\\s+(the|a)\\s+(complete\\s+|optimized\\s+)?(solution|code|implementation)|here's\\s+(the|a)\\s+(solution|code)|as\\s+an\\s+ai\\s+language\\s+model)\\b",
+                "Phát hiện văn phong mở đầu sinh mã tự động của LLM (Here is the solution...)");
+
+        // Chú thích xác nhận sinh mã bởi AI
+        addRule(list, "(?i)\\b(generated\\s+by\\s+(an\\s+)?(ai|chatgpt|claude|gemini|copilot))\\b",
+                "Phát hiện chú thích sinh mã tự động bởi AI");
+
+        // Ký hiệu khối mã Markdown (`) do sinh viên copy-paste nguyên khối từ chat web
+        addRule(list, "(?m)^\\s*`(java|cpp|c\\+\\+|python|c)?\\s*$",
+                "Phát hiện ký hiệu khối mã Markdown (`) sao chép từ cửa sổ chat AI");
     }
 
     private static void addRule(List<Rule> list, String regex, String reason) {

@@ -62,6 +62,8 @@ test_codes/
 | **Bất kỳ bài nào** | `Test_TLE.java` | `test_tle.cpp` | `test_tle.py` | **TLE** |
 | **Bất kỳ bài nào** | `Test_CE.java` | `test_ce.cpp` | `test_ce.py` | **CE** |
 | **Bất kỳ bài nào** | `Test_RE.java` | `test_re.cpp` | `test_re.py` | **RE** |
+| **Demo AI (ChatGPT/Claude)** | `Test_AI_ChatGPT.java` | `test_ai_chatgpt.cpp` | `test_ai_chatgpt.py` | **SV (Phát hiện AI)** |
+| **Demo Dán Markdown AI** | `Test_AI_Markdown_Fence.java` | - | `test_ai_chatgpt.py` | **SV (Phát hiện AI)** |
 
 ---
 

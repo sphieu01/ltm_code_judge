@@ -12,7 +12,7 @@ REM ============================================================
 REM ─── ĐIỀN THÔNG TIN NEON.DB VÀO ĐÂY ───
 SET DB_URL=jdbc:postgresql://ep-dry-rice-b32otp6l-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
 SET DB_USER=neondb_owner
-SET DB_PASSWORD=npg_GAm7Pd6hCFMt
+IF EXIST env.bat (call env.bat) ELSE (SET DB_PASSWORD=%DB_PASSWORD%)
 REM ─────────────────────────────────────────
 
 REM Cấu hình server (tùy chỉnh nếu cần)
@@ -84,3 +84,4 @@ echo.
 "%JAVA_CMD%" -jar target\code-grading-server-1.0.0.jar
 
 pause
+

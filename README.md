@@ -1,4 +1,4 @@
-# LTM Code Judge — Hệ thống chấm code tự động
+# Code Judge — Hệ thống chấm code tự động
 
 Ứng dụng phục vụ quản lý lớp tín chỉ, giao bài tập và tổ chức bài kiểm tra lập trình. Sinh viên sử dụng **client desktop JavaFX** để nộp bài C, C++, Java hoặc Python; server chấm theo test case và gửi kết quả về qua kết nối TCP. Hệ thống còn có phần kiểm tra cấu trúc Java OOP, lịch sử nộp bài và giám sát bài kiểm tra.
 

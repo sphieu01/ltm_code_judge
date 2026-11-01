@@ -715,6 +715,40 @@ docker compose stop minio
 | Maven không tải được dependency | Kiểm tra Internet/proxy và cấu hình Maven; lần đầu cần tải thư viện. Có thể thử lại cùng lệnh với `-U` sau khi đã sửa lỗi mạng. |
 | MinIO không khả dụng | Kiểm tra service, API cổng 9000 và credential; đây là thành phần tùy chọn. Bật MinIO rồi khởi động lại server để kết nối lại. |
 
+### Chi tiết cách xử lý các lỗi thường gặp khi chạy local
+
+#### 1. Lỗi cổng 9999 bị chiếm dụng (`Address already in use: bind`)
+- **Nguyên nhân**: Một tiến trình Server cũ vẫn đang chạy ngầm trên máy.
+- **Khắc phục**:
+  - Trên Windows: Mở PowerShell và chạy:
+    ```powershell
+    Get-Process -Id (Get-NetTCPConnection -LocalPort 9999).OwningProcess | Stop-Process -Force
+    ```
+    *(Hoặc chạy lại `.\run-server.bat`, script sẽ tự động tìm và kill tiến trình giữ port).*
+  - Trên Linux / macOS:
+    ```bash
+    fuser -k 9999/tcp || lsof -ti :9999 | xargs kill -9
+    ```
+
+#### 2. Lỗi kết nối Database (`Connection refused` hoặc `Failed to initialize pool`)
+- **Nguyên nhân**:
+  - Chưa đặt file `.env` vào đúng thư mục gốc dự án.
+  - Máy tính chưa có kết nối Internet để gọi tới Cloud Database Neon.
+  - Chuỗi kết nối hoặc mật khẩu trong `.env` bị thiếu ký tự.
+- **Khắc phục**: Kiểm tra lại kết nối mạng và đối chiếu các thông số `DB_URL`, `DB_USER`, `DB_PASSWORD` trong `.env`.
+
+#### 3. Lỗi khi chấm bài C++ hoặc Python báo `Compile Error` / `Runtime Error`
+- **Nguyên nhân**: Máy host chưa cài đặt trình biên dịch `gcc`/`g++` hoặc `python` trong biến môi trường `PATH`.
+- **Khắc phục**:
+  - Đối với C/C++: Cài đặt MinGW-w64 (Windows) và thêm thư mục `bin` vào biến môi trường `Path`.
+  - Đối với Python: Cài đặt Python 3 và tích chọn **"Add Python to PATH"** trong quá trình cài đặt.
+  - Sau khi cài, khởi động lại Server để nhận PATH mới.
+  - Hoặc bạn có thể thử nghiệm trước bằng bài nộp **Java**, vì máy đã có sẵn JDK nên luôn biên dịch và chạy được ngay.
+
+#### 4. Client không kết nối được Server
+- Hãy chắc chắn rằng **Server đã được khởi động trước** và đang ở trạng thái `Waiting for connections...`.
+- Đảm bảo trong `client/config.properties` trỏ đúng `server.host=localhost` và `server.port=9999`.
+
 Khi chạy server từ root như tài liệu, log nằm ở **`logs/server.log`**, log cũ quay vòng theo ngày và thư mục bài nộp tạm nằm ở **`temp/judge/`**. Nếu đổi working directory, log được tạo tương đối theo thư mục chạy ứng dụng. Khi báo lỗi cho thành viên khác, gửi lệnh đã chạy và đoạn log liên quan, bỏ mật khẩu/token trước khi chia sẻ.
 
 <a id="structure"></a>

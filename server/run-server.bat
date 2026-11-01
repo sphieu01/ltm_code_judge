@@ -3,21 +3,27 @@ REM ============================================================
 REM run-server.bat — Chạy Code Grading Server
 REM ============================================================
 REM
-REM Cách dùng:
-REM   1. Điền thông tin Neon.db vào các dòng SET bên dưới
-REM   2. Double-click file này để chạy
+REM Server doc cau hinh tu file .env (neu co) hoac Environment Variables.
+REM Mua file mau: xem .env.example
 REM
 REM ============================================================
 
-REM ─── ĐIỀN THÔNG TIN NEON.DB VÀO ĐÂY ───
-SET DB_URL=jdbc:postgresql://ep-dry-rice-b32otp6l-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
-SET DB_USER=neondb_owner
-IF EXIST env.bat (call env.bat) ELSE (SET DB_PASSWORD=%DB_PASSWORD%)
-REM ─────────────────────────────────────────
+REM ─── Load bien tu file .env (neu ton tai) ───
+IF EXIST .env (
+    FOR /F "usebackq eol=# tokens=1* delims==" %%A IN (".env") DO (
+        SET "%%A=%%B"
+    )
+) ELSE IF EXIST ..\.env (
+    FOR /F "usebackq eol=# tokens=1* delims==" %%A IN ("..\.env") DO (
+        SET "%%A=%%B"
+    )
+)
 
-REM Cấu hình server (tùy chỉnh nếu cần)
-SET SERVER_PORT=9999
-SET JUDGE_WORKER_COUNT=4
+REM ─── Gia tri mac dinh neu chua co trong .env ───
+IF "%DB_URL%"=="" SET DB_URL=jdbc:postgresql://ep-dry-rice-b32otp6l-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
+IF "%DB_USER%"=="" SET DB_USER=neondb_owner
+IF "%SERVER_PORT%"=="" SET SERVER_PORT=9999
+IF "%JUDGE_WORKER_COUNT%"=="" SET JUDGE_WORKER_COUNT=4
 
 REM Tự động phát hiện Java
 WHERE java >nul 2>&1
@@ -59,6 +65,12 @@ echo Server Port: %SERVER_PORT%
 echo Judge Workers: %JUDGE_WORKER_COUNT%
 echo.
 
+IF "%DB_PASSWORD%"=="" (
+    echo [CANH BAO] Khong tim thay DB_PASSWORD!
+    echo Vui long tao file .env hoac set bien moi truong DB_PASSWORD.
+    echo.
+)
+
 REM Kiem tra va kill process cu dang giu port 9999
 FOR /F "tokens=5" %%P IN ('netstat -ano ^| findstr ":9999 " ^| findstr "LISTENING"') DO (
     echo [INFO] Port 9999 dang bi giu boi PID %%P, tu dong kill...
@@ -84,4 +96,3 @@ echo.
 "%JAVA_CMD%" -jar target\code-grading-server-1.0.0.jar
 
 pause
-
